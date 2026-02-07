@@ -1,3 +1,4 @@
+/* eslint-disable tailwindcss/no-custom-classname */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +12,8 @@ import { ModelParametersEditor } from "@/components/ui/ModelParametersEditor";
 import { CustomModel, getModelKey, useChainType } from "@/aiParams";
 import { ChainType } from "@/chainFactory";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
+import { AGENT_MAX_ITERATIONS_LIMIT } from "@/constants";
+import { SettingSlider } from "@/components/ui/setting-slider";
 import { getSettings, updateSetting } from "@/settings/model";
 import debounce from "lodash.debounce";
 import {
@@ -222,13 +225,20 @@ export function ChatSettingsPopover() {
           <Settings className="tw-size-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="tw-w-80 tw-rounded-md tw-p-0" align="end">
-        <div className="tw-flex tw-max-h-[500px] tw-flex-col">
+      <PopoverContent className="copilot-settings-popover tw-w-80 tw-rounded-xl tw-p-0" align="end">
+        <div className="copilot-settings-popover__frame tw-flex tw-max-h-[500px] tw-flex-col">
           {/* Header with Reset */}
-          <div className="tw-shrink-0 tw-border-b tw-px-4">
+          <div className="copilot-settings-popover__header tw-shrink-0 tw-border-b tw-px-4">
             <div className="tw-flex tw-items-center tw-justify-between">
-              <h3 className="tw-text-sm tw-font-semibold">Settings</h3>
-              <Button variant="ghost" size="sm" onClick={handleReset} className="tw-h-7 tw-text-xs">
+              <h3 className="copilot-settings-popover__title tw-text-sm tw-font-semibold">
+                Settings
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="copilot-settings-popover__reset tw-h-7 tw-text-xs"
+              >
                 <RotateCcw className="tw-mr-1 tw-size-3" />
                 Reset
               </Button>
@@ -236,29 +246,22 @@ export function ChatSettingsPopover() {
           </div>
 
           {/* Scrollable Content Area */}
-          <ScrollArea className="tw-flex-1 tw-overflow-y-auto">
-            <div className="tw-space-y-3 tw-p-3">
+          <ScrollArea className="copilot-settings-popover__scroll tw-flex-1 tw-overflow-y-auto">
+            <div className="copilot-settings-popover__content tw-space-y-3 tw-p-3">
               {/* Display Toggles */}
-              <div className="tw-space-y-2">
-                <Label className="tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
-                  Display
+              <div className="copilot-settings-section tw-space-y-2">
+                <Label className="copilot-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+                  Quick Toggles
                 </Label>
                 <div className="tw-space-y-1">
-                  <div className="tw-flex tw-items-center tw-justify-between tw-py-1">
-                    <span className="tw-text-sm">Suggested Prompts</span>
-                    <SettingSwitch
-                      checked={settings.showSuggestedPrompts}
-                      onCheckedChange={(v) => updateSetting("showSuggestedPrompts", v)}
-                    />
-                  </div>
-                  <div className="tw-flex tw-items-center tw-justify-between tw-py-1">
+                  <div className="copilot-settings-row tw-flex tw-items-center tw-justify-between tw-py-1">
                     <span className="tw-text-sm">Relevant Notes</span>
                     <SettingSwitch
                       checked={settings.showRelevantNotes}
                       onCheckedChange={(v) => updateSetting("showRelevantNotes", v)}
                     />
                   </div>
-                  <div className="tw-flex tw-items-center tw-justify-between tw-py-1">
+                  <div className="copilot-settings-row tw-flex tw-items-center tw-justify-between tw-py-1">
                     <span className="tw-text-sm">Auto-accept Edits</span>
                     <SettingSwitch
                       checked={settings.autoAcceptEdits}
@@ -267,12 +270,11 @@ export function ChatSettingsPopover() {
                   </div>
                 </div>
               </div>
-
               <Separator />
 
               {/* System Prompt */}
-              <div className="tw-space-y-2">
-                <Label className="tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+              <div className="copilot-settings-section tw-space-y-2">
+                <Label className="copilot-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
                   System Prompt
                 </Label>
                 <div className="tw-flex tw-items-center tw-gap-2">
@@ -303,7 +305,7 @@ export function ChatSettingsPopover() {
                     <ArrowUpRight className="tw-size-4" />
                   </Button>
                 </div>
-                <div className="tw-flex tw-items-center tw-justify-between tw-py-1">
+                <div className="copilot-settings-row tw-flex tw-items-center tw-justify-between tw-py-1">
                   <span className="tw-text-sm">Disable Builtin Prompt</span>
                   <SettingSwitch
                     checked={disableBuiltin}
@@ -354,9 +356,31 @@ export function ChatSettingsPopover() {
 
               <Separator />
 
+              {/* Agent Controls */}
+              <div className="copilot-settings-section tw-space-y-2">
+                <Label className="copilot-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+                  Agent
+                </Label>
+                <div className="tw-space-y-1">
+                  <div className="copilot-settings-row tw-flex tw-items-center tw-justify-between tw-gap-3 tw-py-1">
+                    <span className="tw-text-sm">Max Iterations</span>
+                    <div className="tw-min-w-[160px] tw-flex-1">
+                      <SettingSlider
+                        value={settings.autonomousAgentMaxIterations ?? 8}
+                        onChange={(value) => updateSetting("autonomousAgentMaxIterations", value)}
+                        min={1}
+                        max={AGENT_MAX_ITERATIONS_LIMIT}
+                        step={1}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Separator />
+
               {/* Model Parameters */}
-              <div className="tw-space-y-2">
-                <Label className="tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+              <div className="copilot-settings-section tw-space-y-2">
+                <Label className="copilot-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
                   Model Parameters
                 </Label>
                 <ModelParametersEditor
@@ -371,15 +395,15 @@ export function ChatSettingsPopover() {
               <Separator />
 
               {/* Actions */}
-              <div className="tw-space-y-1">
-                <Label className="tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+              <div className="copilot-settings-section tw-space-y-1">
+                <Label className="copilot-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
                   Actions
                 </Label>
                 {isProjectMode ? (
                   <>
                     <button
                       type="button"
-                      className="hover:tw-bg-accent tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm"
+                      className="copilot-settings-action tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm hover:tw-bg-interactive-hover"
                       onClick={() => reloadCurrentProject()}
                     >
                       <RefreshCw className="tw-size-3.5" />
@@ -387,7 +411,7 @@ export function ChatSettingsPopover() {
                     </button>
                     <button
                       type="button"
-                      className="hover:tw-bg-accent tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm tw-text-error"
+                      className="copilot-settings-action copilot-settings-action--danger tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm tw-text-error hover:tw-bg-interactive-hover"
                       onClick={() => forceRebuildCurrentProjectContext()}
                     >
                       <AlertTriangle className="tw-size-3.5" />
@@ -398,7 +422,7 @@ export function ChatSettingsPopover() {
                   <>
                     <button
                       type="button"
-                      className="hover:tw-bg-accent tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm"
+                      className="copilot-settings-action tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm hover:tw-bg-interactive-hover"
                       onClick={() => refreshVaultIndex()}
                     >
                       <RefreshCw className="tw-size-3.5" />
@@ -406,7 +430,7 @@ export function ChatSettingsPopover() {
                     </button>
                     <button
                       type="button"
-                      className="hover:tw-bg-accent tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm tw-text-error"
+                      className="copilot-settings-action copilot-settings-action--danger tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm tw-text-error hover:tw-bg-interactive-hover"
                       onClick={() => {
                         const modal = new ConfirmModal(
                           app,

@@ -46,7 +46,8 @@ const ChatToolControls: React.FC<ChatToolControlsProps> = ({
   onComposerToggleOff,
   currentChain,
 }) => {
-  const showAutonomousAgent = currentChain !== ChainType.PROJECT_CHAIN;
+  const isProjectMode = currentChain === ChainType.PROJECT_CHAIN;
+  const showAutonomousAgent = true;
 
   const handleAutonomousAgentToggle = () => {
     const newValue = !autonomousAgentToggle;
@@ -85,7 +86,7 @@ const ChatToolControls: React.FC<ChatToolControlsProps> = ({
     <TooltipProvider delayDuration={0}>
       {/* Desktop view - show all icons when container is wide enough */}
       <div className="tw-hidden tw-items-center tw-gap-1.5 @[420px]/chat-input:tw-flex">
-        {/* Autonomous Agent button - only show in Hendrik mode and NOT in Projects mode */}
+        {/* Autonomous Agent button */}
         {showAutonomousAgent && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -102,7 +103,9 @@ const ChatToolControls: React.FC<ChatToolControlsProps> = ({
               </Button>
             </TooltipTrigger>
             <TooltipContent className="tw-px-1 tw-py-0.5">
-              Toggle autonomous agent mode
+              {isProjectMode
+                ? "Toggle autonomous agent mode (project chat)"
+                : "Toggle autonomous agent mode"}
             </TooltipContent>
           </Tooltip>
         )}
@@ -176,7 +179,7 @@ const ChatToolControls: React.FC<ChatToolControlsProps> = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="tw-w-56">
-            {/* Autonomous Agent option - only show in Hendrik mode and NOT in Projects mode */}
+            {/* Autonomous Agent option */}
             {showAutonomousAgent && (
               <DropdownMenuItem
                 onClick={handleAutonomousAgentToggle}

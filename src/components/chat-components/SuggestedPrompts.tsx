@@ -1,15 +1,17 @@
 import { useChainType } from "@/aiParams";
 import { ChainType } from "@/chainFactory";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useChatInput } from "@/context/ChatInputContext";
 import { PlusCircle } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface NotePrompt {
   title: string;
   prompts: string[];
+}
+
+interface SuggestedPromptsProps {
+  title?: string;
+  maxItems?: number;
 }
 
 const SUGGESTED_PROMPTS: Record<string, NotePrompt> = {
@@ -68,10 +70,11 @@ const PROMPT_KEYS: Record<ChainType, Array<keyof typeof SUGGESTED_PROMPTS>> = {
   [ChainType.PROJECT_CHAIN]: ["copilotPlus", "copilotPlus", "copilotPlus"],
 };
 
+/**
+ * Returns a randomized list of prompts for the current chain.
+ */
 function getRandomPrompt(chainType: ChainType = ChainType.TOOL_CALLING_CHAIN) {
   const keys = PROMPT_KEYS[chainType] || PROMPT_KEYS[ChainType.TOOL_CALLING_CHAIN];
-
-  // For repeated keys, shuffle once and take multiple items
   const shuffledPrompts: Record<string, string[]> = {};
 
   return keys.map((key) => {
@@ -85,14 +88,19 @@ function getRandomPrompt(chainType: ChainType = ChainType.TOOL_CALLING_CHAIN) {
   });
 }
 
-export const SuggestedPrompts: React.FC = () => {
+export const SuggestedPrompts: React.FC<SuggestedPromptsProps> = ({
+  title = "Suggested prompts",
+  maxItems = 3,
+}) => {
   const [chainType] = useChainType();
-  const prompts = useMemo(() => getRandomPrompt(chainType), [chainType]);
+  const prompts = useMemo(
+    () => getRandomPrompt(chainType).slice(0, maxItems),
+    [chainType, maxItems]
+  );
   const chatInput = useChatInput();
 
   /**
-   * Inserts the selected prompt directly into the composer using the Lexical command path.
-   * This keeps editor state and external React state synchronized.
+   * Inserts the selected prompt through the shared Lexical insertion pathway.
    */
   const handleAddPromptToChat = useCallback(
     (text: string) => {
@@ -105,42 +113,22 @@ export const SuggestedPrompts: React.FC = () => {
   );
 
   return (
-    <div className="copilot-suggested-prompts tw-flex tw-flex-col tw-gap-4">
-      <Card className="tw-w-full tw-bg-transparent">
-        <CardHeader className="tw-px-2">
-          <CardTitle>Suggested Prompts</CardTitle>
-        </CardHeader>
-        <CardContent className="tw-p-2 tw-pt-0">
-          <div className="tw-flex tw-flex-col tw-gap-2">
-            {prompts.map((prompt, i) => (
-              <div
-                key={i}
-                className="tw-flex tw-justify-between tw-gap-2 tw-rounded-md tw-border tw-border-solid tw-border-border tw-p-2 tw-text-sm"
-              >
-                <div className="tw-flex tw-flex-col tw-gap-1">
-                  <div className="tw-text-muted">{prompt.title}</div>
-                  <div>{prompt.text}</div>
-                </div>
-                <div className="tw-flex tw-h-full tw-items-start">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost2"
-                        size="fit"
-                        className="tw-text-muted"
-                        onClick={() => handleAddPromptToChat(prompt.text)}
-                      >
-                        <PlusCircle className="tw-size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add to Chat</TooltipContent>
-                  </Tooltip>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <section className="copilot-suggested-prompts">
+      <div className="copilot-suggested-prompts__title">{title}</div>
+      <div className="copilot-suggested-prompts__list">
+        {prompts.map((prompt, i) => (
+          <button
+            key={`${prompt.title}-${i}`}
+            type="button"
+            className="copilot-suggested-prompts__pill"
+            onClick={() => handleAddPromptToChat(prompt.text)}
+            title={prompt.text}
+          >
+            <span className="copilot-suggested-prompts__pill-text">{prompt.text}</span>
+            <PlusCircle className="copilot-suggested-prompts__pill-icon" />
+          </button>
+        ))}
+      </div>
+    </section>
   );
 };

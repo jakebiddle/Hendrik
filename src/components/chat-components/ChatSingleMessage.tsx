@@ -1,3 +1,4 @@
+/* eslint-disable tailwindcss/no-custom-classname */
 import { ChatButtons } from "@/components/chat-components/ChatButtons";
 import { SourcesModal } from "@/components/modals/SourcesModal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,7 +36,7 @@ import { processInlineCitations } from "@/LLMProviders/chainRunner/utils/citatio
 import { ChatMessage } from "@/types/message";
 import { cleanMessageForCopy, extractYoutubeVideoId, insertIntoEditor } from "@/utils";
 import { App, Component, MarkdownRenderer, MarkdownView, TFile } from "obsidian";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSettingsValue } from "@/settings/model";
 import {
   buildCopilotCollapsibleDomId,
@@ -179,6 +180,7 @@ interface ChatSingleMessageProps {
   onRegenerate?: () => void;
   onEdit?: (newMessage: string) => void;
   onDelete: () => void;
+  staggerDelayMs?: number;
 }
 
 const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
@@ -188,6 +190,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   onRegenerate,
   onEdit,
   onDelete,
+  staggerDelayMs,
 }) => {
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -538,6 +541,9 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
       // Create a new Component instance if it doesn't exist
       if (!componentRef.current) {
         componentRef.current = new Component();
+        if (typeof (componentRef.current as { load?: () => void }).load === "function") {
+          componentRef.current.load();
+        }
       }
 
       // Capture open states of collapsible sections before re-rendering
@@ -745,7 +751,11 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
       setTimeout(() => {
         // Clean up component
         if (currentComponentRef.current) {
-          currentComponentRef.current.unload();
+          if (
+            typeof (currentComponentRef.current as { unload?: () => void }).unload === "function"
+          ) {
+            currentComponentRef.current.unload();
+          }
           currentComponentRef.current = null;
         }
 
@@ -840,8 +850,21 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
     );
   };
 
+  const isUserMessage = message.sender === USER_SENDER;
+  const hasReasoningState = useMemo(() => {
+    if (isUserMessage) {
+      return false;
+    }
+
+    const parsed = parseReasoningBlock(message.message);
+    return Boolean(parsed?.hasReasoning && parsed.status !== "idle");
+  }, [isUserMessage, message.message]);
+  // Only show assistant meta (sender label) when streaming AND no reasoning block is active.
+  // The reasoning block itself provides the "Thinking" indicator, so we avoid duplication.
+  const showAssistantMeta = !isUserMessage && isStreaming && !hasReasoningState && !reasoningData;
+
   // If editing a user message, replace the entire message container with the inline editor
-  if (isEditing && message.sender === USER_SENDER) {
+  if (isEditing && isUserMessage) {
     return (
       <div className="tw-my-1 tw-flex tw-w-full tw-flex-col">
         <InlineMessageEditor
@@ -856,23 +879,42 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   }
 
   return (
-    <div className="tw-my-1 tw-flex tw-w-full tw-flex-col">
+    <div
+      className={cn(
+        "copilot-chat-message-row tw-my-1 tw-flex tw-w-full",
+        isUserMessage
+          ? "copilot-chat-message-row--user tw-justify-end"
+          : "copilot-chat-message-row--assistant"
+      )}
+      style={staggerDelayMs != null ? { animationDelay: `${staggerDelayMs}ms` } : undefined}
+    >
+      {!isUserMessage && <div className="copilot-chat-message-row__avatar" aria-hidden="true" />}
+
       <div
         className={cn(
-          "tw-group tw-mx-2 tw-rounded-md tw-p-2",
-          message.sender === USER_SENDER && "tw-border tw-border-solid tw-border-border"
+          "copilot-chat-message-card tw-group tw-flex tw-max-w-[92%] tw-flex-col tw-gap-2 tw-rounded-xl tw-px-3 tw-py-2",
+          isUserMessage
+            ? "copilot-chat-message-card--user"
+            : "copilot-chat-message-card--assistant",
+          isStreaming && !isUserMessage && "copilot-chat-message-card--streaming"
         )}
-        style={
-          message.sender === USER_SENDER
-            ? { backgroundColor: "var(--background-modifier-hover)" }
-            : undefined
-        }
       >
         <div className="tw-flex tw-max-w-full tw-flex-col tw-gap-2">
+          {showAssistantMeta && (
+            <div className="copilot-chat-message-card__meta">
+              <span className="copilot-chat-message-card__sender">Hendrik</span>
+              {isStreaming && (
+                <span className="copilot-chat-message-card__typing">
+                  Thinking
+                  <span className="copilot-chat-message-card__typing-pulse" aria-hidden="true" />
+                </span>
+              )}
+            </div>
+          )}
+
           {!isEditing && <MessageContext context={message.context} />}
 
-          {/* Agent Reasoning Block (if present) */}
-          {reasoningData && message.sender !== USER_SENDER && (
+          {reasoningData && !isUserMessage && (
             <AgentReasoningBlock
               status={reasoningData.status}
               elapsedSeconds={reasoningData.elapsedSeconds}
@@ -883,7 +925,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
           <div className="message-content">{renderMessageContent()}</div>
 
-          {message.responseMetadata?.wasTruncated && message.sender !== USER_SENDER && (
+          {message.responseMetadata?.wasTruncated && !isUserMessage && (
             <TokenLimitWarning message={message} app={app} />
           )}
 

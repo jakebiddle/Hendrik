@@ -1,13 +1,9 @@
 {
   "id": "hendrik",
   "name": "Hendrik",
-  "version": "3.1.5",
+  "version": "1.0.0",
   "minAppVersion": "0.15.0",
-  "description": "Your AI assistant: Chat with your second brain, learn faster, work smarter.",
-  "author": "Logan Yang",
-  "authorUrl": "https://twitter.com/logancyang",
-  "fundingUrl": {
-    "Buy Me a Coffee": "https://www.buymeacoffee.com/logancyang",
-    "GitHub Sponsor": "https://github.com/sponsors/logancyang"
-  }
+  "description": "An AI companion for your Obsidian vault, built for control and craft.",
+  "author": "Jake Biddle",
+  "authorUrl": "https://github.com/jakebiddle"
 }

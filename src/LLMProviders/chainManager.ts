@@ -18,6 +18,7 @@ import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { getSystemPrompt } from "@/system-prompts/systemPromptBuilder";
 import { ChatMessage } from "@/types/message";
 import { findCustomModel, isOSeriesModel, isSupportedChain } from "@/utils";
+import { isProjectModelEnabled } from "@/utils/modelUtils";
 import { MissingModelKeyError } from "@/error";
 import {
   ChatPromptTemplate,
@@ -142,10 +143,10 @@ export default class ChainManager {
         }
 
         // Add validation for project mode
-        if (chainType === ChainType.PROJECT_CHAIN && !customModel.projectEnabled) {
+        if (chainType === ChainType.PROJECT_CHAIN && !isProjectModelEnabled(customModel)) {
           // If the model is not project-enabled, find the first project-enabled model
           const projectEnabledModel = getSettings().activeModels.find(
-            (m) => m.enabled && m.projectEnabled
+            (m) => m.enabled && isProjectModelEnabled(m)
           );
           if (projectEnabledModel) {
             customModel = projectEnabledModel;
@@ -296,6 +297,9 @@ export default class ChainManager {
         }
         return new ToolCallingChainRunner(this);
       case ChainType.PROJECT_CHAIN:
+        if (settings.enableAutonomousAgent) {
+          return new AutonomousAgentChainRunner(this);
+        }
         return new ProjectChainRunner(this);
       default:
         throw new Error(`Unsupported chain type: ${chainType}`);
@@ -306,7 +310,7 @@ export default class ChainManager {
     // Handle index refresh if needed
     if (options.refreshIndex) {
       const settings = getSettings();
-      if (settings.enableSemanticSearchV3) {
+      if (settings.enableSemanticSearchV3 && !settings.useSmartConnections) {
         // Use VectorStoreManager for Orama indexing
         const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
         await VectorStoreManager.getInstance().indexVaultToVectorStore(false);

@@ -2,6 +2,7 @@
 // for legacy Orama-based flows and should not be referenced by new code.
 import { CustomError } from "@/error";
 import EmbeddingsManager from "@/LLMProviders/embeddingManager";
+import { logInfo } from "@/logger";
 import { CopilotSettings, getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { Orama } from "@orama/orama";
 import { Notice, Platform, TFile } from "obsidian";
@@ -105,6 +106,12 @@ export default class VectorStoreManager {
   }
 
   public async indexVaultToVectorStore(overwrite?: boolean): Promise<number> {
+    if (getSettings().useSmartConnections) {
+      logInfo(
+        "VectorStoreManager: Skipping local vault indexing because Smart Connections is enabled."
+      );
+      return 0;
+    }
     await this.waitForInitialization();
     if (Platform.isMobile && getSettings().disableIndexOnMobile) {
       new Notice("Indexing is disabled on mobile devices");
@@ -158,6 +165,12 @@ export default class VectorStoreManager {
   }
 
   public async reindexFile(file: TFile): Promise<void> {
+    if (getSettings().useSmartConnections) {
+      logInfo(
+        "VectorStoreManager: Skipping local file reindex because Smart Connections is enabled."
+      );
+      return;
+    }
     await this.waitForInitialization();
     await this.indexOps.reindexFile(file);
   }

@@ -119,8 +119,8 @@ export const CHUNK_SIZE = 6000;
 export const TEXT_WEIGHT = 0.4;
 export const MAX_CHARS_FOR_LOCAL_SEARCH_CONTEXT = 448000;
 export const LLM_TIMEOUT_MS = 30000; // 30 seconds timeout for LLM operations
-export const AGENT_LOOP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes timeout for agent loop
-export const AGENT_MAX_ITERATIONS_LIMIT = 16; // Maximum allowed value for agent iterations setting
+export const AGENT_LOOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes timeout for agent loop
+export const AGENT_MAX_ITERATIONS_LIMIT = 64; // Maximum allowed value for agent iterations setting
 export const LOADING_MESSAGES = {
   DEFAULT: "",
   READING_FILES: "Reading files",
@@ -783,6 +783,12 @@ export const DEFAULT_SETTINGS: CopilotSettings = {
   disableIndexOnMobile: true,
   showSuggestedPrompts: true,
   showRelevantNotes: true,
+  userPreferredName: "",
+  userRoyalTitle: "Your Majesty",
+  responseTone: "conversational",
+  responseLength: "standard",
+  expertiseLevel: "intermediate",
+  preferredLanguage: "",
   numPartitions: 1,
   lexicalSearchRamLimit: 100, // Default 100 MB
   promptUsageTimestamps: {},
@@ -801,13 +807,22 @@ export const DEFAULT_SETTINGS: CopilotSettings = {
   useSmartConnections: false,
   enableLexicalBoosts: true,
   suggestedDefaultCommands: false,
-  autonomousAgentMaxIterations: 4,
+  autonomousAgentMaxIterations: 8,
   autonomousAgentEnabledToolIds: [
     "localSearch",
     "readNote",
+    "findNotesByTitle",
+    "batchReadNotes",
+    "getBacklinks",
     "webSearch",
     "pomodoro",
     "youtubeTranscription",
+    "upsertFrontmatter",
+    "moveOrRenameNote",
+    "createFolder",
+    "renameFolder",
+    "moveFolder",
+    "deleteFolder",
     "writeToFile",
     "replaceInFile",
     "updateMemory",

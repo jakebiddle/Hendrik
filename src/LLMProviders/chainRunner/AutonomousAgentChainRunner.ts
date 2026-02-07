@@ -44,6 +44,7 @@ import {
   QueryExpansionInfo,
 } from "./utils/AgentReasoningState";
 import { QueryExpander } from "@/search/v3/QueryExpander";
+import { isProjectMode } from "@/aiParams";
 
 type AgentSource = {
   title: string;
@@ -130,7 +131,13 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
     const enabledToolIds = new Set(settings.autonomousAgentEnabledToolIds || []);
 
     // Get all enabled tools from registry
-    return registry.getEnabledTools(enabledToolIds, !!this.chainManager.app?.vault);
+    const enabledTools = registry.getEnabledTools(enabledToolIds, !!this.chainManager.app?.vault);
+
+    if (isProjectMode()) {
+      return enabledTools.filter((tool) => tool.name !== "getFileTree");
+    }
+
+    return enabledTools;
   }
 
   /**
@@ -554,8 +561,13 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
       .join("\n");
 
     // Combine system message with tool guidelines
+    const projectModeGuidance = isProjectMode()
+      ? "Project mode note: getFileTree is unavailable. If you need a path, use findNotesByTitle or readNote candidates from context instead."
+      : "";
+
     const systemContent = [
       systemMessage?.content || "",
+      projectModeGuidance,
       toolInstructions ? `\n## Tool Guidelines\n${toolInstructions}` : "",
     ]
       .filter(Boolean)

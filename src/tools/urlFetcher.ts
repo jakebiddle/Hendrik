@@ -1,4 +1,5 @@
 import { logError, logInfo } from "@/logger";
+import { extractYoutubeVideoId } from "@/utils";
 import { requestUrl } from "obsidian";
 import TurndownService from "turndown";
 
@@ -9,6 +10,100 @@ const turndownService = new TurndownService({
 
 // Remove script and style tags entirely
 turndownService.remove(["script", "style", "nav", "footer", "header"]);
+
+const YOUTUBE_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
+
+const RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
+
+interface YouTubeCaptionTrack {
+  baseUrl: string;
+  languageCode?: string;
+  kind?: string;
+}
+
+interface YouTubeCaptionsPayload {
+  playerCaptionsTracklistRenderer?: {
+    captionTracks?: YouTubeCaptionTrack[];
+  };
+}
+
+/**
+ * Decodes common HTML/XML entities and numeric character references.
+ */
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_match, dec: string) => {
+      const code = Number.parseInt(dec, 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => {
+      const code = Number.parseInt(hex, 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    });
+}
+
+/**
+ * Parses YouTube's watch page HTML and returns available caption tracks.
+ */
+function extractCaptionTracksFromWatchHtml(html: string): YouTubeCaptionTrack[] {
+  const splitByCaptions = html.split('"captions":');
+  if (splitByCaptions.length <= 1) {
+    return [];
+  }
+
+  const captionsJson = splitByCaptions[1].split(',"videoDetails')[0].replace(/\n/g, "");
+  try {
+    const captions = JSON.parse(captionsJson) as YouTubeCaptionsPayload;
+    return captions.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Chooses the best caption track with preference for English tracks.
+ */
+function chooseCaptionTrack(captionTracks: YouTubeCaptionTrack[]): YouTubeCaptionTrack | null {
+  if (captionTracks.length === 0) {
+    return null;
+  }
+
+  const preferredLanguageCodes = ["en", "en-US", "en-GB"];
+  for (const languageCode of preferredLanguageCodes) {
+    const exactMatch = captionTracks.find((track) => track.languageCode === languageCode);
+    if (exactMatch) {
+      return exactMatch;
+    }
+  }
+
+  const englishPrefixMatch = captionTracks.find((track) => track.languageCode?.startsWith("en"));
+  if (englishPrefixMatch) {
+    return englishPrefixMatch;
+  }
+
+  return captionTracks[0];
+}
+
+/**
+ * Extracts plain transcript text from YouTube timedtext XML response.
+ */
+function extractTranscriptTextFromXml(xml: string): string {
+  const results = [...xml.matchAll(RE_XML_TRANSCRIPT)];
+  if (results.length === 0) {
+    return "";
+  }
+
+  return results
+    .map((result) => decodeHtmlEntities(result[3]))
+    .join(" ")
+    .trim();
+}
 
 /**
  * Fetch a URL and convert its HTML content to markdown.
@@ -50,7 +145,8 @@ export async function fetchUrlToMarkdown(
 }
 
 /**
- * Fetch a YouTube transcript using the youtube-transcript package.
+ * Fetches a YouTube transcript using Obsidian's requestUrl to avoid renderer CORS limits.
+ * Supports YouTube watch/shorts/embed/youtu.be URLs.
  *
  * @param url - YouTube video URL
  * @returns Object with transcript text
@@ -61,9 +157,59 @@ export async function fetchYoutubeTranscript(
   const start = Date.now();
   try {
     logInfo(`[urlFetcher] Fetching YouTube transcript: ${url}`);
-    const { YoutubeTranscript } = await import("youtube-transcript");
-    const transcript = await YoutubeTranscript.fetchTranscript(url);
-    const text = transcript.map((item: { text: string }) => item.text).join(" ");
+
+    const videoId = extractYoutubeVideoId(url);
+    if (!videoId) {
+      logError(`[urlFetcher] Invalid YouTube URL (missing video id): ${url}`);
+      return { transcript: "", elapsed_time_ms: Date.now() - start };
+    }
+
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const watchPageResponse = await requestUrl({
+      url: watchUrl,
+      method: "GET",
+      headers: {
+        "User-Agent": YOUTUBE_USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      throw: false,
+    });
+
+    if (watchPageResponse.status >= 400) {
+      logError(
+        `[urlFetcher] Failed to load YouTube watch page (${watchPageResponse.status}): ${watchUrl}`
+      );
+      return { transcript: "", elapsed_time_ms: Date.now() - start };
+    }
+
+    const watchHtml = watchPageResponse.text ?? "";
+    const captionTracks = extractCaptionTracksFromWatchHtml(watchHtml);
+    const selectedTrack = chooseCaptionTrack(captionTracks);
+    if (!selectedTrack?.baseUrl) {
+      const elapsed = Date.now() - start;
+      logInfo(`[urlFetcher] No caption tracks found for ${url} (${elapsed}ms)`);
+      return { transcript: "", elapsed_time_ms: elapsed };
+    }
+
+    const transcriptResponse = await requestUrl({
+      url: selectedTrack.baseUrl,
+      method: "GET",
+      headers: {
+        "User-Agent": YOUTUBE_USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      throw: false,
+    });
+
+    if (transcriptResponse.status >= 400) {
+      logError(
+        `[urlFetcher] Failed to load transcript XML (${transcriptResponse.status}): ${selectedTrack.baseUrl}`
+      );
+      return { transcript: "", elapsed_time_ms: Date.now() - start };
+    }
+
+    const transcriptXml = transcriptResponse.text ?? "";
+    const text = extractTranscriptTextFromXml(transcriptXml);
     const elapsed = Date.now() - start;
     logInfo(`[urlFetcher] Got YouTube transcript (${text.length} chars, ${elapsed}ms)`);
     return { transcript: text, elapsed_time_ms: elapsed };

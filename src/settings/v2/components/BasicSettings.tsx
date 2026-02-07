@@ -1,4 +1,5 @@
 import { ChainType } from "@/chainFactory";
+import { ROYAL_TITLE_OPTIONS } from "@/components/chat-components/companionTone";
 import { Button } from "@/components/ui/button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { Input } from "@/components/ui/input";
@@ -272,21 +273,30 @@ export const BasicSettings: React.FC = () => {
               updateSetting("passMarkdownImages", checked);
             }}
           />
-
-          <SettingItem
-            type="switch"
-            title="Suggested Prompts"
-            description="Show suggested prompts in the chat view"
-            checked={settings.showSuggestedPrompts}
-            onCheckedChange={(checked) => updateSetting("showSuggestedPrompts", checked)}
-          />
-
           <SettingItem
             type="switch"
             title="Relevant Notes"
             description="Show relevant notes in the chat view"
             checked={settings.showRelevantNotes}
             onCheckedChange={(checked) => updateSetting("showRelevantNotes", checked)}
+          />
+
+          <SettingItem
+            type="text"
+            title="Preferred Name for Hendrik"
+            description="Optional name Hendrik uses when addressing you."
+            value={settings.userPreferredName}
+            onChange={(value) => updateSetting("userPreferredName", value)}
+            placeholder="Optional"
+          />
+
+          <SettingItem
+            type="select"
+            title="Royal Title"
+            description="How Hendrik addresses you in companion commentary."
+            value={settings.userRoyalTitle}
+            onChange={(value) => updateSetting("userRoyalTitle", value)}
+            options={ROYAL_TITLE_OPTIONS.map((title) => ({ label: title, value: title }))}
           />
         </div>
       </section>

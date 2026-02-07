@@ -1,60 +1,78 @@
-import { Badge } from "@/components/ui/badge";
+/* eslint-disable tailwindcss/no-custom-classname */
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useChatInput } from "@/context/ChatInputContext";
 import { useActiveFile } from "@/hooks/useActiveFile";
 import { cn } from "@/lib/utils";
+import { logWarn } from "@/logger";
 import {
   findRelevantNotes,
   findRelevantNotesViaSC,
-  getSimilarityCategory,
   RelevantNoteEntry,
 } from "@/search/findRelevantNotes";
 import { isSmartConnectionsAvailable } from "@/search/smartConnectionsRetriever";
-import { getSettings } from "@/settings/model";
-import {
-  ArrowRight,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-  FileInput,
-  FileOutput,
-  PlusCircle,
-  RefreshCcw,
-  TriangleAlert,
-} from "lucide-react";
+import { useSettingsValue } from "@/settings/model";
+import { ChevronDown, ChevronUp, PlusCircle, RefreshCcw, TriangleAlert } from "lucide-react";
 import { Notice, TFile } from "obsidian";
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-function useRelevantNotes(refresher: number) {
+interface RelevantNoteRowProps {
+  note: RelevantNoteEntry;
+  onAddToChat: () => void;
+  onNavigateToNote: (openInNewLeaf: boolean) => void;
+}
+
+/**
+ * Formats similarity scores into a compact percentage for row metadata.
+ */
+function formatSimilarityScore(score: number | null | undefined): string {
+  if (score == null) {
+    return "";
+  }
+  return `${(score * 100).toFixed(0)}% match`;
+}
+
+/**
+ * Resolves an empty-state message based on source and index availability.
+ */
+function getEmptyStateMessage(useSmartConnectionsSource: boolean, hasIndex: boolean): string {
+  if (useSmartConnectionsSource) {
+    return "No related notes found from Smart Connections.";
+  }
+
+  if (!hasIndex) {
+    return "No index available. Build index to view related notes.";
+  }
+
+  return "No relevant notes found.";
+}
+
+/**
+ * Loads relevant notes using the active retrieval source.
+ */
+function useRelevantNotes(refresher: number, useSmartConnectionsSource: boolean) {
   const [relevantNotes, setRelevantNotes] = useState<RelevantNoteEntry[]>([]);
   const activeFile = useActiveFile();
 
   useEffect(() => {
     async function fetchNotes() {
-      if (!activeFile?.path) return;
+      if (!activeFile?.path) {
+        setRelevantNotes([]);
+        return;
+      }
 
-      const settings = getSettings();
-
-      // Use Smart Connections when enabled and available
-      if (settings.useSmartConnections && isSmartConnectionsAvailable(app)) {
+      if (useSmartConnectionsSource) {
         try {
           const notes = await findRelevantNotesViaSC({ app, filePath: activeFile.path });
-          if (notes.length > 0) {
-            setRelevantNotes(notes);
-            return;
-          }
-          // SC returned empty – fall through to Orama as backup
+          setRelevantNotes(notes);
+          return;
         } catch (error) {
-          console.warn("Failed to fetch relevant notes via Smart Connections:", error);
-          // Fall through to Orama path
+          logWarn("Failed to fetch relevant notes via Smart Connections", error);
         }
       }
 
-      // Orama path: works when semantic search is enabled and database is available
       try {
         const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
         const db = await VectorStoreManager.getInstance().getDb();
@@ -62,28 +80,33 @@ function useRelevantNotes(refresher: number) {
           setRelevantNotes([]);
           return;
         }
+
         const notes = await findRelevantNotes({ db, filePath: activeFile.path });
         setRelevantNotes(notes);
       } catch (error) {
-        console.warn("Failed to fetch relevant notes:", error);
+        logWarn("Failed to fetch relevant notes", error);
         setRelevantNotes([]);
       }
     }
 
     fetchNotes();
-  }, [activeFile?.path, refresher]);
+  }, [activeFile?.path, refresher, useSmartConnectionsSource]);
 
   return relevantNotes;
 }
 
-function useHasIndex(notePath: string, refresher: number) {
+/**
+ * Determines whether the active note has a local vector index available.
+ */
+function useHasIndex(notePath: string, refresher: number, useSmartConnectionsSource: boolean) {
   const [hasIndex, setHasIndex] = useState(true);
-  useEffect(() => {
-    if (!notePath) return;
 
-    // When using Smart Connections, SC manages its own index
-    const settings = getSettings();
-    if (settings.useSmartConnections && isSmartConnectionsAvailable(app)) {
+  useEffect(() => {
+    if (!notePath) {
+      return;
+    }
+
+    if (useSmartConnectionsSource) {
       setHasIndex(true);
       return;
     }
@@ -99,243 +122,160 @@ function useHasIndex(notePath: string, refresher: number) {
     }
 
     fetchHasIndex();
-  }, [notePath, refresher]);
+  }, [notePath, refresher, useSmartConnectionsSource]);
+
   return hasIndex;
 }
 
-function SimilarityBadge({ score }: { score: number }) {
-  const category = getSimilarityCategory(score);
-  let text = "🔴";
-  if (category === 2) text = "🟠";
-  if (category === 3) text = "🟢";
-  return <span className="tw-text-sm">{text}</span>;
-}
-
-function RelevantNote({
-  note,
-  onAddToChat,
-  onNavigateToNote,
-}: {
-  note: RelevantNoteEntry;
-  onAddToChat: () => void;
-  onNavigateToNote: (openInNewLeaf: boolean) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [fileContent, setFileContent] = useState<string | null>(null);
-
-  const loadContent = useCallback(async () => {
-    if (fileContent) return; // Don't load if we already have content
-    const file = app.vault.getAbstractFileByPath(note.document.path);
-    if (file instanceof TFile) {
-      const content = await app.vault.cachedRead(file);
-
-      // Remove YAML frontmatter if it exists
-      let cleanContent = content;
-      if (content.startsWith("---")) {
-        const endOfFrontmatter = content.indexOf("---", 3);
-        if (endOfFrontmatter !== -1) {
-          cleanContent = content.slice(endOfFrontmatter + 3).trim();
-        }
-      }
-
-      // Take first 1000 characters as preview
-      setFileContent(cleanContent.slice(0, 1000) + (cleanContent.length > 1000 ? "..." : ""));
-    }
-  }, [fileContent, note.document.path]);
-
-  useEffect(() => {
-    if (isOpen) {
-      loadContent();
-    }
-  }, [isOpen, loadContent]);
+/**
+ * Single compact relevant-note row used in expanded mode.
+ */
+function RelevantNoteRow({ note, onAddToChat, onNavigateToNote }: RelevantNoteRowProps) {
+  const similarity = formatSimilarityScore(note.metadata.similarityScore ?? null);
 
   return (
-    <Collapsible
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      className="tw-rounded-md tw-border tw-border-solid tw-border-border"
-    >
-      <div className={cn("tw-flex tw-items-center tw-justify-between tw-gap-2 tw-p-2")}>
-        <Button variant="ghost2" size="icon" className="tw-shrink-0" asChild>
-          <CollapsibleTrigger>
-            <ChevronRight
-              className={cn("tw-size-4 tw-transition-transform tw-duration-200", {
-                "rotate-90": isOpen,
-              })}
-            />
-          </CollapsibleTrigger>
-        </Button>
+    <div className="copilot-relevant-note-row tw-flex tw-flex-col tw-gap-1 tw-rounded-md tw-px-2 tw-py-1.5">
+      <div className="tw-flex tw-items-center tw-gap-2">
+        <button
+          type="button"
+          className="copilot-relevant-note-row__title tw-min-w-0 tw-flex-1 tw-truncate tw-text-left tw-text-sm tw-font-medium tw-text-normal"
+          title={note.document.title}
+          onClick={(event) => {
+            const openInNewLeaf = event.metaKey || event.ctrlKey;
+            onNavigateToNote(openInNewLeaf);
+          }}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              onNavigateToNote(true);
+            }
+          }}
+        >
+          {note.document.title}
+        </button>
 
-        <div className="tw-flex tw-shrink-0 tw-items-center tw-gap-2">
-          <SimilarityBadge score={note.metadata.similarityScore ?? 0} />
-        </div>
-
-        <div className="tw-flex-1 tw-overflow-hidden">
-          <a
-            onClick={(e) => {
-              e.preventDefault();
-              const openInNewLeaf = e.metaKey || e.ctrlKey;
-              onNavigateToNote(openInNewLeaf);
-            }}
-            onAuxClick={(e) => {
-              if (e.button === 1) {
-                // Middle click
-                e.preventDefault();
-                onNavigateToNote(true);
-              }
-            }}
-            className="tw-block tw-w-full tw-truncate tw-text-sm tw-font-bold tw-text-normal"
-            title={note.document.title}
-          >
-            {note.document.title}
-          </a>
-        </div>
+        {similarity && (
+          <span className="copilot-relevant-note-row__score tw-shrink-0 tw-text-[11px] tw-text-muted">
+            {similarity}
+          </span>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost2" size="icon" onClick={onAddToChat} className="tw-shrink-0">
-              <PlusCircle className="tw-size-4" />
+            <Button
+              variant="ghost2"
+              size="icon"
+              onClick={onAddToChat}
+              className="tw-size-6 tw-shrink-0"
+            >
+              <PlusCircle className="tw-size-3.5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Add to Chat</TooltipContent>
         </Tooltip>
       </div>
 
-      <CollapsibleContent>
-        <div className="tw-border-[0px] tw-border-t tw-border-solid tw-border-border tw-px-4 tw-py-2">
-          <div className="tw-whitespace-pre-wrap tw-text-wrap tw-break-all tw-text-xs tw-text-muted tw-opacity-75">
-            {note.document.path}
-          </div>
-          {fileContent && (
-            <div className="tw-overflow-hidden tw-whitespace-pre-wrap tw-border-t tw-border-border tw-pb-4 tw-pt-2 tw-text-xs tw-text-normal">
-              {fileContent}
-            </div>
-          )}
-        </div>
-
-        <div className="tw-flex tw-items-center tw-gap-4 tw-border-[0px] tw-border-t tw-border-solid tw-border-border tw-px-4 tw-py-2 tw-text-xs tw-text-muted">
-          {note.metadata.similarityScore != null && (
-            <div className="tw-flex tw-items-center tw-gap-1">
-              <span>Similarity: {(note.metadata.similarityScore * 100).toFixed(1)}%</span>
-            </div>
-          )}
-          {note.metadata.hasOutgoingLinks && (
-            <div className="tw-flex tw-items-center tw-gap-1">
-              <FileOutput className="tw-size-4" />
-              <span>Outgoing links</span>
-            </div>
-          )}
-          {note.metadata.hasBacklinks && (
-            <div className="tw-flex tw-items-center tw-gap-1">
-              <FileInput className="tw-size-4" />
-              <span>Backlinks</span>
-            </div>
-          )}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-function RelevantNotePopover({
-  note,
-  onAddToChat,
-  onNavigateToNote,
-  children,
-}: {
-  note: RelevantNoteEntry;
-  onAddToChat: () => void;
-  onNavigateToNote: (openInNewLeaf: boolean) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <Popover key={note.document.path}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="tw-flex tw-w-fit tw-min-w-72 tw-max-w-96 tw-flex-col tw-gap-2 tw-overflow-hidden">
-        <span className="tw-text-sm tw-text-normal">{note.document.title}</span>
-        <span className="tw-text-xs tw-text-muted">{note.document.path}</span>
-        <div className="tw-flex tw-gap-2">
-          <button
-            onClick={onAddToChat}
-            className="tw-inline-flex tw-items-center tw-gap-2 tw-border tw-border-solid tw-border-border !tw-bg-transparent !tw-shadow-none hover:!tw-bg-interactive-hover"
-          >
-            Add to Chat <PlusCircle className="tw-size-4" />
-          </button>
-          <button
-            onClick={(e) => {
-              const openInNewLeaf = e.metaKey || e.ctrlKey;
-              onNavigateToNote(openInNewLeaf);
-            }}
-            className="tw-inline-flex tw-items-center tw-gap-2 tw-border tw-border-solid tw-border-border !tw-bg-transparent !tw-shadow-none hover:!tw-bg-interactive-hover"
-          >
-            Navigate to Note <ArrowRight className="tw-size-4" />
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      <div className="copilot-relevant-note-row__path tw-truncate tw-text-xs tw-text-muted">
+        {note.document.path}
+      </div>
+    </div>
   );
 }
 
 export const RelevantNotes = memo(
   ({ className, defaultOpen = false }: { className?: string; defaultOpen?: boolean }) => {
+    const settings = useSettingsValue();
     const [refresher, setRefresher] = useState(0);
     const [isOpen, setIsOpen] = useState(defaultOpen);
-    const relevantNotes = useRelevantNotes(refresher);
     const activeFile = useActiveFile();
     const chatInput = useChatInput();
-    const hasIndex = useHasIndex(activeFile?.path ?? "", refresher);
-    const navigateToNote = (notePath: string, openInNewLeaf = false) => {
+
+    const useSmartConnectionsSource =
+      settings.useSmartConnections && isSmartConnectionsAvailable(app);
+
+    const relevantNotes = useRelevantNotes(refresher, useSmartConnectionsSource);
+    const hasIndex = useHasIndex(activeFile?.path ?? "", refresher, useSmartConnectionsSource);
+
+    const compactNotes = useMemo(() => relevantNotes.slice(0, 3), [relevantNotes]);
+    const visibleRows = useMemo(() => relevantNotes.slice(0, 8), [relevantNotes]);
+
+    /**
+     * Navigates to the selected note and preserves split behavior for modifier keys.
+     */
+    const navigateToNote = useCallback((notePath: string, openInNewLeaf = false) => {
       const file = app.vault.getAbstractFileByPath(notePath);
       if (file instanceof TFile) {
         const leaf = app.workspace.getLeaf(openInNewLeaf);
         leaf.openFile(file);
       }
-    };
-    const addToChat = (prompt: string) => {
-      chatInput.insertTextWithPills(`[[${prompt}]]`, true);
-    };
-    const refreshIndex = async () => {
-      if (activeFile) {
-        const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
-        await VectorStoreManager.getInstance().reindexFile(activeFile);
-        new Notice(`Refreshed index for ${activeFile.basename}`);
-        setRefresher(refresher + 1);
+    }, []);
+
+    /**
+     * Inserts a selected note into the chat composer.
+     */
+    const addToChat = useCallback(
+      (notePath: string) => {
+        chatInput.focusInput();
+        window.requestAnimationFrame(() => {
+          chatInput.insertTextWithPills(`[[${notePath}]]`, true);
+        });
+      },
+      [chatInput]
+    );
+
+    /**
+     * Rebuilds index for the active note when local vector indexing is the source.
+     */
+    const refreshIndex = useCallback(async () => {
+      if (!activeFile || useSmartConnectionsSource) {
+        return;
       }
-    };
-    // Show the UI even without an index so users can build/refresh it
+
+      const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
+      await VectorStoreManager.getInstance().reindexFile(activeFile);
+      new Notice(`Refreshed index for ${activeFile.basename}`);
+      setRefresher((count) => count + 1);
+    }, [activeFile, useSmartConnectionsSource]);
 
     return (
       <div
         className={cn(
-          "tw-w-full tw-border tw-border-solid tw-border-transparent tw-border-b-border tw-pb-2",
+          "copilot-relevant-notes tw-w-full tw-border tw-border-solid tw-border-transparent tw-border-b-border tw-pb-2",
           className
         )}
       >
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <div className="tw-flex tw-items-center tw-justify-between tw-pb-2 tw-pl-1">
-            <div className="tw-flex tw-flex-1 tw-items-center tw-gap-2">
+          <div className="copilot-relevant-notes__header tw-flex tw-items-center tw-justify-between tw-gap-2 tw-pb-2 tw-pl-1">
+            <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-2">
               <span className="tw-font-semibold tw-text-normal">Relevant Notes</span>
+              <span className="copilot-relevant-notes__source tw-shrink-0 tw-text-[10px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-muted">
+                {useSmartConnectionsSource ? "Smart Connections" : "Vault Index"}
+              </span>
               <HelpTooltip
-                content="Relevance is a combination of semantic similarity and links."
+                content="Use matching notes as quick context. Click a title to open it."
                 contentClassName="tw-w-64"
                 buttonClassName="tw-size-4 tw-text-muted"
               />
 
-              {!hasIndex && (
+              {!useSmartConnectionsSource && !hasIndex && (
                 <HelpTooltip content="Note has not been indexed" side="bottom">
                   <TriangleAlert className="tw-size-4 tw-text-warning" />
                 </HelpTooltip>
               )}
             </div>
+
             <div className="tw-flex tw-items-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost2" size="icon" onClick={refreshIndex}>
-                    <RefreshCcw className="tw-size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Reindex Current Note</TooltipContent>
-              </Tooltip>
+              {!useSmartConnectionsSource && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost2" size="icon" onClick={refreshIndex}>
+                      <RefreshCcw className="tw-size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Reindex Current Note</TooltipContent>
+                </Tooltip>
+              )}
+
               {relevantNotes.length > 0 && (
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost2" size="icon">
@@ -349,49 +289,56 @@ export const RelevantNotes = memo(
               )}
             </div>
           </div>
+
           {relevantNotes.length === 0 && (
-            <div className="tw-flex tw-max-h-12 tw-flex-wrap tw-gap-x-2 tw-gap-y-1 tw-overflow-y-hidden tw-px-1">
+            <div className="copilot-relevant-notes__empty tw-px-1">
               <span className="tw-text-xs tw-text-muted">
-                {!hasIndex
-                  ? "No index available. Click refresh to build index."
-                  : "No relevant notes found"}
+                {getEmptyStateMessage(useSmartConnectionsSource, hasIndex)}
               </span>
             </div>
           )}
+
           {!isOpen && relevantNotes.length > 0 && (
-            <div className="tw-flex tw-max-h-6 tw-flex-wrap tw-gap-x-2 tw-gap-y-1 tw-overflow-y-hidden tw-px-1">
-              {relevantNotes.map((note) => (
-                <RelevantNotePopover
+            <div className="copilot-relevant-notes__compact tw-flex tw-flex-wrap tw-gap-1 tw-px-1">
+              {compactNotes.map((note) => (
+                <button
                   key={note.document.path}
-                  note={note}
-                  onAddToChat={() => addToChat(note.document.title)}
-                  onNavigateToNote={(openInNewLeaf: boolean) =>
-                    navigateToNote(note.document.path, openInNewLeaf)
-                  }
+                  type="button"
+                  className="copilot-relevant-notes__chip tw-max-w-40 tw-truncate tw-rounded-full tw-px-2 tw-py-0.5 tw-text-xs"
+                  title={note.document.title}
+                  onClick={(event) => {
+                    const openInNewLeaf = event.metaKey || event.ctrlKey;
+                    navigateToNote(note.document.path, openInNewLeaf);
+                  }}
                 >
-                  <Badge
-                    variant="outline"
-                    key={note.document.path}
-                    className="tw-max-w-40 tw-text-xs tw-text-muted hover:tw-cursor-pointer hover:tw-bg-interactive-hover"
-                  >
-                    <span className="tw-truncate">{note.document.title}</span>
-                  </Badge>
-                </RelevantNotePopover>
+                  {note.document.title}
+                </button>
               ))}
+              {relevantNotes.length > compactNotes.length && (
+                <span className="copilot-relevant-notes__more tw-text-xs tw-text-muted">
+                  +{relevantNotes.length - compactNotes.length} more
+                </span>
+              )}
             </div>
           )}
+
           <CollapsibleContent>
-            <div className="tw-flex tw-max-h-screen tw-flex-col tw-gap-2 tw-overflow-y-auto tw-px-1 tw-py-2">
-              {relevantNotes.map((note) => (
-                <RelevantNote
+            <div className="copilot-relevant-notes__rows tw-flex tw-max-h-60 tw-flex-col tw-gap-1 tw-overflow-y-auto tw-p-1">
+              {visibleRows.map((note) => (
+                <RelevantNoteRow
                   note={note}
                   key={note.document.path}
-                  onAddToChat={() => addToChat(note.document.title)}
+                  onAddToChat={() => addToChat(note.document.path)}
                   onNavigateToNote={(openInNewLeaf: boolean) =>
                     navigateToNote(note.document.path, openInNewLeaf)
                   }
                 />
               ))}
+              {relevantNotes.length > visibleRows.length && (
+                <div className="tw-px-2 tw-pt-1 tw-text-xs tw-text-muted">
+                  +{relevantNotes.length - visibleRows.length} more related notes
+                </div>
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>

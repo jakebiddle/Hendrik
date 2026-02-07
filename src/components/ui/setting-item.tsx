@@ -254,7 +254,7 @@ export function SettingItem(props: SettingItemProps) {
   return (
     <div
       className={cn(
-        "tw-flex tw-flex-col tw-items-start tw-justify-between tw-gap-4 tw-py-4 sm:tw-flex-row sm:tw-items-center",
+        "tw-flex tw-flex-col tw-items-start tw-justify-between tw-gap-4 tw-py-5 sm:tw-flex-row sm:tw-items-center",
         "tw-w-full",
         className
       )}

@@ -1,4 +1,3 @@
-import { Coins } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import React from "react";
 
@@ -7,32 +6,38 @@ interface TokenCounterProps {
 }
 
 /**
- * Displays the context used from the latest AI response.
- * Shows "<1k" for counts under 1000, otherwise shows rounded thousands (e.g., "5k").
- * On hover, shows the exact token count.
- * Returns null if no token count is available.
+ * Converts raw token counts into a compact display string.
+ */
+function formatTokenCount(count: number): string {
+  if (count < 1000) {
+    return "<1k";
+  }
+
+  if (count < 1_000_000) {
+    return `${Math.round(count / 1000)}k`;
+  }
+
+  return `${(count / 1_000_000).toFixed(1)}m`;
+}
+
+/**
+ * Compact inline token counter. Shows formatted count as a subtle label.
  */
 export const TokenCounter: React.FC<TokenCounterProps> = ({ tokenCount }) => {
   if (tokenCount === null || tokenCount === undefined) {
     return null;
   }
 
-  const formatTokenCount = (count: number): string => {
-    if (count < 1000) {
-      return "<1k";
-    }
-    return `${Math.floor(count / 1000)}k`;
-  };
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="tw-flex tw-items-center tw-gap-1 tw-text-sm tw-text-faint">
-          <Coins className="tw-size-3" />
-          <span>{formatTokenCount(tokenCount)}</span>
-        </div>
+        <span className="copilot-token-counter" aria-label="Token usage">
+          {formatTokenCount(tokenCount)} tokens
+        </span>
       </TooltipTrigger>
-      <TooltipContent>Context used: {tokenCount.toLocaleString()}</TooltipContent>
+      <TooltipContent side="bottom">
+        Context used: {tokenCount.toLocaleString()} tokens
+      </TooltipContent>
     </Tooltip>
   );
 };

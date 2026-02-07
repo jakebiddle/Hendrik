@@ -13,6 +13,17 @@ import {
   getTimeRangeMsTool,
 } from "./TimeTools";
 import { ToolDefinition, ToolRegistry } from "./ToolRegistry";
+import {
+  batchReadNotesTool,
+  createFolderTool,
+  deleteFolderTool,
+  findNotesByTitleTool,
+  getBacklinksTool,
+  moveFolderTool,
+  moveOrRenameNoteTool,
+  renameFolderTool,
+  upsertFrontmatterTool,
+} from "./VaultManagementTools";
 import { youtubeTranscriptionTool } from "./YoutubeTools";
 
 /**
@@ -166,6 +177,128 @@ Examples:
     },
   },
   {
+    tool: findNotesByTitleTool,
+    metadata: {
+      id: "findNotesByTitle",
+      displayName: "Find Notes By Title",
+      description: "Find notes quickly by title/path similarity without reading full content",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For findNotesByTitle:
+- Use this when you need to locate likely note paths before reading/editing notes
+- Prefer this over full localSearch when the user names a note title directly
+- After finding candidates, use readNote or moveOrRenameNote with exact paths`,
+    },
+  },
+  {
+    tool: batchReadNotesTool,
+    metadata: {
+      id: "batchReadNotes",
+      displayName: "Batch Read Notes",
+      description: "Read multiple notes in one call with bounded content",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For batchReadNotes:
+- Use this when the user asks to compare/summarize multiple known notes
+- Provide the notePaths list explicitly
+- Keep requests focused and avoid unnecessary large batches`,
+    },
+  },
+  {
+    tool: getBacklinksTool,
+    metadata: {
+      id: "getBacklinks",
+      displayName: "Get Backlinks",
+      description: "List notes linking to a target note",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For getBacklinks:
+- Use this when user asks who references a note, related notes, or inbound links
+- If note path is ambiguous, resolve with findNotesByTitle or getFileTree first`,
+    },
+  },
+  {
+    tool: upsertFrontmatterTool,
+    metadata: {
+      id: "upsertFrontmatter",
+      displayName: "Upsert Frontmatter",
+      description: "Add/update/remove markdown frontmatter fields",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For upsertFrontmatter:
+- Use this for metadata/tag/property updates where full-body edits are unnecessary
+- Use patch for add/update and removeKeys for deletions
+- Do not call writeToFile when frontmatter-only changes are sufficient`,
+    },
+  },
+  {
+    tool: moveOrRenameNoteTool,
+    metadata: {
+      id: "moveOrRenameNote",
+      displayName: "Move Or Rename Note",
+      description: "Move and/or rename a note path",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For moveOrRenameNote:
+- Use for note relocation and rename operations
+- Provide either newPath or (newName and/or targetFolder)
+- Resolve ambiguous note references first before moving`,
+    },
+  },
+  {
+    tool: createFolderTool,
+    metadata: {
+      id: "createFolder",
+      displayName: "Create Folder",
+      description: "Create a folder path, including missing parent folders",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For createFolder:
+- Use when user explicitly asks to create folders
+- Pass vault-relative folderPath only (no leading slash)`,
+    },
+  },
+  {
+    tool: renameFolderTool,
+    metadata: {
+      id: "renameFolder",
+      displayName: "Rename Folder",
+      description: "Rename an existing folder",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For renameFolder:
+- Use when user asks to rename a folder without changing parent location
+- newName must be a single folder name segment`,
+    },
+  },
+  {
+    tool: moveFolderTool,
+    metadata: {
+      id: "moveFolder",
+      displayName: "Move Folder",
+      description: "Move a folder to a new parent folder (optionally rename)",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For moveFolder:
+- Use for folder reorganization requests
+- Provide folderPath and targetParentPath; optional newName can rename during move`,
+    },
+  },
+  {
+    tool: deleteFolderTool,
+    metadata: {
+      id: "deleteFolder",
+      displayName: "Delete Folder",
+      description: "Delete folder contents (recursive supported with explicit confirmation)",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For deleteFolder:
+- This is destructive; only use when user explicitly asks to delete a folder
+- Set confirmation: true only after clear user intent to delete
+- Prefer recursive deletion only when requested or clearly required`,
+    },
+  },
+  {
     tool: writeToFileTool,
     metadata: {
       id: "writeToFile",
@@ -218,7 +351,6 @@ diff: "------- SEARCH\\n## Attendees\\n- John Smith\\n- Jane Doe\\n=======\\n## 
       displayName: "YouTube Transcription",
       description: "Get transcripts from YouTube videos",
       category: "media",
-      isPlusOnly: true,
       requiresUserMessageContent: true,
       customPromptInstructions: `For youtubeTranscription:
 - Use when user provides YouTube URLs

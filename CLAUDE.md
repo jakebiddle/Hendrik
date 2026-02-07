@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Copilot for Obsidian is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) with Obsidian. It provides chat interfaces, autocomplete, semantic search, and various AI-powered commands for note-taking and knowledge management.
+Hendrik The Medieval AI Archivist is an in-vault AI assistant plugin for Obsidian. It integrates various LLM providers (OpenAI, Anthropic, Google, etc.) with Obsidian, providing chat interfaces, semantic search, autonomous tool calling, and various AI-powered commands for note-taking and knowledge management.
 
 ## Development Commands
 
@@ -282,10 +282,12 @@ The TODO.md should be:
 - **APAC**: `apac.anthropic.claude-sonnet-4-5-20250929-v1:0`
 
 ❌ **Avoid regional model IDs** (without prefix): `anthropic.claude-sonnet-4-5-20250929-v1:0`
+
 - These only work in specific regions and often fail
 - Not recommended for production use
 
 **References:**
+
 - [AWS Bedrock Cross-Region Inference](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html)
 - [Supported Inference Profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html)
 

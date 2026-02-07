@@ -172,6 +172,14 @@ export default class CopilotPlugin extends Plugin {
       const iconPath = `${this.manifest.dir}/images/HendrikAI.svg`;
       const iconUrl = this.app.vault.adapter.getResourcePath(iconPath);
       document.documentElement.style.setProperty("--copilot-icon-url", `url("${iconUrl}")`);
+
+      // Static icon colours — always light backdrop with dark ink
+      document.documentElement.style.setProperty("--copilot-icon-backdrop", "#f7f3ec");
+      document.documentElement.style.setProperty("--copilot-icon-ink", "#0e0e0e");
+      document.documentElement.style.setProperty(
+        "--copilot-icon-border",
+        "color-mix(in srgb, #f7f3ec 70%, var(--background-modifier-border) 30%)"
+      );
     }
 
     registerCommands(this, undefined, getSettings());
@@ -782,10 +790,10 @@ export default class CopilotPlugin extends Plugin {
     // First autosave the current chat if the setting is enabled
     await this.autosaveCurrentChat();
 
-    // Check if the Copilot view is already active
+    // Check if any chat UI is already active (sidebar leaf or floating panel)
     const existingView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0];
-    if (!existingView) {
-      // Only activate the view if it's not already open
+    if (!existingView && this.chatEventTargets.size === 0) {
+      // Only activate the sidebar view if no chat UI is open at all
       this.activateView();
     }
 

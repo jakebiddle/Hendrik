@@ -65,6 +65,13 @@ export interface ProjectConfig {
   id: string;
   name: string;
   description?: string;
+  /** Optional landing-page summary (for example AI-generated text). */
+  projectSummary?: string;
+  /** Optional visual customization for the project landing UI. */
+  appearance?: {
+    icon?: string;
+    color?: string;
+  };
   systemPrompt: string;
   projectModelKey: string;
   modelConfigs: {

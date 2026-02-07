@@ -72,3 +72,14 @@ export function isRequiredChatModel(model: CustomModel): boolean {
     (required) => required.name === model.name && required.provider === model.provider
   );
 }
+
+/**
+ * Checks whether a model is allowed in project mode.
+ * Models are project-enabled by default unless explicitly disabled.
+ *
+ * @param model - The model to evaluate
+ * @returns true when the model can be used in projects
+ */
+export function isProjectModelEnabled(model: CustomModel): boolean {
+  return model.projectEnabled !== false;
+}

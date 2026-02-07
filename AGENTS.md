@@ -4,14 +4,15 @@ This file provides guidance to any coding agent when working with code in this r
 
 ## Overview
 
-Copilot for Obsidian is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) with Obsidian. It provides chat interfaces, autocomplete, semantic search, and various AI-powered commands for note-taking and knowledge management.
+Hendrik The Medieval AI Archivist is an in-vault AI assistant plugin for Obsidian. It integrates various LLM providers (OpenAI, Anthropic, Google, etc.) with Obsidian, providing chat interfaces, semantic search, autonomous tool calling, and various AI-powered commands for note-taking and knowledge management.
 
 ## Development Commands
 
 ### Build & Development
 
 - **NEVER RUN `npm run dev`** - The user will handle all builds manually
-- `npm run build` - Production build (TypeScript check + minified output)
+- `npm run build` - Production build (two-step: `build:tailwind` then `build:esbuild` with TypeScript check)
+- `npm run prompt:debug` - Debug prompt payloads sent to LLM
 
 ### Code Quality
 
@@ -51,16 +52,34 @@ Copilot for Obsidian is an AI-powered assistant plugin that integrates various L
    - `ChunkedStorage` for efficient large document handling
    - Event-driven index updates via `IndexManager`
    - Multiple embedding providers support
+   - Smart Connections integration as alternative retriever (`smartConnectionsRetriever.ts`)
 
 4. **UI Component System** (`src/components/`)
 
    - React functional components with Radix UI primitives
    - Tailwind CSS with class variance authority (CVA)
+   - Lexical rich text editor for chat input
    - Modal system for user interactions
-   - Chat interface with streaming support
+   - Chat interface with streaming support (includes floating chat shell)
    - Settings UI with versioned components
 
-5. **Message Management Architecture** (`src/core/`, `src/state/`)
+5. **Chain Runner System** (`src/LLMProviders/chainRunner/`)
+
+   - Strategy pattern with `BaseChainRunner` abstract class
+   - `LLMChainRunner` - basic LLM completion
+   - `ToolCallingChainRunner` - function/tool calling flows
+   - `AutonomousAgentChainRunner` - agentic multi-step execution (max 64 iterations, 10min timeout)
+   - `ProjectChainRunner` - project-scoped operations
+   - `VaultQAChainRunner` - vault Q&A with retrieval
+
+6. **Tool System** (`src/tools/`)
+
+   - `ToolRegistry` + `ToolManager` for tool lifecycle
+   - Built-in tools: `NoteTools`, `SearchTools`, `TagTools`, `TimeTools`, `FileTreeTools`, `ComposerTools`, `VaultManagementTools`, `YouTubeTools`
+   - `ToolResultFormatter` for structured output
+   - `FileParserManager` for multi-format file parsing
+
+7. **Message Management Architecture** (`src/core/`, `src/state/`)
 
    - **MessageRepository** (`src/core/MessageRepository.ts`): Single source of truth for all messages
      - Stores each message once with both `displayText` and `processedText`
@@ -82,17 +101,24 @@ Copilot for Obsidian is an AI-powered assistant plugin that integrates various L
      - Processes message context (notes, URLs, selected text)
      - Reprocesses context when messages are edited
 
-6. **Settings Management**
+8. **Prompt Context Engine** (`src/context/`)
+
+   - Layered context system (`PromptContextEngine.ts`, `PromptContextTypes.ts`)
+   - `LayerToMessagesConverter` converts context layers into LLM messages
+   - `ContextCompactor` (`src/core/ContextCompactor.ts`) for context window management
+
+9. **Settings Management**
 
    - Jotai for atomic settings state management
    - React contexts for feature-specific state
 
-7. **Plugin Integration**
-   - Main entry: `src/main.ts` extends Obsidian Plugin
-   - Command registration system
-   - Event handling for Obsidian lifecycle
-   - Settings persistence and migration
-   - Chat history loading via pending message mechanism
+10. **Plugin Integration**
+
+- Main entry: `src/main.ts` extends Obsidian Plugin
+- Command registration system
+- Event handling for Obsidian lifecycle
+- Settings persistence and migration
+- Chat history loading via pending message mechanism
 
 ### Key Patterns
 
@@ -163,7 +189,7 @@ For detailed architecture diagrams and documentation, see [`MESSAGE_ARCHITECTURE
 
 ### TypeScript
 
-- Strict mode enabled (no implicit any, strict null checks)
+- `noImplicitAny` and `strictNullChecks` enabled (not full `strict` mode)
 - Use absolute imports with `@/` prefix: `import { ChainType } from "@/chainFactory"`
 - Prefer const assertions and type inference where appropriate
 - Use interface for object shapes, type for unions/aliases
@@ -173,7 +199,7 @@ For detailed architecture diagrams and documentation, see [`MESSAGE_ARCHITECTURE
 - Functional components only (no class components)
 - Custom hooks for reusable logic
 - Props interfaces defined above components
-- Avoid inline styles, use Tailwind classes
+- Avoid inline styles, use Tailwind classes with `tw-` prefix (e.g., `tw-flex tw-gap-2`)
 
 ### General
 
@@ -184,13 +210,26 @@ For detailed architecture diagrams and documentation, see [`MESSAGE_ARCHITECTURE
 - Organize imports: React → external → internal
 - **Avoid language-specific lists** (like stopwords or action verbs) - use language-agnostic approaches instead
 
+### CSS & Styling
+
+- **Tailwind prefix**: All Tailwind classes must use the `tw-` prefix (configured in `tailwind.config.js`)
+- Tailwind theme maps to Obsidian CSS variables (e.g., `text-normal` → `var(--text-normal)`)
+- `styles.css` is generated — do NOT edit it directly
+- Source CSS: `src/styles/tailwind.css`
+- `npm run build` compiles Tailwind as part of the build
+- Check `tailwind.config.js` to understand available Tailwind class names
+- Custom CSS goes in `src/styles/tailwind.css` after the `@import` statements
+
 ### Logging
 
 - **NEVER use console.log** - Use the logging utilities instead:
   - `logInfo()` for informational messages
   - `logWarn()` for warnings
   - `logError()` for errors
+  - `logTable()` for tabular data
+  - `logMarkdownBlock()` for markdown-formatted log blocks
 - Import from logger: `import { logInfo, logWarn, logError } from "@/logger"`
+- `logFileManager` provides rolling file-based logging (always active)
 
 ## Testing Guidelines
 
@@ -260,6 +299,18 @@ The TODO.md should be:
 - Rate limiting is implemented for all API calls
 - For technical debt and known issues, see [`TECHDEBT.md`](./docs/TECHDEBT.md)
 - For current development session planning, see [`TODO.md`](./TODO.md)
+
+### AWS Bedrock Usage
+
+**IMPORTANT**: When using AWS Bedrock, always use **cross-region inference profile IDs** for better reliability and availability:
+
+- **Global** (recommended): `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
+  - Routes to any commercial AWS region automatically
+- **US**: `us.anthropic.claude-sonnet-4-5-20250929-v1:0`
+- **EU**: `eu.anthropic.claude-sonnet-4-5-20250929-v1:0`
+- **APAC**: `apac.anthropic.claude-sonnet-4-5-20250929-v1:0`
+
+**Avoid regional model IDs** (without prefix like `anthropic.claude-sonnet-4-5-20250929-v1:0`) — these only work in specific regions and often fail.
 
 ### Obsidian Plugin Environment
 

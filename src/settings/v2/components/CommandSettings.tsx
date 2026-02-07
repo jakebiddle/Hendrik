@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { useCustomCommands } from "@/commands/state";
 import { MobileCard, MobileCardDropdownAction } from "@/components/ui/mobile-card";
-import { Copy, GripVertical, Lightbulb, PenLine, Plus, Trash2 } from "lucide-react";
+import { Copy, GripVertical, Lightbulb, List, PenLine, Plus, Settings, Trash2 } from "lucide-react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -47,6 +47,8 @@ import { generateDefaultCommands } from "@/commands/migrator";
 import { CustomCommand } from "@/commands/type";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { SettingItem } from "@/components/ui/setting-item";
+import { CommandExplainer } from "@/settings/v2/components/CommandExplainer";
+import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 import { Notice } from "obsidian";
 
 const MobileCommandCard: React.FC<{
@@ -392,17 +394,17 @@ export const CommandSettings: React.FC = () => {
   );
 
   return (
-    <div className="tw-space-y-4" ref={containerRef}>
-      <section>
-        <div className="tw-mb-4 tw-flex tw-flex-col tw-gap-2">
-          <div className="tw-text-xl tw-font-bold">Custom Commands</div>
-          <div className="tw-text-sm tw-text-muted">
-            Custom commands are preset prompts that you can trigger in the editor by right-clicking
-            and selecting them from the context menu or by using a <code>/</code> command in the
-            chat to load them into your chat input.
-          </div>
-        </div>
+    <div className="tw-space-y-6" ref={containerRef}>
+      {/* Explainer */}
+      <CommandExplainer />
 
+      {/* Configuration */}
+      <SettingsSection
+        icon={<Settings className="tw-size-4" />}
+        title="Configuration"
+        description="Where commands are stored and how they behave"
+        accentColor="var(--color-orange)"
+      >
         <SettingItem
           type="text"
           title="Custom Prompts Folder Name"
@@ -435,130 +437,133 @@ export const CommandSettings: React.FC = () => {
             { label: "Manual", value: PromptSortStrategy.MANUAL },
           ]}
         />
+      </SettingsSection>
 
-        <div className="tw-mb-4 tw-flex tw-items-start tw-gap-2 tw-rounded-md tw-border tw-border-solid tw-border-border tw-p-4 tw-text-muted">
-          <Lightbulb className="tw-size-5" />{" "}
+      {/* Your Commands */}
+      <SettingsSection
+        icon={<List className="tw-size-4" />}
+        title="Your Commands"
+        description="Manage your custom command library"
+        accentColor="var(--color-green)"
+      >
+        <div className="tw-flex tw-items-start tw-gap-2 tw-rounded-md tw-border tw-border-solid tw-border-border tw-p-3 tw-text-xs tw-text-muted">
+          <Lightbulb className="tw-mt-0.5 tw-size-4 tw-shrink-0" />
           <div>
-            Commands are automatically loaded from .md files in your custom prompts folder{" "}
-            <strong>{settings.customPromptsFolder}</strong>. Modifying the files will also update
-            the command settings.
+            Commands are automatically loaded from <code>.md</code> files in{" "}
+            <strong>{settings.customPromptsFolder}</strong>. Editing the files updates the commands.
           </div>
         </div>
 
-        <div className="tw-flex tw-flex-col tw-gap-4">
-          <div className="tw-flex tw-w-full tw-justify-between tw-gap-2 md:tw-justify-end">
-            <div>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  new ConfirmModal(
-                    app,
-                    generateDefaultCommands,
-                    "This will add default commands to your custom prompts folder. Do you want to continue?",
-                    "Generate Default Commands"
-                  ).open()
+        <div className="tw-flex tw-w-full tw-justify-between tw-gap-2 md:tw-justify-end">
+          <Button
+            variant="secondary"
+            onClick={() =>
+              new ConfirmModal(
+                app,
+                generateDefaultCommands,
+                "This will add default commands to your custom prompts folder. Do you want to continue?",
+                "Generate Default Commands"
+              ).open()
+            }
+          >
+            Generate Default
+          </Button>
+          <Button
+            variant="default"
+            className="tw-gap-2"
+            onClick={() => {
+              const newCommand: CustomCommand = {
+                ...EMPTY_COMMAND,
+              };
+              const modal = new CustomCommandSettingsModal(
+                app,
+                commands,
+                newCommand,
+                async (updatedCommand) => {
+                  await handleCreate(updatedCommand);
                 }
-              >
-                Generate Default
-              </Button>
-            </div>
-            <Button
-              variant="default"
-              className="tw-gap-2"
-              onClick={() => {
-                const newCommand: CustomCommand = {
-                  ...EMPTY_COMMAND,
-                };
-                const modal = new CustomCommandSettingsModal(
-                  app,
-                  commands,
-                  newCommand,
-                  async (updatedCommand) => {
-                    await handleCreate(updatedCommand);
-                  }
-                );
-                modal.open();
-              }}
-            >
-              <Plus className="tw-size-2 md:tw-size-4" />
-              Add Cmd
-            </Button>
-          </div>
-
-          {/* Desktop view */}
-          <div className="tw-hidden md:tw-block">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="tw-w-10"></TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="tw-w-24 tw-text-center">
-                      <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
-                        In Menu
-                        <HelpTooltip
-                          content={
-                            <div className="tw-max-w-xs tw-text-xs">
-                              If enabled, the command will be available in the context menu when you
-                              right-click in the editor.
-                            </div>
-                          }
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="tw-w-28 tw-text-center">
-                      <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
-                        Slash Cmd
-                        <HelpTooltip
-                          content={
-                            <div className="tw-max-w-xs tw-text-xs">
-                              If enabled, the command will be available as a slash command in the
-                              chat.
-                            </div>
-                          }
-                        />
-                      </div>
-                    </TableHead>
-                    <TableHead className="tw-w-32 tw-text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <SortableContext
-                  items={commands.map((command) => command.title)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <TableBody>
-                    {commands.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="tw-py-8 tw-text-center tw-text-muted">
-                          No custom prompt files found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      commands.map((command) => (
-                        <SortableTableRow
-                          key={command.title}
-                          command={command}
-                          commands={commands}
-                          onUpdate={handleUpdate}
-                          onRemove={handleRemove}
-                          onCopy={handleCopy}
-                        />
-                      ))
-                    )}
-                  </TableBody>
-                </SortableContext>
-              </Table>
-            </DndContext>
-          </div>
-
-          {/* Mobile view */}
-          {renderMobileView()}
+              );
+              modal.open();
+            }}
+          >
+            <Plus className="tw-size-2 md:tw-size-4" />
+            Add Cmd
+          </Button>
         </div>
-      </section>
+
+        {/* Desktop view */}
+        <div className="tw-hidden md:tw-block">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="tw-w-10"></TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="tw-w-24 tw-text-center">
+                    <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
+                      In Menu
+                      <HelpTooltip
+                        content={
+                          <div className="tw-max-w-xs tw-text-xs">
+                            If enabled, the command will be available in the context menu when you
+                            right-click in the editor.
+                          </div>
+                        }
+                      />
+                    </div>
+                  </TableHead>
+                  <TableHead className="tw-w-28 tw-text-center">
+                    <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
+                      Slash Cmd
+                      <HelpTooltip
+                        content={
+                          <div className="tw-max-w-xs tw-text-xs">
+                            If enabled, the command will be available as a slash command in the
+                            chat.
+                          </div>
+                        }
+                      />
+                    </div>
+                  </TableHead>
+                  <TableHead className="tw-w-32 tw-text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <SortableContext
+                items={commands.map((command) => command.title)}
+                strategy={verticalListSortingStrategy}
+              >
+                <TableBody>
+                  {commands.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="tw-py-8 tw-text-center tw-text-muted">
+                        No custom prompt files found.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    commands.map((command) => (
+                      <SortableTableRow
+                        key={command.title}
+                        command={command}
+                        commands={commands}
+                        onUpdate={handleUpdate}
+                        onRemove={handleRemove}
+                        onCopy={handleCopy}
+                      />
+                    ))
+                  )}
+                </TableBody>
+              </SortableContext>
+            </Table>
+          </DndContext>
+        </div>
+
+        {/* Mobile view */}
+        {renderMobileView()}
+      </SettingsSection>
     </div>
   );
 };

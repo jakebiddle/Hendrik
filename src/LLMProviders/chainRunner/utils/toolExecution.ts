@@ -151,6 +151,15 @@ export function getToolDisplayName(toolName: string): string {
     startPomodoro: "pomodoro timer",
     pomodoroTool: "pomodoro timer",
     youtubeTranscription: "YouTube transcription",
+    findNotesByTitle: "title search",
+    batchReadNotes: "batch note reader",
+    getBacklinks: "backlink inspector",
+    upsertFrontmatter: "frontmatter editor",
+    moveOrRenameNote: "note mover",
+    createFolder: "folder manager",
+    renameFolder: "folder manager",
+    moveFolder: "folder manager",
+    deleteFolder: "folder manager",
     indexVault: "vault indexing",
     indexTool: "index",
     writeToFile: "file editor",
@@ -189,6 +198,9 @@ export function getToolEmoji(toolName: string): string {
 export function getToolConfirmtionMessage(toolName: string, toolArgs?: any): string | null {
   if (toolName == "writeToFile" || toolName == "replaceInFile") {
     return "Accept / reject in the Preview";
+  }
+  if (toolName === "deleteFolder") {
+    return "Destructive action (requires confirmation)";
   }
 
   // Display salient terms for lexical search

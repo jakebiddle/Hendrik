@@ -58,6 +58,7 @@ export default class ProjectManager {
       const settings = getSettings();
       const shouldAutoIndex =
         settings.enableSemanticSearchV3 &&
+        !settings.useSmartConnections &&
         settings.indexVaultToVectorStore === VAULT_VECTOR_STORE_STRATEGY.ON_MODE_SWITCH &&
         getChainType() === ChainType.TOOL_CALLING_CHAIN;
       await this.getCurrentChainManager().createChainWithNewModel({
@@ -259,9 +260,13 @@ export default class ProjectManager {
       const contextCache = await this.projectContextCache.getOrInitializeCache(project);
 
       const projectAllFiles = this.getProjectAllFiles(project);
+      const trackableProjectFiles = projectAllFiles.filter(
+        (file) =>
+          file.extension === "md" || this.fileParserManager.supportsExtension(file.extension)
+      );
 
-      // Pre-count all items that need to be processed
-      this.loadTracker.preComputeAllItems(project, projectAllFiles);
+      // Pre-count only items that can actually be processed to avoid stale/incomplete progress.
+      this.loadTracker.preComputeAllItems(project, trackableProjectFiles);
       this.loadTracker.markAllCachedItemsAsSuccess(project, contextCache, projectAllFiles);
 
       const [updatedContextCacheAfterSources] = await Promise.all([

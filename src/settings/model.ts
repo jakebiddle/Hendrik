@@ -8,6 +8,7 @@ import {
   AGENT_MAX_ITERATIONS_LIMIT,
   BUILTIN_CHAT_MODELS,
   BUILTIN_EMBEDDING_MODELS,
+  ChatModelProviders,
   COPILOT_FOLDER_ROOT,
   DEFAULT_OPEN_AREA,
   DEFAULT_QA_EXCLUSIONS_SETTING,
@@ -15,6 +16,7 @@ import {
   EmbeddingModelProviders,
   SEND_SHORTCUT,
 } from "@/constants";
+import { isLegacyCopilotPlusModelIdentifier } from "@/settings/providerModels";
 
 /**
  * We used to store commands in the settings file with the following interface.
@@ -115,6 +117,18 @@ export interface CopilotSettings {
   disableIndexOnMobile: boolean;
   showSuggestedPrompts: boolean;
   showRelevantNotes: boolean;
+  /** Preferred name used by Hendrik for companion addressing */
+  userPreferredName: string;
+  /** Royal-style title used by Hendrik when addressing the user */
+  userRoyalTitle: string;
+  /** Response tone preference: formal, conversational, concise, detailed */
+  responseTone: string;
+  /** Response length preference: brief, standard, thorough */
+  responseLength: string;
+  /** User expertise level: beginner, intermediate, expert */
+  expertiseLevel: string;
+  /** Preferred language for responses (e.g. "English", "Spanish") */
+  preferredLanguage: string;
   numPartitions: number;
   defaultConversationNoteName: string;
   inlineEditCommands: LegacyCommandSettings[] | undefined;
@@ -282,6 +296,58 @@ export function useSettingsValue(): Readonly<CopilotSettings> {
 }
 
 /**
+ * Checks whether the provided model matches a removed legacy Copilot Plus variant.
+ *
+ * @param model - Model to evaluate.
+ * @returns True when the model should be removed from persisted settings.
+ */
+function isRemovedLegacyCopilotPlusModel(model: CustomModel): boolean {
+  const provider = typeof model.provider === "string" ? model.provider.trim().toLowerCase() : "";
+
+  if (provider === "copilot-plus") {
+    return true;
+  }
+
+  if (provider !== ChatModelProviders.GITHUB_COPILOT) {
+    return false;
+  }
+
+  return isLegacyCopilotPlusModelIdentifier(model.name);
+}
+
+/**
+ * Checks whether a model key exists in a model collection.
+ *
+ * @param models - Candidate models.
+ * @param modelKey - Model key in `name|provider` format.
+ * @returns True when the model key is present in the list.
+ */
+function hasModelKey(models: ReadonlyArray<CustomModel>, modelKey: string): boolean {
+  const [modelName, provider] = modelKey.split("|");
+  return models.some((model) => model.name === modelName && model.provider === provider);
+}
+
+/**
+ * Computes a safe fallback default model key from available models.
+ *
+ * @param models - Candidate models after sanitization.
+ * @returns A valid model key, or the global default if no models remain.
+ */
+function getFallbackDefaultModelKey(models: ReadonlyArray<CustomModel>): string {
+  const firstEnabledModel = models.find((model) => model.enabled);
+  if (firstEnabledModel) {
+    return getModelKeyFromModel(firstEnabledModel);
+  }
+
+  const firstModel = models[0];
+  if (firstModel) {
+    return getModelKeyFromModel(firstModel);
+  }
+
+  return DEFAULT_SETTINGS.defaultModelKey;
+}
+
+/**
  * Sanitizes the settings to ensure they are valid.
  * Note: This will be better handled by Zod in the future.
  */
@@ -310,6 +376,15 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
   }
 
   const sanitizedSettings: CopilotSettings = { ...settingsToSanitize };
+
+  // Remove legacy Copilot Plus variants from persisted active model lists.
+  if (Array.isArray(settingsToSanitize.activeModels)) {
+    sanitizedSettings.activeModels = settingsToSanitize.activeModels.filter(
+      (model) => !isRemovedLegacyCopilotPlusModel(model)
+    );
+  } else {
+    sanitizedSettings.activeModels = BUILTIN_CHAT_MODELS.map((model) => ({ ...model }));
+  }
 
   // Stuff in settings are string even when the interface has number type!
   const temperature = Number(settingsToSanitize.temperature);
@@ -379,7 +454,7 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
   const autonomousAgentMaxIterations = Number(settingsToSanitize.autonomousAgentMaxIterations);
   if (
     isNaN(autonomousAgentMaxIterations) ||
-    autonomousAgentMaxIterations < 4 ||
+    autonomousAgentMaxIterations < 1 ||
     autonomousAgentMaxIterations > AGENT_MAX_ITERATIONS_LIMIT
   ) {
     sanitizedSettings.autonomousAgentMaxIterations = DEFAULT_SETTINGS.autonomousAgentMaxIterations;
@@ -391,6 +466,17 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
   if (!Array.isArray(sanitizedSettings.autonomousAgentEnabledToolIds)) {
     sanitizedSettings.autonomousAgentEnabledToolIds =
       DEFAULT_SETTINGS.autonomousAgentEnabledToolIds;
+  } else {
+    const normalizedEnabledToolIds = sanitizedSettings.autonomousAgentEnabledToolIds
+      .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+      .map((id) => id.trim());
+
+    // Keep all default-enabled tools available to the autonomous agent.
+    const mergedEnabledToolIds = new Set<string>([
+      ...normalizedEnabledToolIds,
+      ...DEFAULT_SETTINGS.autonomousAgentEnabledToolIds,
+    ]);
+    sanitizedSettings.autonomousAgentEnabledToolIds = Array.from(mergedEnabledToolIds);
   }
 
   // Ensure memoryFolderName has a default value
@@ -499,6 +585,38 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     sanitizedSettings.autoAcceptEdits = DEFAULT_SETTINGS.autoAcceptEdits;
   }
 
+  // Ensure companion personalization fields have safe defaults
+  if (typeof sanitizedSettings.userPreferredName !== "string") {
+    sanitizedSettings.userPreferredName = DEFAULT_SETTINGS.userPreferredName;
+  }
+
+  if (
+    typeof sanitizedSettings.userRoyalTitle !== "string" ||
+    sanitizedSettings.userRoyalTitle.trim().length === 0
+  ) {
+    sanitizedSettings.userRoyalTitle = DEFAULT_SETTINGS.userRoyalTitle;
+  }
+
+  // Ensure personalization preferences have valid values
+  const validTones = ["formal", "conversational", "concise", "detailed"];
+  if (!validTones.includes(sanitizedSettings.responseTone)) {
+    sanitizedSettings.responseTone = DEFAULT_SETTINGS.responseTone;
+  }
+
+  const validLengths = ["brief", "standard", "thorough"];
+  if (!validLengths.includes(sanitizedSettings.responseLength)) {
+    sanitizedSettings.responseLength = DEFAULT_SETTINGS.responseLength;
+  }
+
+  const validExpertise = ["beginner", "intermediate", "expert"];
+  if (!validExpertise.includes(sanitizedSettings.expertiseLevel)) {
+    sanitizedSettings.expertiseLevel = DEFAULT_SETTINGS.expertiseLevel;
+  }
+
+  if (typeof sanitizedSettings.preferredLanguage !== "string") {
+    sanitizedSettings.preferredLanguage = DEFAULT_SETTINGS.preferredLanguage;
+  }
+
   // Ensure defaultSendShortcut has a valid value
   if (!Object.values(SEND_SHORTCUT).includes(sanitizedSettings.defaultSendShortcut)) {
     sanitizedSettings.defaultSendShortcut = DEFAULT_SETTINGS.defaultSendShortcut;
@@ -534,6 +652,21 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     userSystemPromptsFolder.length > 0
       ? userSystemPromptsFolder
       : DEFAULT_SETTINGS.userSystemPromptsFolder;
+
+  // Ensure selected model keys still reference existing active models after sanitization.
+  if (
+    typeof sanitizedSettings.defaultModelKey !== "string" ||
+    !hasModelKey(sanitizedSettings.activeModels, sanitizedSettings.defaultModelKey)
+  ) {
+    sanitizedSettings.defaultModelKey = getFallbackDefaultModelKey(sanitizedSettings.activeModels);
+  }
+
+  if (
+    typeof sanitizedSettings.quickCommandModelKey === "string" &&
+    !hasModelKey(sanitizedSettings.activeModels, sanitizedSettings.quickCommandModelKey)
+  ) {
+    sanitizedSettings.quickCommandModelKey = undefined;
+  }
 
   sanitizedSettings.qaExclusions = sanitizeQaExclusions(settingsToSanitize.qaExclusions);
 

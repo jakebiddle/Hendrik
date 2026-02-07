@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Copilot tool system uses a centralized registry pattern that makes it easy to add new tools, including future MCP (Model Context Protocol) tools. All tools are managed through a singleton `ToolRegistry` that provides a unified interface for tool discovery, configuration, and execution.
+The Hendrik tool system uses a centralized registry pattern that makes it easy to add new tools, including future MCP (Model Context Protocol) tools. All tools are managed through a singleton `ToolRegistry` that provides a unified interface for tool discovery, configuration, and execution.
 
 ## Tool Prompt Architecture
 

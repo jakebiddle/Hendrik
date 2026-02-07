@@ -8,47 +8,48 @@ interface ContextPressureIndicatorProps {
 }
 
 /**
- * Displays context pressure for the latest response versus the model context window.
+ * Compact inline context pressure indicator.
+ * Shows pressure as a small colored dot + percentage for a clean, minimal look.
  */
 export const ContextPressureIndicator: React.FC<ContextPressureIndicatorProps> = ({
   tokenCount,
   maxContextTokens,
   show,
 }) => {
-  if (!show || !maxContextTokens || maxContextTokens <= 0) {
+  if (!show || !maxContextTokens || maxContextTokens <= 0 || tokenCount === null) {
     return null;
   }
 
-  const hasUsage = typeof tokenCount === "number" && tokenCount >= 0;
-  const usage = hasUsage ? Math.min(tokenCount, maxContextTokens) : 0;
-  const ratio = hasUsage ? Math.min(usage / maxContextTokens, 1) : 0;
-  const percent = hasUsage ? Math.round(ratio * 100) : null;
+  const usage = Math.min(Math.max(tokenCount, 0), maxContextTokens);
+  const ratio = Math.min(usage / maxContextTokens, 1);
+  const percent = Math.round(ratio * 100);
 
   /**
-   * Resolve the indicator bar color from the current pressure ratio.
+   * Resolves dot color class from pressure ratio.
    */
-  const getBarClass = (): string => {
-    if (!hasUsage) return "tw-bg-muted";
-    if (ratio >= 0.85) return "tw-bg-rose-500";
-    if (ratio >= 0.6) return "tw-bg-amber-500";
-    return "tw-bg-emerald-500";
+  const getDotClass = (): string => {
+    if (ratio >= 0.85) {
+      return "copilot-context-pressure__dot--high";
+    }
+
+    if (ratio >= 0.6) {
+      return "copilot-context-pressure__dot--medium";
+    }
+
+    return "copilot-context-pressure__dot--low";
   };
 
-  const tooltipText = hasUsage
-    ? `Context pressure: ${tokenCount.toLocaleString()} / ${maxContextTokens.toLocaleString()} tokens`
-    : "Context pressure unavailable (no token usage reported).";
+  const tooltipText = `Context: ${tokenCount.toLocaleString()} / ${maxContextTokens.toLocaleString()} tokens (${percent}%)`;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="tw-flex tw-items-center tw-gap-1 tw-text-xs tw-text-faint">
-          <div className="tw-bg-muted tw-h-1 tw-w-10 tw-overflow-hidden tw-rounded-full">
-            <div className={`tw-h-full ${getBarClass()}`} style={{ width: `${percent ?? 0}%` }} />
-          </div>
-          <span>{percent === null ? "n/a" : `${percent}%`}</span>
+        <div className="copilot-context-pressure" aria-label={tooltipText}>
+          <span className={`copilot-context-pressure__dot ${getDotClass()}`} aria-hidden="true" />
+          <span className="copilot-context-pressure__value">{percent}%</span>
         </div>
       </TooltipTrigger>
-      <TooltipContent>{tooltipText}</TooltipContent>
+      <TooltipContent side="bottom">{tooltipText}</TooltipContent>
     </Tooltip>
   );
 };

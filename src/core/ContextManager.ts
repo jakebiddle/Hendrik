@@ -9,7 +9,7 @@ import {
   PromptLayerSegment,
 } from "@/context/PromptContextTypes";
 import { ContextProcessor } from "@/contextProcessor";
-import { logInfo } from "@/logger";
+import { logInfo, logWarn } from "@/logger";
 import { Mention } from "@/mentions/Mention";
 import { getSettings } from "@/settings/model";
 import { FileParserManager } from "@/tools/FileParserManager";
@@ -286,9 +286,15 @@ export class ContextManager {
       };
     } catch (error) {
       logInfo(`[ContextManager] Error processing context for message ${message.id}:`, error);
+      const fallbackProcessedContent = message.originalMessage || message.message;
       return {
-        processedContent: message.originalMessage || message.message,
-        contextEnvelope: undefined,
+        processedContent: fallbackProcessedContent,
+        contextEnvelope: this.buildFallbackPromptContextEnvelope(
+          chainType,
+          message,
+          systemPrompt || "",
+          fallbackProcessedContent
+        ),
       };
     }
   }
@@ -598,6 +604,58 @@ export class ContextManager {
       metadata: {
         debugLabel: `message:${messageId}:compacted`,
         chainType: params.chainType,
+      },
+    });
+  }
+
+  /**
+   * Build a minimal fallback envelope when full context processing fails.
+   * Preserves system prompt and user text so chain runners can still proceed.
+   */
+  private buildFallbackPromptContextEnvelope(
+    chainType: ChainType,
+    message: ChatMessage,
+    systemPrompt: string,
+    fallbackUserMessage: string
+  ): PromptContextEnvelope | undefined {
+    const messageId = message.id;
+    if (!messageId) {
+      return undefined;
+    }
+
+    const layerSegments: Partial<Record<PromptLayerId, PromptLayerSegment[]>> = {};
+
+    if (systemPrompt.trim()) {
+      layerSegments.L1_SYSTEM = [
+        {
+          id: "system-fallback",
+          content: systemPrompt,
+          stable: true,
+          metadata: { source: "system_prompt", fallbackEnvelope: true },
+        },
+      ];
+    }
+
+    layerSegments.L5_USER = [
+      {
+        id: `${messageId}-user-fallback`,
+        content: fallbackUserMessage,
+        stable: false,
+        metadata: { source: "user_input", fallbackEnvelope: true },
+      },
+    ];
+
+    logWarn(
+      `[ContextManager] Using fallback prompt envelope for message ${messageId}. Context-rich layers (L2/L3) were unavailable.`
+    );
+
+    return this.promptContextEngine.buildEnvelope({
+      conversationId: null,
+      messageId,
+      layerSegments,
+      metadata: {
+        debugLabel: `message:${messageId}:fallback`,
+        chainType,
       },
     });
   }

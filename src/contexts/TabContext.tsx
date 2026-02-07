@@ -9,7 +9,7 @@ interface TabContextType {
 const TabContext = createContext<TabContextType | undefined>(undefined);
 
 export const TabProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [selectedTab, setSelectedTab] = useState("basic");
+  const [selectedTab, setSelectedTab] = useState("general");
   const [modalContainer, setModalContainer] = useState<HTMLElement | null>(null);
   const hasInitialized = useRef(false);
 

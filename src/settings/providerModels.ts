@@ -379,6 +379,52 @@ export interface GitHubCopilotModel {
   };
 }
 
+const LEGACY_COPILOT_PLUS_MODEL_IDENTIFIERS = new Set<string>([
+  "copilot plus flash",
+  "copilot plus small",
+  "copilot plus large",
+  "copilot plus mulitlingual",
+  "copilot plus multilingual",
+]);
+
+/**
+ * Normalizes a model identifier for legacy Copilot Plus matching.
+ *
+ * @param value - Raw model name or id.
+ * @returns Normalized identifier suitable for exact set lookup.
+ */
+function normalizeModelIdentifier(value: string): string {
+  return value.trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+/**
+ * Checks whether a model id/name matches removed legacy Copilot Plus variants.
+ *
+ * @param value - Model id or display name.
+ * @returns True when the identifier is one of the removed legacy variants.
+ */
+export function isLegacyCopilotPlusModelIdentifier(value: string | null | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return LEGACY_COPILOT_PLUS_MODEL_IDENTIFIERS.has(normalizeModelIdentifier(value));
+}
+
+/**
+ * Checks whether a GitHub Copilot model entry matches removed legacy Copilot Plus variants.
+ *
+ * @param model - GitHub Copilot model response item.
+ * @returns True when the model should be excluded from import/display.
+ */
+export function isLegacyGitHubCopilotModel(
+  model: Pick<GitHubCopilotModel, "id" | "name">
+): boolean {
+  return (
+    isLegacyCopilotPlusModelIdentifier(model.id) || isLegacyCopilotPlusModelIdentifier(model.name)
+  );
+}
+
 // Response type mapping
 export interface ProviderResponseMap {
   [ChatModelProviders.OPENAI]: OpenAIModelResponse;
@@ -487,11 +533,13 @@ export const providerAdapters: ProviderModelAdapters = {
     })) || [],
 
   [ChatModelProviders.GITHUB_COPILOT]: (data): StandardModel[] =>
-    data.data?.map((model) => ({
-      id: model.id,
-      name: model.id,
-      provider: ChatModelProviders.GITHUB_COPILOT,
-    })) || [],
+    data.data
+      ?.filter((model) => !isLegacyGitHubCopilotModel(model))
+      .map((model) => ({
+        id: model.id,
+        name: model.id,
+        provider: ChatModelProviders.GITHUB_COPILOT,
+      })) || [],
 };
 
 /**

@@ -179,6 +179,24 @@ export function summarizeToolResult(
       }
       return "Read note content";
     }
+    case "findNotesByTitle":
+      return "Found title matches";
+    case "batchReadNotes":
+      return "Read multiple notes";
+    case "getBacklinks":
+      return "Collected backlinks";
+    case "upsertFrontmatter":
+      return "Updated note frontmatter";
+    case "moveOrRenameNote":
+      return "Moved or renamed note";
+    case "createFolder":
+      return "Created folder";
+    case "renameFolder":
+      return "Renamed folder";
+    case "moveFolder":
+      return "Moved folder";
+    case "deleteFolder":
+      return "Deleted folder";
     case "createNote":
       return "Created new note";
     case "appendToNote":
@@ -285,6 +303,28 @@ export function summarizeToolCall(
       }
       return "Reading note";
     }
+    case "findNotesByTitle": {
+      const query = args?.query as string | undefined;
+      return query
+        ? `Locating notes by title for "${truncate(query, 40)}"`
+        : "Locating notes by title";
+    }
+    case "batchReadNotes":
+      return "Reading multiple notes";
+    case "getBacklinks":
+      return "Collecting backlinks";
+    case "upsertFrontmatter":
+      return "Updating frontmatter";
+    case "moveOrRenameNote":
+      return "Moving or renaming note";
+    case "createFolder":
+      return "Creating folder";
+    case "renameFolder":
+      return "Renaming folder";
+    case "moveFolder":
+      return "Moving folder";
+    case "deleteFolder":
+      return "Deleting folder";
     case "createNote":
       return "Creating new note";
     case "appendToNote":

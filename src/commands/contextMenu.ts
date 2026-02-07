@@ -13,14 +13,14 @@ interface AppWithCommands extends App {
 }
 
 /**
- * Type guard for the command manager surface used by Copilot.
+ * Type guard for the command manager surface used by Hendrik.
  */
 function hasCommandManager(app: App): app is AppWithCommands {
   return typeof (app as Partial<AppWithCommands>).commands?.executeCommandById === "function";
 }
 
 /**
- * Registers the Copilot submenu entries in Obsidian's editor context menu.
+ * Registers the Hendrik submenu entries in Obsidian's editor context menu.
  */
 export function registerContextMenu(menu: Menu, obsidianApp: App): void {
   if (!hasCommandManager(obsidianApp)) return;
@@ -29,9 +29,9 @@ export function registerContextMenu(menu: Menu, obsidianApp: App): void {
     obsidianApp.commands.executeCommandById(commandId);
   };
 
-  // Create the main "Copilot" submenu
+  // Create the main "Hendrik" submenu
   menu.addItem((item) => {
-    item.setTitle("Copilot");
+    item.setTitle("Hendrik");
     item.setSubmenu();
 
     const submenu = item.submenu;

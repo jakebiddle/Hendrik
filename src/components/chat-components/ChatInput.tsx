@@ -706,7 +706,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div
-      className="copilot-chat-input tw-flex tw-w-full tw-flex-col tw-gap-0.5 tw-rounded-md tw-border tw-border-solid tw-border-border tw-px-1 tw-pb-1 tw-pt-2 tw-@container/chat-input"
+      className="copilot-chat-input tw-flex tw-w-full tw-flex-col tw-gap-1 tw-rounded-2xl tw-border tw-border-solid tw-border-border tw-px-2 tw-pb-1.5 tw-pt-2 tw-@container/chat-input"
       ref={containerRef}
     >
       {/* Hide context controls in edit mode - editing only changes text, not context */}
@@ -778,9 +778,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           onEditorReady={onEditorReady}
           onImagePaste={onAddImage}
           onTagSelected={handleTagSelected}
-          placeholder={
-            "Hendrik stands ready to execute your will • @ to add context • / for custom prompts"
-          }
+          placeholder={"Ask, search, or draft - @ to add context - / for custom prompts"}
           disabled={isProjectLoading}
           isCopilotPlus={isCopilotPlus}
           currentActiveFile={currentActiveNote}
@@ -874,7 +872,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 onClick={() => onSendMessage()}
               >
                 <CornerDownLeft className="!tw-size-3" />
-                <span>{editMode ? "save" : "chat"}</span>
+                <span>{editMode ? "Save" : "Send"}</span>
               </Button>
             </>
           )}
