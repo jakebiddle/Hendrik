@@ -86,8 +86,8 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
     systemPrompt: QUICK_COMMAND_SYSTEM_PROMPT,
     excludeThinking: true,
     onNoModel: () => {
-      logError("No active model is configured. Please configure a model in Copilot settings.");
-      new Notice("No active model configured. Please configure a model in Copilot settings.");
+      logError("No active model is configured. Please configure a model in Hendrik settings.");
+      new Notice("No active model configured. Please configure a model in Hendrik settings.");
     },
     onNonAbortError: (error) => {
       logError("Error generating response:", error);

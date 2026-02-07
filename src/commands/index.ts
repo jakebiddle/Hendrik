@@ -19,8 +19,6 @@ import {
 import { CustomCommandChatModal } from "@/commands/CustomCommandChatModal";
 import { ApplyCustomCommandModal } from "@/components/modals/ApplyCustomCommandModal";
 import { YoutubeTranscriptModal } from "@/components/modals/YoutubeTranscriptModal";
-import { checkIsPlusUser } from "@/plusUtils";
-// Debug modals removed with search v3
 import CopilotPlugin from "@/main";
 import { getAllQAMarkdownContent } from "@/search/searchUtils";
 import { CopilotSettings } from "@/settings/model";
@@ -407,7 +405,7 @@ export function registerCommands(
     }
   });
 
-  // Add clear Copilot cache command
+  // Add clear Hendrik cache command
   addCommand(plugin, COMMAND_IDS.CLEAR_COPILOT_CACHE, async () => {
     try {
       await plugin.fileParserManager.clearPDFCache();
@@ -419,32 +417,32 @@ export function registerCommands(
       const fileCache = FileCache.getInstance<string>();
       await fileCache.clear();
 
-      new Notice("All Copilot caches cleared successfully");
+      new Notice("All Hendrik caches cleared successfully");
     } catch (error) {
-      logError("Error clearing Copilot caches:", error);
-      new Notice("Failed to clear Copilot caches");
+      logError("Error clearing Hendrik caches:", error);
+      new Notice("Failed to clear Hendrik caches");
     }
   });
 
-  // Create Copilot log file
+  // Create Hendrik log file
   addCommand(plugin, COMMAND_IDS.OPEN_LOG_FILE, async () => {
     try {
       await flushRecordedPromptPayloadToLog();
       await logFileManager.openLogFile();
     } catch (error) {
-      logError("Error creating Copilot log file:", error);
-      new Notice("Failed to create Copilot log file.");
+      logError("Error creating Hendrik log file:", error);
+      new Notice("Failed to create Hendrik log file.");
     }
   });
 
-  // Clear Copilot log file (delete on disk and clear in-memory buffer)
+  // Clear Hendrik log file (delete on disk and clear in-memory buffer)
   addCommand(plugin, COMMAND_IDS.CLEAR_LOG_FILE, async () => {
     try {
       await logFileManager.clear();
-      new Notice("Copilot log cleared.");
+      new Notice("Hendrik log cleared.");
     } catch (error) {
-      logError("Error clearing Copilot log file:", error);
-      new Notice("Failed to clear Copilot log file.");
+      logError("Error clearing Hendrik log file:", error);
+      new Notice("Failed to clear Hendrik log file.");
     }
   });
 
@@ -561,14 +559,8 @@ export function registerCommands(
     modal.open();
   });
 
-  // Add command to download YouTube script (Copilot Plus only)
+  // Add command to download YouTube script
   addCommand(plugin, COMMAND_IDS.DOWNLOAD_YOUTUBE_SCRIPT, async () => {
-    const isPlusUser = await checkIsPlusUser();
-    if (!isPlusUser) {
-      new Notice("Download YouTube Script (plus) is a Copilot Plus feature");
-      return;
-    }
-
     const modal = new YoutubeTranscriptModal(plugin.app);
     modal.open();
   });

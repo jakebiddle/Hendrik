@@ -44,6 +44,9 @@ export default class VectorStoreManager {
       const prevSettings = this.lastKnownSettings;
       this.lastKnownSettings = { ...settings };
 
+      // Skip DB reinitialization when Smart Connections handles search
+      if (settings.useSmartConnections) return;
+
       // Handle path changes (enableIndexSync)
       if (settings.enableIndexSync !== prevSettings?.enableIndexSync) {
         const newPath = await this.dbOps.getDbPath();
@@ -61,9 +64,9 @@ export default class VectorStoreManager {
   }
 
   private async initialize(): Promise<void> {
-    // Do not initialize or show notices if semantic search is disabled
+    // Do not initialize or show notices if semantic search is disabled or Smart Connections is active
     const settings = getSettings();
-    if (!settings.enableSemanticSearchV3) {
+    if (!settings.enableSemanticSearchV3 || settings.useSmartConnections) {
       return;
     }
     try {

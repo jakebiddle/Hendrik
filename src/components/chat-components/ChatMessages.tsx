@@ -19,7 +19,6 @@ interface ChatMessagesProps {
   onRegenerate: (messageIndex: number) => void;
   onEdit: (messageIndex: number, newMessage: string) => void;
   onDelete: (messageIndex: number) => void;
-  onReplaceChat: (prompt: string) => void;
   showHelperComponents: boolean;
 }
 
@@ -34,7 +33,6 @@ const ChatMessages = memo(
     onRegenerate,
     onEdit,
     onDelete,
-    onReplaceChat,
     showHelperComponents = true,
   }: ChatMessagesProps) => {
     const [loadingDots, setLoadingDots] = useState("");
@@ -60,13 +58,12 @@ const ChatMessages = memo(
 
     if (!chatHistory.filter((message) => message.isVisible).length && !currentAiMessage) {
       return (
-        <div className="tw-flex tw-size-full tw-flex-col tw-gap-2 tw-overflow-y-auto">
+        // eslint-disable-next-line tailwindcss/no-custom-classname
+        <div className="copilot-chat-empty tw-flex tw-size-full tw-flex-col tw-gap-4 tw-overflow-y-auto">
           {showHelperComponents && settings.showRelevantNotes && (
             <RelevantNotes defaultOpen={true} key="relevant-notes-before-chat" />
           )}
-          {showHelperComponents && settings.showSuggestedPrompts && (
-            <SuggestedPrompts onClick={onReplaceChat} />
-          )}
+          {showHelperComponents && settings.showSuggestedPrompts && <SuggestedPrompts />}
         </div>
       );
     }
@@ -76,7 +73,8 @@ const ChatMessages = memo(
     };
 
     return (
-      <div className="tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
+      // eslint-disable-next-line tailwindcss/no-custom-classname
+      <div className="copilot-chat-stream tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
         {showHelperComponents && settings.showRelevantNotes && (
           <RelevantNotes className="tw-mb-4" defaultOpen={false} key="relevant-notes-in-chat" />
         )}

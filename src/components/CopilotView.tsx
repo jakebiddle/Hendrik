@@ -41,15 +41,16 @@ export default class CopilotView extends ItemView {
 
   // Return a title for this view
   getTitle(): string {
-    return "Copilot Chat";
+    return "Hendrik Chat";
   }
 
   getDisplayText(): string {
-    return "Copilot";
+    return "Hendrik";
   }
 
   async onOpen(): Promise<void> {
     this.root = createRoot(this.containerEl.children[1]);
+    this.plugin.registerChatEventTarget(this.eventTarget);
     const handleSaveAsNote = (saveFunction: () => Promise<void>) => {
       this.handleSaveAsNote = saveFunction;
     };
@@ -108,5 +109,6 @@ export default class CopilotView extends ItemView {
       this.root.unmount();
       this.root = null;
     }
+    this.plugin.unregisterChatEventTarget(this.eventTarget);
   }
 }

@@ -13,7 +13,6 @@ type RetrieverOptions = {
   timeRange?: { startTime: number; endTime: number };
   textWeight?: number;
   returnAll?: boolean;
-  useRerankerThreshold?: number;
   returnAllTags?: boolean;
   tagTerms?: string[];
 };
@@ -76,7 +75,6 @@ export class MergedSemanticRetriever extends BaseRetriever {
       timeRange: options.timeRange,
       textWeight: options.textWeight,
       returnAll: this.returnAll,
-      useRerankerThreshold: options.useRerankerThreshold,
     });
   }
 

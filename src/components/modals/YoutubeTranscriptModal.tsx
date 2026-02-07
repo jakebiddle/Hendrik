@@ -1,4 +1,4 @@
-import { BrevilabsClient } from "@/LLMProviders/brevilabsClient";
+import { fetchYoutubeTranscript } from "@/tools/urlFetcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { logError } from "@/logger";
@@ -61,18 +61,18 @@ function YoutubeTranscriptModalContent({ onClose }: { onClose: () => void }) {
     setError("");
 
     try {
-      const response = await BrevilabsClient.getInstance().youtube4llm(url);
+      const result = await fetchYoutubeTranscript(url);
 
-      if (!response.response.transcript) {
+      if (!result.transcript) {
         throw new Error(
-          "Transcript not available. Only English videos with auto transcript enabled are supported."
+          "Transcript not available. Only videos with auto transcript enabled are supported."
         );
       }
 
       // Store transcript data
       const newTranscriptData: TranscriptData = {
         videoId: validation.videoId!,
-        transcript: response.response.transcript,
+        transcript: result.transcript,
         url: formatYoutubeUrl(validation.videoId!),
       };
 

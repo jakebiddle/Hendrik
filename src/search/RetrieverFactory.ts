@@ -1,8 +1,10 @@
-import { logInfo, logWarn } from "@/logger";
-import { isSelfHostModeValid } from "@/plusUtils";
+import { logInfo } from "@/logger";
 import { getSettings, CopilotSettings } from "@/settings/model";
 import { App } from "obsidian";
-import { SelfHostRetriever, VectorSearchBackend } from "./selfHostRetriever";
+import {
+  SmartConnectionsRetriever,
+  isSmartConnectionsAvailable,
+} from "./smartConnectionsRetriever";
 import { MergedSemanticRetriever } from "./v3/MergedSemanticRetriever";
 import { TieredLexicalRetriever } from "./v3/TieredLexicalRetriever";
 
@@ -23,8 +25,6 @@ export interface RetrieverOptions {
   textWeight?: number;
   /** Return all matching results up to a limit */
   returnAll?: boolean;
-  /** Threshold for using reranker */
-  useRerankerThreshold?: number;
   /** Return all documents matching tags */
   returnAllTags?: boolean;
   /** Tag terms to filter by */
@@ -42,7 +42,6 @@ interface NormalizedRetrieverOptions {
   timeRange?: { startTime: number; endTime: number };
   textWeight?: number;
   returnAll: boolean;
-  useRerankerThreshold?: number;
   returnAllTags: boolean;
   tagTerms: string[];
 }
@@ -52,7 +51,7 @@ interface NormalizedRetrieverOptions {
  */
 export interface RetrieverSelectionResult {
   retriever: DocumentRetriever;
-  type: "self_hosted" | "semantic" | "lexical";
+  type: "smart_connections" | "semantic" | "lexical";
   reason: string;
 }
 
@@ -71,7 +70,6 @@ function normalizeOptions(options: RetrieverOptions): NormalizedRetrieverOptions
     timeRange: options.timeRange,
     textWeight: options.textWeight,
     returnAll: hasTagTerms ? true : (options.returnAll ?? false),
-    useRerankerThreshold: options.useRerankerThreshold,
     returnAllTags: hasTagTerms,
     tagTerms,
   };
@@ -79,7 +77,7 @@ function normalizeOptions(options: RetrieverOptions): NormalizedRetrieverOptions
 
 /**
  * Common interface for retrievers that can get relevant documents.
- * This is the shared interface for SelfHostRetriever, MergedSemanticRetriever, and TieredLexicalRetriever.
+ * This is the shared interface for MergedSemanticRetriever and TieredLexicalRetriever.
  */
 export interface DocumentRetriever {
   getRelevantDocuments(query: string): Promise<import("@langchain/core/documents").Document[]>;
@@ -87,46 +85,14 @@ export interface DocumentRetriever {
 
 /**
  * Factory for creating retrievers based on current settings.
- * Centralizes the retriever selection logic to avoid duplication across:
- * - VaultQAChainRunner
- * - CopilotPlusChainRunner (via SearchTools)
- * - Any other components that need search
+ * Centralizes the retriever selection logic.
  *
  * Priority order:
- * 1. Self-host mode / Miyo (if enabled and backend available)
+ * 1. Smart Connections (if enabled and available)
  * 2. Semantic search / MergedSemanticRetriever (if enabled)
  * 3. Lexical search / TieredLexicalRetriever (default)
  */
 export class RetrieverFactory {
-  private static selfHostedBackend: VectorSearchBackend | null = null;
-
-  /**
-   * Register a self-host mode vector search backend.
-   * This should be called during plugin initialization if self-host mode is configured.
-   *
-   * @param backend - The vector search backend implementation (e.g., Miyo)
-   */
-  static registerSelfHostedBackend(backend: VectorSearchBackend): void {
-    RetrieverFactory.selfHostedBackend = backend;
-    logInfo("RetrieverFactory: Self-hosted backend registered");
-  }
-
-  /**
-   * Clear the registered self-hosted backend.
-   * Call this when disabling self-host mode or during cleanup.
-   */
-  static clearSelfHostedBackend(): void {
-    RetrieverFactory.selfHostedBackend = null;
-    logInfo("RetrieverFactory: Self-hosted backend cleared");
-  }
-
-  /**
-   * Check if a self-hosted backend is registered.
-   */
-  static hasSelfHostedBackend(): boolean {
-    return RetrieverFactory.selfHostedBackend !== null;
-  }
-
   /**
    * Create a retriever based on current settings.
    *
@@ -145,47 +111,18 @@ export class RetrieverFactory {
     // Normalize options with defaults
     const normalizedOptions = normalizeOptions(options);
 
-    // Self-host mode handling - requires valid validation (within grace period)
-    if (isSelfHostModeValid()) {
-      // If URL is configured, try to use self-host backend (API key is optional)
-      if (currentSettings.selfHostUrl) {
-        const backend = await RetrieverFactory.getSelfHostedBackend(currentSettings);
-        if (backend) {
-          const retriever = new SelfHostRetriever(app, backend, normalizedOptions);
-          logInfo("RetrieverFactory: Using self-host mode backend");
-          return {
-            retriever,
-            type: "self_hosted",
-            reason: "Self-host mode is enabled and backend is available",
-          };
-        }
-        logWarn("RetrieverFactory: Self-host mode backend unavailable, falling back");
-      } else {
-        logInfo("RetrieverFactory: Self-host mode enabled but URL not configured, falling back");
-      }
-
-      // Self-host mode fallback: use semantic if enabled, otherwise lexical
-      if (currentSettings.enableSemanticSearchV3) {
-        const retriever = new MergedSemanticRetriever(app, normalizedOptions);
-        logInfo(
-          "RetrieverFactory: Using MergedSemanticRetriever (semantic search fallback for self-host mode)"
-        );
-        return {
-          retriever,
-          type: "semantic",
-          reason: "Self-host mode fallback to semantic search",
-        };
-      }
-
-      // Semantic search not enabled, fall back to lexical
-      const retriever = new TieredLexicalRetriever(app, normalizedOptions);
-      logInfo(
-        "RetrieverFactory: Using TieredLexicalRetriever (lexical search fallback for self-host mode)"
-      );
+    // Smart Connections integration - highest priority when enabled
+    if (currentSettings.useSmartConnections && isSmartConnectionsAvailable(app)) {
+      const retriever = new SmartConnectionsRetriever(app, {
+        maxK: normalizedOptions.maxK,
+        minSimilarityScore: normalizedOptions.minSimilarityScore,
+        includeBlocks: false,
+      });
+      logInfo("RetrieverFactory: Using SmartConnectionsRetriever (Smart Connections plugin)");
       return {
         retriever,
-        type: "lexical",
-        reason: "Self-host mode fallback to lexical search (semantic disabled)",
+        type: "smart_connections",
+        reason: "Smart Connections plugin is enabled and available",
       };
     }
 
@@ -235,38 +172,6 @@ export class RetrieverFactory {
   }
 
   /**
-   * Get the self-hosted vector search backend.
-   * Returns the registered backend if available.
-   *
-   * @param _settings - Settings containing backend configuration (reserved for future use)
-   * @returns The vector search backend instance, or null if unavailable
-   */
-  private static async getSelfHostedBackend(
-    _settings: CopilotSettings
-  ): Promise<VectorSearchBackend | null> {
-    // Return registered backend if available
-    if (RetrieverFactory.selfHostedBackend) {
-      try {
-        const isAvailable = await RetrieverFactory.selfHostedBackend.isAvailable();
-        if (isAvailable) {
-          return RetrieverFactory.selfHostedBackend;
-        }
-        logWarn("RetrieverFactory: Registered backend is not available");
-      } catch (error) {
-        logWarn("RetrieverFactory: Error checking backend availability:", error);
-      }
-    }
-
-    // No backend registered and we can't create one without implementation
-    // This is a placeholder until a concrete backend (e.g., Miyo) is implemented
-    logWarn(
-      "RetrieverFactory: No self-hosted backend available. " +
-        "Register a VectorSearchBackend implementation via RetrieverFactory.registerSelfHostedBackend()"
-    );
-    return null;
-  }
-
-  /**
    * Get the current retriever type based on settings without creating an instance.
    * Useful for UI display or debugging.
    *
@@ -275,20 +180,12 @@ export class RetrieverFactory {
    */
   static getRetrieverType(
     settings?: Partial<CopilotSettings>
-  ): "self_hosted" | "semantic" | "lexical" {
+  ): "smart_connections" | "semantic" | "lexical" {
     const currentSettings = settings ? { ...getSettings(), ...settings } : getSettings();
 
-    // Self-host mode handling - requires valid validation (within grace period)
-    if (isSelfHostModeValid()) {
-      // URL configured with backend available → self_hosted (API key is optional)
-      if (currentSettings.selfHostUrl && RetrieverFactory.selfHostedBackend) {
-        return "self_hosted";
-      }
-      // Self-host mode enabled but not ready → check semantic setting
-      if (currentSettings.enableSemanticSearchV3) {
-        return "semantic";
-      }
-      return "lexical";
+    // Smart Connections check (runtime availability can't be determined statically)
+    if (currentSettings.useSmartConnections) {
+      return "smart_connections";
     }
 
     // Standard mode

@@ -1,9 +1,9 @@
 {
-  "id": "copilot",
-  "name": "Copilot",
+  "id": "hendrik",
+  "name": "Hendrik",
   "version": "3.1.5",
   "minAppVersion": "0.15.0",
-  "description": "Your AI Copilot: Chat with Your Second Brain, Learn Faster, Work Smarter.",
+  "description": "Your AI assistant: Chat with your second brain, learn faster, work smarter.",
   "author": "Logan Yang",
   "authorUrl": "https://twitter.com/logancyang",
   "fundingUrl": {

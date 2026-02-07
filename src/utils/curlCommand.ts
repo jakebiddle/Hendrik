@@ -95,7 +95,7 @@ async function resolveApiKeyForCurl(
 
   try {
     const decrypted = (await getDecryptedKey(trimmed))?.trim();
-    if (!decrypted || decrypted === "Copilot failed to decrypt API keys!") {
+    if (!decrypted || decrypted === "Hendrik failed to decrypt API keys!") {
       warnings.push("API key could not be decrypted; using placeholder.");
       return { apiKey: "<YOUR_API_KEY>", warnings };
     }
@@ -253,7 +253,7 @@ async function buildOpenAICompatibleRequestSpec(
   // Add OpenRouter-specific headers (see chatModelManager.ts:259-262)
   if (provider === ChatModelProviders.OPENROUTERAI) {
     headers["HTTP-Referer"] = "https://obsidiancopilot.com";
-    headers["X-Title"] = "Obsidian Copilot";
+    headers["X-Title"] = "Hendrik";
   }
 
   if (isEmbeddingModel) {
@@ -593,7 +593,7 @@ async function buildBedrockCurlText(model: CustomModel): Promise<BuildCurlComman
 
   const commandText = [
     "# Amazon Bedrock InvokeModel",
-    "# Option A: Bearer token auth (matches Obsidian Copilot)",
+    "# Option A: Bearer token auth (matches Hendrik)",
     formatCurlCommand(bearerSpec),
     "",
     "# Option B: IAM auth (AWS SigV4)",

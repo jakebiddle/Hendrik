@@ -207,9 +207,7 @@ const LexicalEditor: React.FC<LexicalEditorProps> = ({
           <PastePlugin enableURLPills={!!onURLsChange} onImagePaste={onImagePaste} />
           <SlashCommandPlugin />
           <NoteCommandPlugin isCopilotPlus={isCopilotPlus} currentActiveFile={currentActiveFile} />
-          {currentChain && currentChain !== ChainType.LLM_CHAIN && (
-            <TagCommandPlugin onTagSelected={onTagSelected} />
-          )}
+          {currentChain && <TagCommandPlugin onTagSelected={onTagSelected} />}
           <AtMentionCommandPlugin
             isCopilotPlus={isCopilotPlus}
             currentActiveFile={currentActiveFile}

@@ -223,7 +223,7 @@ function CustomCommandChatModalContent({
     systemPrompt: systemPrompt || "",
     excludeThinking: true,
     onNoModel: () => {
-      new Notice("No active model is configured. Please configure a model in Copilot settings.");
+      new Notice("No active model is configured. Please configure a model in Hendrik settings.");
       setIsLoading(false);
     },
     onNonAbortError: (error) => {

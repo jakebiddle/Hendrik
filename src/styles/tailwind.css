@@ -17,7 +17,7 @@ If your plugin does not need CSS, delete this file.
 
 /* Popover needs to render on top of the workspace-leaf-resize-handle */
 [data-radix-popper-content-wrapper] {
-  z-index: 9999 !important;
+  z-index: 10010 !important;
 }
 
 .button-container {
@@ -371,6 +371,7 @@ If your plugin does not need CSS, delete this file.
   overflow-wrap: break-word;
   word-break: break-word;
   line-height: 1.6 !important;
+  overflow-x: auto;
 }
 
 .message-content p {
@@ -381,6 +382,31 @@ If your plugin does not need CSS, delete this file.
 .message-content table {
   margin-top: 15px;
   margin-bottom: 15px;
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: inherit;
+}
+
+.message-content table th,
+.message-content table td {
+  border: 1px solid var(--background-modifier-border);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.message-content table th {
+  font-weight: 600;
+  background-color: var(--background-secondary);
+}
+
+.message-content table tr:nth-child(even) td {
+  background-color: var(--background-secondary-alt, var(--background-secondary));
+}
+
+.message-content table thead tr {
+  border-bottom: 2px solid var(--background-modifier-border);
 }
 
 /* Style for inline code */
@@ -886,14 +912,14 @@ If your plugin does not need CSS, delete this file.
 
 /* use 'important' to prevent ob default css style from being third-party theme overridden */
 
-.workspace-leaf-content[data-type="copilot-chat-view"] .view-content {
+.workspace-leaf-content[data-type="hendrik-chat-view"] .view-content {
   padding-bottom: max(var(--safe-area-inset-bottom), var(--size-4-8)) !important;
 }
 
 /* open plugin in Editor mode for mobile */
 body.is-mobile
   .workspace-tab-container
-  .workspace-leaf-content[data-type="copilot-chat-view"]
+  .workspace-leaf-content[data-type="hendrik-chat-view"]
   .view-content {
   padding-bottom: var(--size-4-1) !important;
 }
@@ -979,6 +1005,333 @@ body.is-mobile
 
 .copilot-sources__text a {
   color: var(--text-accent);
+}
+
+/* Notion-like floating Copilot UI */
+.copilot-floating-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.copilot-floating-shell {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: auto;
+  z-index: 10001;
+}
+
+.copilot-ribbon-icon {
+  background: var(--copilot-icon-url) center 45% / 140% no-repeat;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(15, 15, 15, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.copilot-floating-launcher {
+  pointer-events: auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+  background-color: color-mix(in srgb, var(--background-primary) 85%, #efe6d7 15%);
+  background-image: var(--copilot-icon-url);
+  background-size: 150%;
+  background-position: center 42%;
+  background-repeat: no-repeat;
+  box-shadow:
+    0 14px 40px rgba(15, 15, 15, 0.18),
+    0 0 0 3px rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  z-index: 3;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+/* When open, just shrink slightly to indicate active state */
+.copilot-floating-shell[data-open="true"] .copilot-floating-launcher {
+  transform: scale(0.92);
+  box-shadow:
+    0 8px 24px rgba(15, 15, 15, 0.12),
+    0 0 0 2px rgba(255, 255, 255, 0.06);
+  z-index: 4;
+}
+
+/* When closing, bounce back to full size */
+.copilot-floating-shell[data-open="closing"] .copilot-floating-launcher {
+  animation: copilot-launcher-bounce-back 0.3s cubic-bezier(0.2, 0.8, 0.3, 1.2) both;
+  z-index: 4;
+}
+
+.copilot-floating-launcher:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow:
+    0 18px 48px rgba(15, 15, 15, 0.22),
+    0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+
+.copilot-floating-launcher__badge {
+  /* Badge is now a glint/shine overlay only — icon is on the launcher itself */
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.copilot-floating-launcher__badge::before,
+.copilot-ribbon-icon::before {
+  content: "";
+  position: absolute;
+  inset: -60% 0 0 -60%;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.55), transparent 70%);
+  transform: translateX(-130%) rotate(-8deg);
+  opacity: 0;
+}
+
+.copilot-floating-launcher:hover .copilot-floating-launcher__badge::before,
+.copilot-ribbon-icon:hover::before {
+  opacity: 1;
+  animation: copilot-glint 0.9s ease;
+}
+
+.copilot-floating-panel {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(40px) scale(0.4);
+  transform-origin: bottom right;
+  width: min(500px, 94vw);
+  height: min(820px, 88vh);
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 92%, #f5f1ea 8%);
+  box-shadow: 0 26px 60px rgba(10, 10, 10, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.copilot-floating-panel--open {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  animation: copilot-panel-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.copilot-floating-panel--closing {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(40px) scale(0.4);
+  transform-origin: bottom right;
+  animation: copilot-panel-exit 0.28s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Panel header removed — close button now lives inside ChatControls */
+
+.copilot-floating-panel__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.copilot-chat-root {
+  --copilot-font-ui: "Space Grotesk", "DM Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  font-family: var(--copilot-font-ui);
+  color: var(--text-normal);
+}
+
+.copilot-chat-surface {
+  background: color-mix(in srgb, var(--background-primary) 95%, #f6f2ea 5%);
+}
+
+.copilot-chat-header {
+  padding: 4px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 50%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 92%, #f6f2ea 8%);
+}
+
+.copilot-chat-controls {
+  gap: 8px;
+}
+
+.copilot-chat-body {
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+.copilot-chat-composer {
+  padding: 8px 10px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 50%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 92%, #f7f2ea 8%);
+}
+
+.copilot-chat-input {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--background-primary) 88%, #f8f3ec 12%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--background-modifier-border) 65%, transparent);
+}
+
+.copilot-chat-progress {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--background-primary) 75%, rgba(255, 255, 255, 0.2));
+  backdrop-filter: blur(6px);
+}
+
+.copilot-chat-empty__hero {
+  display: none; /* Hero section moved to header as archivist greeting */
+}
+
+.copilot-chat-empty__avatar {
+  display: none;
+}
+
+.copilot-chat-empty__title {
+  display: none;
+}
+
+.copilot-chat-empty__subtitle {
+  display: none;
+}
+
+/* ── Archivist greeting banner (lives in the header) ─────── */
+
+.copilot-archivist-greeting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 8px;
+}
+
+.copilot-archivist-greeting__avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background-color: #f2ddbf;
+  background-image: var(--copilot-icon-url);
+  background-size: 150%;
+  background-position: center 45%;
+  background-repeat: no-repeat;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 50%, transparent);
+  box-shadow: 0 2px 6px rgba(15, 15, 15, 0.12);
+}
+
+.copilot-archivist-greeting__text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.copilot-suggested-prompts .tw-rounded-md {
+  border-radius: 12px;
+}
+
+.copilot-suggested-prompts .tw-border {
+  border-color: color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+}
+
+@keyframes copilot-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes copilot-panel-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(40px) scale(0.4);
+  }
+}
+
+@keyframes copilot-stagger {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes copilot-launcher-bounce-back {
+  0% {
+    transform: scale(0.92);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes copilot-glint {
+  0% {
+    transform: translateX(-130%) rotate(-8deg);
+  }
+  65% {
+    transform: translateX(40%) rotate(-8deg);
+  }
+  100% {
+    transform: translateX(160%) rotate(-8deg);
+  }
+}
+
+@keyframes copilot-blink {
+  0%,
+  47%,
+  49%,
+  100% {
+    transform: scaleY(1);
+  }
+  48% {
+    transform: scaleY(0.1);
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .copilot-floating-shell {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .copilot-floating-panel {
+    width: min(96vw, 500px);
+    height: min(85vh, 820px);
+  }
 }
 
 /* fix the width of the popover on mobile */

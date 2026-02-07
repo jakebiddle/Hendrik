@@ -112,7 +112,7 @@ export class DBOperations {
       return newDb;
     } catch (error) {
       logError(`Error initializing semantic index database:`, error);
-      new Notice("Failed to initialize Copilot database. Some features may be limited.");
+      new Notice("Failed to initialize Hendrik database. Some features may be limited.");
       return undefined;
     }
   }
@@ -169,11 +169,11 @@ export class DBOperations {
       // Save the empty database
       await this.saveDB();
 
-      new Notice("Local Copilot index cleared successfully.");
-      logInfo("Local Copilot index cleared successfully, new instance created.");
+      new Notice("Local Hendrik index cleared successfully.");
+      logInfo("Local Hendrik index cleared successfully, new instance created.");
     } catch (err) {
-      logError("Error clearing the local Copilot index:", err);
-      new Notice("An error occurred while clearing the local Copilot index.");
+      logError("Error clearing the local Hendrik index:", err);
+      new Notice("An error occurred while clearing the local Hendrik index.");
       throw err;
     }
   }
@@ -194,7 +194,7 @@ export class DBOperations {
           500
         );
         if (getSettings().debug) {
-          logInfo(`Deleted document from local Copilot index: ${filePath}`);
+          logInfo(`Deleted document from local Hendrik index: ${filePath}`);
         }
       }
       this.markUnsavedChanges();
@@ -240,7 +240,7 @@ export class DBOperations {
       // If vaultRoot is just "/", treat it as empty
       const effectiveRoot = vaultRoot === "/" ? "" : vaultRoot;
       const prefix = effectiveRoot === "" || effectiveRoot.startsWith("/") ? "" : "/";
-      baseDir = `${prefix}${effectiveRoot}/.copilot-index`;
+      baseDir = `${prefix}${effectiveRoot}/.hendrik-index`;
 
       // Ensure the directory exists
       if (!(await this.app.vault.adapter.exists(baseDir))) {
@@ -505,9 +505,9 @@ export class DBOperations {
 
       if (!areEmbeddingModelsSame(prevEmbeddingModel, currEmbeddingModel)) {
         // Model has changed, notify user and rebuild DB
-        new Notice("New embedding model detected. Rebuilding Copilot index from scratch.");
+        new Notice("New embedding model detected. Rebuilding Hendrik index from scratch.");
         logInfo(
-          `Detected change in embedding model from "${prevEmbeddingModel}" to "${currEmbeddingModel}". Rebuilding Copilot index from scratch.`
+          `Detected change in embedding model from "${prevEmbeddingModel}" to "${currEmbeddingModel}". Rebuilding Hendrik index from scratch.`
         );
 
         // Create new DB with new model
@@ -579,7 +579,7 @@ export class DBOperations {
       }
 
       logInfo(
-        "Copilot index: Docs to remove during garbage collection:",
+        "Hendrik index: Docs to remove during garbage collection:",
         Array.from(new Set(docsToRemove.map((doc) => doc.path))).join(", ")
       );
 
@@ -596,8 +596,8 @@ export class DBOperations {
       await this.saveDB();
       return docsToRemove.length;
     } catch (err) {
-      logError("Error garbage collecting the Copilot index:", err);
-      throw new CustomError("Failed to garbage collect the Copilot index.");
+      logError("Error garbage collecting the Hendrik index:", err);
+      throw new CustomError("Failed to garbage collect the Hendrik index.");
     }
   }
 

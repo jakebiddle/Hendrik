@@ -1,11 +1,15 @@
-import { Pdf4llmResponse } from "@/LLMProviders/brevilabsClient";
 import { logError, logInfo } from "@/logger";
 import { MD5 } from "crypto-js";
 import { TFile } from "obsidian";
 
+/** Response type for parsed PDF content */
+export interface Pdf4llmResponse {
+  response: string;
+}
+
 export class PDFCache {
   private static instance: PDFCache;
-  private cacheDir: string = ".copilot/pdf-cache";
+  private cacheDir: string = ".hendrik/pdf-cache";
 
   private constructor() {}
 

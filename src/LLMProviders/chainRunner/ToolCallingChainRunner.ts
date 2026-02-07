@@ -14,7 +14,6 @@ import {
   MessageContent,
 } from "@/imageProcessing/imageProcessor";
 import { logInfo, logWarn } from "@/logger";
-import { checkIsPlusUser } from "@/plusUtils";
 import { getSettings } from "@/settings/model";
 import { getSystemPromptWithMemory } from "@/system-prompts/systemPromptBuilder";
 import { writeToFileTool } from "@/tools/ComposerTools";
@@ -66,9 +65,9 @@ type ToolCallWithExecutor = {
   args: any;
 };
 
-export class CopilotPlusChainRunner extends BaseChainRunner {
+export class ToolCallingChainRunner extends BaseChainRunner {
   /**
-   * Get available tools for Copilot Plus chain.
+   * Get available tools for Hendrik chain.
    * Uses a minimal set of utility tools: time tools and file tree.
    * Search tools are handled via @commands.
    */
@@ -708,25 +707,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
     const thinkStreamer = new ThinkBlockStreamer(updateCurrentAiMessage, excludeThinking);
     let sources: { title: string; path: string; score: number; explanation?: any }[] = [];
 
-    const isPlusUser = await checkIsPlusUser({
-      isCopilotPlus: true,
-    });
-    if (!isPlusUser) {
-      await this.handleError(
-        new Error("Invalid license key"),
-        thinkStreamer.processErrorChunk.bind(thinkStreamer)
-      );
-      const errorResponse = thinkStreamer.close().content;
-
-      return this.handleResponse(
-        errorResponse,
-        userMessage,
-        abortController,
-        addMessage,
-        updateCurrentAiMessage,
-        undefined // no sources
-      );
-    }
+    // Plus license check removed — all features available without subscription
 
     try {
       logInfo("==== Step 1: Planning tools ====");

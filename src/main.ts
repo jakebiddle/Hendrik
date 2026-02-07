@@ -1,4 +1,3 @@
-import { BrevilabsClient } from "@/LLMProviders/brevilabsClient";
 import ProjectManager from "@/LLMProviders/projectManager";
 import {
   CustomModel,
@@ -25,7 +24,6 @@ import { logInfo, logWarn } from "@/logger";
 import { logFileManager } from "@/logFileManager";
 import { UserMemoryManager } from "@/memory/UserMemoryManager";
 import { clearRecordedPromptPayload } from "@/LLMProviders/chainRunner/utils/promptPayloadRecorder";
-import { checkIsPlusUser, refreshSelfHostModeValidation } from "@/plusUtils";
 import {
   getWebViewerService,
   startActiveWebTabTracking,
@@ -69,13 +67,15 @@ import {
 } from "@/utils/chatHistoryUtils";
 import { RecentUsageManager } from "@/utils/recentUsageManager";
 import { v4 as uuidv4 } from "uuid";
+import FloatingChatShell from "@/components/floating/FloatingChatShell";
+import React from "react";
+import { createRoot, Root } from "react-dom/client";
 
 // Removed unused FileTrackingState interface
 
 export default class CopilotPlugin extends Plugin {
   // Plugin components
   projectManager: ProjectManager;
-  brevilabsClient: BrevilabsClient;
   userMessageHistory: string[] = [];
   vectorStoreManager: VectorStoreManager;
   fileParserManager: FileParserManager;
@@ -91,6 +91,9 @@ export default class CopilotPlugin extends Plugin {
   private lastSelectionSignature?: string;
   private webSelectionTracker?: WebSelectionTracker;
   private readonly chatHistoryLastAccessedAtManager = new RecentUsageManager<string>();
+  private floatingChatRoot: Root | null = null;
+  private floatingChatContainer: HTMLDivElement | null = null;
+  private readonly chatEventTargets = new Set<EventTarget>();
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -109,12 +112,6 @@ export default class CopilotPlugin extends Plugin {
     // Initialize built-in tools with vault access
     initializeBuiltinTools(this.app.vault);
 
-    // Initialize BrevilabsClient
-    this.brevilabsClient = BrevilabsClient.getInstance();
-    this.brevilabsClient.setPluginVersion(this.manifest.version);
-    checkIsPlusUser();
-    refreshSelfHostModeValidation();
-
     // Initialize ProjectManager
     this.projectManager = ProjectManager.getInstance(this.app, this);
 
@@ -127,7 +124,7 @@ export default class CopilotPlugin extends Plugin {
     vaultDataManager.initialize();
 
     // Initialize FileParserManager early with other core services
-    this.fileParserManager = new FileParserManager(this.brevilabsClient, this.app.vault);
+    this.fileParserManager = new FileParserManager(this.app.vault);
 
     // Initialize ChatUIState with new architecture
     const messageRepo = new MessageRepository();
@@ -164,13 +161,22 @@ export default class CopilotPlugin extends Plugin {
 
     this.initActiveLeafChangeHandler();
 
-    this.addRibbonIcon("message-square", "Open Copilot Chat", (evt: MouseEvent) => {
+    const ribbonIcon = this.addRibbonIcon("message-square", "Open Hendrik Chat", () => {
       this.activateView();
     });
+    ribbonIcon.addClass("copilot-ribbon-icon");
+    ribbonIcon.empty();
+
+    // Set the plugin icon URL as a CSS variable so CSS can reference plugin assets
+    if (this.manifest.dir) {
+      const iconPath = `${this.manifest.dir}/images/HendrikAI.svg`;
+      const iconUrl = this.app.vault.adapter.getResourcePath(iconPath);
+      document.documentElement.style.setProperty("--copilot-icon-url", `url("${iconUrl}")`);
+    }
 
     registerCommands(this, undefined, getSettings());
 
-    // Tool initialization is now handled automatically in CopilotPlusChainRunner and AutonomousAgentChainRunner
+    // Tool initialization is now handled automatically in ToolCallingChainRunner and AutonomousAgentChainRunner
 
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu: Menu) => {
@@ -193,8 +199,7 @@ export default class CopilotPlugin extends Plugin {
               .find((leaf) => leaf.view instanceof CopilotView)?.view as CopilotView;
 
             if (activeCopilotView) {
-              const event = new CustomEvent(EVENT_NAMES.ACTIVE_LEAF_CHANGE);
-              activeCopilotView.eventTarget.dispatchEvent(event);
+              this.dispatchChatEvent(EVENT_NAMES.ACTIVE_LEAF_CHANGE);
             }
           }
         }
@@ -219,12 +224,17 @@ export default class CopilotPlugin extends Plugin {
 
     // Initialize web selection watcher (Desktop only)
     this.initWebSelectionWatcher();
+
+    this.mountFloatingChat();
   }
 
   async onunload() {
     // Clear all persistent selection highlights before unload
     // This prevents "stuck" highlights after hot reload (dev environment)
     this.clearAllPersistentSelectionHighlights();
+
+    // Remove the plugin icon CSS variable
+    document.documentElement.style.removeProperty("--copilot-icon-url");
 
     // Cleanup chat selection highlight controller
     this.chatSelectionHighlightController?.cleanup();
@@ -237,8 +247,8 @@ export default class CopilotPlugin extends Plugin {
     const vaultDataManager = VaultDataManager.getInstance();
     vaultDataManager.cleanup();
 
-    this.customCommandRegister.cleanup();
-    this.systemPromptRegister.cleanup();
+    this.customCommandRegister?.cleanup();
+    this.systemPromptRegister?.cleanup();
     this.settingsUnsubscriber?.();
 
     // Cleanup selection handler
@@ -256,7 +266,46 @@ export default class CopilotPlugin extends Plugin {
 
     // Best-effort flush of log file
     await logFileManager.flush();
-    logInfo("Copilot plugin unloaded");
+    logInfo("Hendrik plugin unloaded");
+    this.unmountFloatingChat();
+  }
+
+  /**
+   * Mounts the floating Hendrik launcher and chat panel.
+   */
+  private mountFloatingChat(): void {
+    if (this.floatingChatRoot || this.floatingChatContainer) {
+      return;
+    }
+
+    const container = document.createElement("div");
+    container.className = "copilot-floating-root";
+    document.body.appendChild(container);
+    this.floatingChatContainer = container;
+    this.floatingChatRoot = createRoot(container);
+
+    this.floatingChatRoot.render(
+      React.createElement(FloatingChatShell, {
+        chainManager: this.projectManager.getCurrentChainManager(),
+        fileParserManager: this.fileParserManager,
+        plugin: this,
+        chatUIState: this.chatUIState,
+      })
+    );
+  }
+
+  /**
+   * Unmounts the floating Hendrik launcher and chat panel.
+   */
+  private unmountFloatingChat(): void {
+    if (this.floatingChatRoot) {
+      this.floatingChatRoot.unmount();
+      this.floatingChatRoot = null;
+    }
+    if (this.floatingChatContainer) {
+      this.floatingChatContainer.remove();
+      this.floatingChatContainer = null;
+    }
   }
 
   /**
@@ -309,12 +358,8 @@ export default class CopilotPlugin extends Plugin {
 
     // Without the timeout, the view is not yet active
     setTimeout(() => {
-      const activeCopilotView = this.app.workspace
-        .getLeavesOfType(CHAT_VIEWTYPE)
-        .find((leaf) => leaf.view instanceof CopilotView)?.view as CopilotView;
-      if (activeCopilotView && (!checkSelectedText || selectedText)) {
-        const event = new CustomEvent(eventType, { detail: { selectedText, eventSubtype } });
-        activeCopilotView.eventTarget.dispatchEvent(event);
+      if (!checkSelectedText || selectedText) {
+        this.dispatchChatEvent(eventType, { selectedText, eventSubtype });
       }
     }, 0);
   }
@@ -324,14 +369,7 @@ export default class CopilotPlugin extends Plugin {
   }
 
   emitChatIsVisible() {
-    const activeCopilotView = this.app.workspace
-      .getLeavesOfType(CHAT_VIEWTYPE)
-      .find((leaf) => leaf.view instanceof CopilotView)?.view as CopilotView;
-
-    if (activeCopilotView) {
-      const event = new CustomEvent(EVENT_NAMES.CHAT_IS_VISIBLE);
-      activeCopilotView.eventTarget.dispatchEvent(event);
-    }
+    this.dispatchChatEvent(EVENT_NAMES.CHAT_IS_VISIBLE);
   }
 
   initActiveLeafChangeHandler() {
@@ -850,12 +888,8 @@ export default class CopilotPlugin extends Plugin {
     // Abort any ongoing streams before clearing chat
     const existingView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0];
     if (existingView) {
-      const copilotView = existingView.view as CopilotView;
       // Dispatch abort event to stop any ongoing streams
-      const abortEvent = new CustomEvent(EVENT_NAMES.ABORT_STREAM, {
-        detail: { reason: ABORT_REASON.NEW_CHAT },
-      });
-      copilotView.eventTarget.dispatchEvent(abortEvent);
+      this.dispatchChatEvent(EVENT_NAMES.ABORT_STREAM, { reason: ABORT_REASON.NEW_CHAT });
     }
 
     // Clear messages through ChatUIState (which also clears chain memory)
@@ -879,8 +913,51 @@ export default class CopilotPlugin extends Plugin {
     await this.handleNewChat();
   }
 
+  /**
+   * Registers a chat event target for plugin-wide chat events.
+   */
+  registerChatEventTarget(target: EventTarget): void {
+    this.chatEventTargets.add(target);
+  }
+
+  /**
+   * Unregisters a chat event target.
+   */
+  unregisterChatEventTarget(target: EventTarget): void {
+    this.chatEventTargets.delete(target);
+  }
+
+  /**
+   * Dispatches a chat event to all registered targets.
+   */
+  private dispatchChatEvent(eventName: string, detail?: Record<string, unknown>): void {
+    this.chatEventTargets.forEach((target) => {
+      const event = new CustomEvent(eventName, { detail });
+      target.dispatchEvent(event);
+    });
+  }
+
   async customSearchDB(query: string, salientTerms: string[], textWeight: number): Promise<any[]> {
     const settings = getSettings();
+
+    // Use Smart Connections when enabled and available
+    if (settings.useSmartConnections) {
+      const { isSmartConnectionsAvailable, SmartConnectionsRetriever } = await import(
+        "@/search/smartConnectionsRetriever"
+      );
+      if (isSmartConnectionsAvailable(this.app)) {
+        const retriever = new SmartConnectionsRetriever(this.app, {
+          maxK: 20,
+          minSimilarityScore: 0.3,
+        });
+        const results = await retriever.getRelevantDocuments(query);
+        return results.map((doc) => ({
+          content: doc.pageContent,
+          metadata: doc.metadata,
+        }));
+      }
+    }
+
     const retriever = settings.enableSemanticSearchV3
       ? new (await import("@/search/v3/MergedSemanticRetriever")).MergedSemanticRetriever(
           this.app,
@@ -899,7 +976,6 @@ export default class CopilotPlugin extends Plugin {
           textWeight: textWeight,
           timeRange: undefined,
           returnAll: false,
-          useRerankerThreshold: undefined,
         });
 
     const results = await retriever.getRelevantDocuments(query);

@@ -1,7 +1,6 @@
 import { ChainType, Document } from "@/chainFactory";
 import {
   ChatModelProviders,
-  EmbeddingModelProviders,
   NOMIC_EMBED_TEXT,
   Provider,
   ProviderInfo,
@@ -50,8 +49,6 @@ interface APIError extends Error {
 
 // Error message constants
 export const ERROR_MESSAGES = {
-  INVALID_LICENSE_KEY_USER:
-    "Invalid Copilot Plus license key. Please check your license key in settings.",
   UNKNOWN_ERROR: "An unknown error occurred",
   REQUEST_FAILED: (status: number) => `Request failed, status ${status}`,
 } as const;
@@ -73,20 +70,11 @@ export function extractErrorDetail(error: any): ErrorDetail {
 }
 
 export function isLicenseKeyError(error: any): boolean {
-  const errorDetail = extractErrorDetail(error);
-  return (
-    errorDetail.reason === "Invalid license key" ||
-    error?.message === "Invalid license key" ||
-    error?.message?.includes("status 403") ||
-    errorDetail.status === 403
-  );
+  return false;
 }
 
 export function getApiErrorMessage(error: any): string {
   const errorDetail = extractErrorDetail(error);
-  if (isLicenseKeyError(error)) {
-    return ERROR_MESSAGES.INVALID_LICENSE_KEY_USER;
-  }
   return (
     errorDetail.message ||
     (errorDetail.reason ? `Error: ${errorDetail.reason}` : ERROR_MESSAGES.UNKNOWN_ERROR)
@@ -254,11 +242,9 @@ export function getNotesFromTags(vault: Vault, tags: string[], noteFiles?: TFile
 export const stringToChainType = (chain: string): ChainType => {
   switch (chain) {
     case "llm_chain":
-      return ChainType.LLM_CHAIN;
     case "vault_qa":
-      return ChainType.VAULT_QA_CHAIN;
     case "copilot_plus":
-      return ChainType.COPILOT_PLUS_CHAIN;
+      return ChainType.TOOL_CALLING_CHAIN;
     default:
       throw new Error(`Unknown chain type: ${chain}`);
   }
@@ -397,35 +383,25 @@ export function isAllowedFileForNoteContext(file: TFile | null): boolean {
 }
 
 /**
- * Checks if a chain type is a Plus mode chain (Copilot Plus or Project Chain).
- * Plus mode chains have access to premium features like PDF processing and URL processing.
+ * Checks if a chain type is a tool-calling chain.
+ * All chains now use the full-featured mode.
  * @param chainType The chain type to check
- * @returns true if this is a Plus mode chain, false otherwise
+ * @returns true for all chain types
  */
 export function isPlusChain(chainType: ChainType): boolean {
-  return chainType === ChainType.COPILOT_PLUS_CHAIN || chainType === ChainType.PROJECT_CHAIN;
+  return true;
 }
 
 /**
  * Checks if a file extension is allowed for context based on the chain type.
- * All chains support markdown and canvas files.
- * Plus chains support all file types (PDF, EPUB, PPT, DOCX, etc.).
- * Free chains only support markdown and canvas files.
+ * All file types are supported.
  * @param file The file to check
  * @param chainType The current chain type
- * @returns true if the file is allowed for this chain type, false otherwise
+ * @returns true if the file is allowed, false otherwise
  */
 export function isAllowedFileForChainContext(file: TFile | null, chainType: ChainType): boolean {
   if (!file) return false;
-
-  // All chains support markdown and canvas files
-  if (file.extension === "md" || file.extension === "canvas") {
-    return true;
-  }
-
-  // Plus chains support all other file types (PDF, EPUB, PPT, DOCX, etc.)
-  // Free chains only support markdown and canvas
-  return isPlusChain(chainType);
+  return true;
 }
 
 export async function getAllNotesContent(vault: Vault): Promise<string> {
@@ -944,7 +920,7 @@ export function getProviderInfo(provider: string): ProviderMetadata {
 
 export function getProviderLabel(provider: string, model?: CustomModel): string {
   const baseLabel = ProviderInfo[provider as Provider]?.label || provider;
-  return baseLabel + (model?.believerExclusive && baseLabel === "Copilot Plus" ? "(Believer)" : "");
+  return baseLabel;
 }
 
 export function getProviderHost(provider: string): string {
@@ -1189,8 +1165,6 @@ export function getNeedSetKeyProvider(): Provider[] {
     ChatModelProviders.LM_STUDIO,
     ChatModelProviders.AZURE_OPENAI,
     ChatModelProviders.GITHUB_COPILOT,
-    EmbeddingModelProviders.COPILOT_PLUS,
-    EmbeddingModelProviders.COPILOT_PLUS_JINA,
   ];
 
   return (Object.keys(ProviderInfo) as Provider[]).filter((key) => !excludeProviders.includes(key));
@@ -1226,7 +1200,7 @@ export function checkModelApiKey(
       return {
         hasApiKey: false,
         errorNotice:
-          "GitHub Copilot is not authenticated. Please connect it in Settings > Copilot > Basic Tab > Set Keys.",
+          "GitHub Copilot is not authenticated. Please connect it in Settings > Hendrik > Basic Tab > Set Keys.",
       };
     }
     return { hasApiKey: true };
@@ -1239,7 +1213,7 @@ export function checkModelApiKey(
   if (needSetKeyPath && hasNoApiKey) {
     const notice =
       `Please configure API Key for ${model.name} in settings first.` +
-      "\nPath: Settings > copilot plugin > Basic Tab > Set Keys";
+      "\nPath: Settings > Hendrik > Basic Tab > Set Keys";
     return {
       hasApiKey: false,
       errorNotice: notice,

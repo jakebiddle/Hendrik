@@ -110,8 +110,8 @@ export async function suggestDefaultCommands(): Promise<void> {
       () => {
         generateDefaultCommands();
       },
-      "Would you like to add Copilot recommended commands in your custom prompts folder? These commands will be available through the right-click context menu and slash commands in chat.",
-      "Welcome to Copilot",
+      "Would you like me to add some default commands in your custom prompts folder? These commands will be available through the right-click context menu and slash commands in chat.",
+      "Hello! I'm Hendrik",
       "Confirm",
       "Skip"
     ).open();

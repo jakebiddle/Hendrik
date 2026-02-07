@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/ui/ModelSelector";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChatToolControls } from "./ChatToolControls";
-import { isPlusChain } from "@/utils";
 import {
   mergeWebTabContexts,
   normalizeUrlString,
@@ -115,6 +114,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const lexicalEditorRef = useRef<any>(null);
   const [currentModelKey, setCurrentModelKey] = useModelKey();
   const [currentChain] = useChainType();
+  // All features ungated (Plus system removed)
+  const isCopilotPlus = true;
   const [isProjectLoading] = useProjectLoading();
   const settings = useSettingsValue();
   const [currentActiveNote, setCurrentActiveNote] = useState<TFile | null>(() => {
@@ -127,7 +128,6 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [foldersFromPills, setFoldersFromPills] = useState<string[]>([]);
   const [toolsFromPills, setToolsFromPills] = useState<string[]>([]);
   const [webTabsFromPills, setWebTabsFromPills] = useState<WebTabContext[]>([]);
-  const isCopilotPlus = isPlusChain(currentChain);
 
   // Merge badge-only contextWebTabs with pills-derived webTabsFromPills for display
   // Uses shared normalization policy from urlNormalization.ts
@@ -572,30 +572,25 @@ const ChatInput: React.FC<ChatInputProps> = ({
     });
   }, [notesFromPills, app.vault, setContextNotes]);
 
-  // URL pill-to-context synchronization (when URL pills are added) - only for Plus chains
+  // URL pill-to-context synchronization (when URL pills are added)
   useEffect(() => {
-    if (isPlusChain(currentChain)) {
-      setContextUrls((prev) => {
-        const contextUrlSet = new Set(prev);
+    setContextUrls((prev) => {
+      const contextUrlSet = new Set(prev);
 
-        // Find URLs that need to be added
-        const newUrlsFromPills = urlsFromPills.filter((pillUrl) => {
-          // Only add if not already in context
-          return !contextUrlSet.has(pillUrl);
-        });
-
-        // Add completely new URLs from pills
-        if (newUrlsFromPills.length > 0) {
-          return Array.from(new Set([...prev, ...newUrlsFromPills]));
-        }
-
-        return prev;
+      // Find URLs that need to be added
+      const newUrlsFromPills = urlsFromPills.filter((pillUrl) => {
+        // Only add if not already in context
+        return !contextUrlSet.has(pillUrl);
       });
-    } else {
-      // Clear URLs for non-Plus chains
-      setContextUrls([]);
-    }
-  }, [urlsFromPills, currentChain]);
+
+      // Add completely new URLs from pills
+      if (newUrlsFromPills.length > 0) {
+        return Array.from(new Set([...prev, ...newUrlsFromPills]));
+      }
+
+      return prev;
+    });
+  }, [urlsFromPills]);
 
   // Folder-to-context synchronization (when folders are added via pills)
   useEffect(() => {
@@ -711,7 +706,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div
-      className="tw-flex tw-w-full tw-flex-col tw-gap-0.5 tw-rounded-md tw-border tw-border-solid tw-border-border tw-px-1 tw-pb-1 tw-pt-2 tw-@container/chat-input"
+      className="copilot-chat-input tw-flex tw-w-full tw-flex-col tw-gap-0.5 tw-rounded-md tw-border tw-border-solid tw-border-border tw-px-1 tw-pb-1 tw-pt-2 tw-@container/chat-input"
       ref={containerRef}
     >
       {/* Hide context controls in edit mode - editing only changes text, not context */}
@@ -783,7 +778,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
           onEditorReady={onEditorReady}
           onImagePaste={onAddImage}
           onTagSelected={handleTagSelected}
-          placeholder={"Your AI assistant for Obsidian • @ to add context • / for custom prompts"}
+          placeholder={
+            "Hendrik stands ready to execute your will • @ to add context • / for custom prompts"
+          }
           disabled={isProjectLoading}
           isCopilotPlus={isCopilotPlus}
           currentActiveFile={currentActiveNote}

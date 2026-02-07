@@ -7,7 +7,7 @@ type LogLevel = "INFO" | "WARN" | "ERROR";
 
 /**
  * Manages a rolling log file that keeps the last N entries and works on desktop and mobile.
- * - Writes to <vault>/copilot/copilot-log.md
+ * - Writes to <vault>/hendrik/hendrik-log.md
  * - Maintains an in-memory ring buffer of the last 500 entries
  * - Debounced flush to reduce I/O; single-line entries to preserve accurate line limits
  */
@@ -28,7 +28,7 @@ class LogFileManager {
   }
 
   getLogPath(): string {
-    return "copilot/copilot-log.md"; // under copilot/
+    return "hendrik/hendrik-log.md"; // under hendrik/
   }
 
   /** Ensure the log manager is initialized. Always starts with an empty buffer. */

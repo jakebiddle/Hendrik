@@ -1,22 +1,33 @@
-import { EVENT_NAMES } from "@/constants";
-import { EventTargetContext } from "@/context";
 import { TFile } from "obsidian";
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
+/**
+ * Hook that tracks the currently active file in Obsidian.
+ * Listens to the native workspace `active-leaf-change` event directly
+ * (rather than a relayed custom EventTarget) so it always stays in sync.
+ */
 export function useActiveFile() {
-  const [activeFile, setActiveFile] = useState<TFile | null>(null);
-  const eventTarget = useContext(EventTargetContext);
+  const [activeFile, setActiveFile] = useState<TFile | null>(() => app.workspace.getActiveFile());
 
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     const handleActiveLeafChange = () => {
-      const activeFile = app.workspace.getActiveFile();
-      setActiveFile(activeFile);
+      // Debounce because Obsidian fires the event multiple times per switch
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setActiveFile(app.workspace.getActiveFile());
+      }, 100);
     };
-    eventTarget?.addEventListener(EVENT_NAMES.ACTIVE_LEAF_CHANGE, handleActiveLeafChange);
+
+    const eventRef = app.workspace.on("active-leaf-change", handleActiveLeafChange);
+
     return () => {
-      eventTarget?.removeEventListener(EVENT_NAMES.ACTIVE_LEAF_CHANGE, handleActiveLeafChange);
+      clearTimeout(timeoutId);
+      // cspell:disable-next-line
+      app.workspace.offref(eventRef);
     };
-  }, [eventTarget]);
+  }, []);
 
   return activeFile;
 }

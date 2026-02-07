@@ -190,7 +190,7 @@ const DiffCell: React.FC<DiffCellProps> = memo(({ row, side }) => {
 
 DiffCell.displayName = "DiffCell";
 
-export const APPLY_VIEW_TYPE = "obsidian-copilot-apply-view";
+export const APPLY_VIEW_TYPE = "hendrik-apply-view";
 
 export interface ApplyViewState {
   changes: Change[];

@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-copilot",
+  "name": "hendrik",
   "version": "3.1.5",
-  "description": "Your AI Copilot: Chat with Your Second Brain, Learn Faster, Work Smarter.",
+  "description": "Your AI assistant: Chat with your second brain, learn faster, work smarter.",
   "main": "main.js",
   "scripts": {
     "dev": "npm-run-all --parallel dev:*",
@@ -140,6 +140,7 @@
     "minisearch": "^7.2.0",
     "next-i18next": "^13.2.2",
     "p-queue": "^8.1.0",
+    "pdf-parse": "^1.1.1",
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -151,6 +152,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "trie-search": "^2.2.0",
-    "turndown": "^7.2.2"
+    "turndown": "^7.2.2",
+    "youtube-transcript": "^1.2.1"
   }
 }

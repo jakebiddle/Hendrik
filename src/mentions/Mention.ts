@@ -1,7 +1,13 @@
 import { ImageProcessor } from "@/imageProcessing/imageProcessor";
-import { BrevilabsClient, Url4llmResponse } from "@/LLMProviders/brevilabsClient";
+import { fetchUrlToMarkdown, fetchYoutubeTranscript } from "@/tools/urlFetcher";
 import { err2String, isYoutubeUrl } from "@/utils";
 import { logError } from "@/logger";
+
+export interface Url4llmResponse {
+  response: string;
+  elapsed_time_ms: number;
+  error?: string;
+}
 
 export interface MentionData {
   type: string;
@@ -13,11 +19,9 @@ export interface MentionData {
 export class Mention {
   private static instance: Mention;
   private mentions: Map<string, MentionData>;
-  private brevilabsClient: BrevilabsClient;
 
   private constructor() {
     this.mentions = new Map();
-    this.brevilabsClient = BrevilabsClient.getInstance();
   }
 
   static getInstance(): Mention {
@@ -42,9 +46,9 @@ export class Mention {
       .filter((url, index, self) => self.indexOf(url) === index);
   }
 
-  async processUrl(url: string): Promise<Url4llmResponse & { error?: string }> {
+  async processUrl(url: string): Promise<Url4llmResponse> {
     try {
-      return await this.brevilabsClient.url4llm(url);
+      return await fetchUrlToMarkdown(url);
     } catch (error) {
       const msg = err2String(error);
       logError(`Error processing URL ${url}: ${msg}`);
@@ -54,8 +58,8 @@ export class Mention {
 
   async processYoutubeUrl(url: string): Promise<{ transcript: string; error?: string }> {
     try {
-      const response = await this.brevilabsClient.youtube4llm(url);
-      return { transcript: response.response.transcript };
+      const response = await fetchYoutubeTranscript(url);
+      return { transcript: response.transcript };
     } catch (error) {
       const msg = err2String(error);
       logError(`Error processing YouTube URL ${url}: ${msg}`);

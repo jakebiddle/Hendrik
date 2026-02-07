@@ -1,4 +1,4 @@
-import { BrevilabsClient } from "@/LLMProviders/brevilabsClient";
+import { fetchYoutubeTranscript } from "@/tools/urlFetcher";
 import { extractAllYoutubeUrls } from "@/utils";
 import { z } from "zod";
 import { createLangChainTool } from "./createLangChainTool";
@@ -53,10 +53,10 @@ const youtubeTranscriptionTool = createLangChainTool({
     const results = await Promise.all(
       urls.map(async (url) => {
         try {
-          const response = await BrevilabsClient.getInstance().youtube4llm(url);
+          const response = await fetchYoutubeTranscript(url);
 
           // Check if transcript is empty
-          if (!response.response.transcript) {
+          if (!response.transcript) {
             return {
               url,
               success: false,
@@ -68,7 +68,7 @@ const youtubeTranscriptionTool = createLangChainTool({
           return {
             url,
             success: true,
-            transcript: response.response.transcript,
+            transcript: response.transcript,
             elapsed_time_ms: response.elapsed_time_ms,
           };
         } catch (error) {

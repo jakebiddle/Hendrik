@@ -47,6 +47,11 @@ const context = await esbuild.context({
     "node:stream",
     "node:crypto",
     "node:async_hooks",
+    // Non-prefixed node builtins (used by pdf-parse)
+    "fs",
+    "http",
+    "https",
+    "url",
   ],
   format: "cjs",
   target: "es2020",

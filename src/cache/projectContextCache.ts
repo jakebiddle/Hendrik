@@ -29,12 +29,12 @@ export interface ContextCache {
  * external web content, and other file types.
  *
  * The cache uses a two-level approach:
- * 1. Project-level context stored in .copilot/project-context-cache
- * 2. Individual file content stored in .copilot/file-content-cache
+ * 1. Project-level context stored in .hendrik/project-context-cache
+ * 2. Individual file content stored in .hendrik/file-content-cache
  */
 export class ProjectContextCache {
   private static instance: ProjectContextCache;
-  private cacheDir: string = ".copilot/project-context-cache";
+  private cacheDir: string = ".hendrik/project-context-cache";
   private memoryCache: Map<string, ContextCache> = new Map();
   private vault: Vault;
   private fileCache: FileCache<string>;

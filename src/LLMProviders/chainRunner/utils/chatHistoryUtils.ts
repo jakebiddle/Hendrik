@@ -1,3 +1,7 @@
+import ChatModelManager from "@/LLMProviders/chatModelManager";
+import { logInfo, logWarn } from "@/logger";
+import { getSettings } from "@/settings/model";
+import { HumanMessage } from "@langchain/core/messages";
 /**
  * Utility functions for safely processing chat history from LangChain memory
  */
@@ -81,6 +85,18 @@ export interface ChatHistoryEntry {
   content: string;
 }
 
+/** Marker used to detect compacted summaries in history. */
+const COMPACTION_MARKER = "<summary>";
+
+/**
+ * Result of chat history compaction.
+ */
+interface ChatHistoryCompactionResult {
+  wasCompacted: boolean;
+  summaryText: string | null;
+  processedHistory: ProcessedMessage[];
+}
+
 /**
  * Extract text content from potentially multimodal message content.
  * Replaces non-text content (images) with placeholder.
@@ -97,6 +113,123 @@ function extractTextContent(content: any): string {
     return textParts || "[Image content]";
   }
   return String(content || "");
+}
+
+/**
+ * Estimate token usage for chat history using a 4 chars/token heuristic.
+ */
+function estimateHistoryTokens(processedHistory: ProcessedMessage[]): number {
+  const totalChars = processedHistory
+    .map((msg) => extractTextContent(msg.content))
+    .join("\n").length;
+  return Math.ceil(totalChars / 4);
+}
+
+/**
+ * Build a plain-text transcript for summarization.
+ */
+function buildTranscript(processedHistory: ProcessedMessage[]): string {
+  return processedHistory
+    .map((msg) => {
+      const label = msg.role === "user" ? "User" : "Assistant";
+      return `${label}: ${extractTextContent(msg.content)}`.trim();
+    })
+    .join("\n\n");
+}
+
+/**
+ * Normalize model output into a <summary> block for compaction persistence.
+ */
+function normalizeSummaryBlock(rawSummary: string): string {
+  const trimmed = rawSummary.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes(COMPACTION_MARKER)) return trimmed;
+  return `<summary>\n${trimmed}\n</summary>`;
+}
+
+/**
+ * Detect whether the chat history already contains a compaction summary.
+ */
+function hasCompactionSummary(processedHistory: ProcessedMessage[]): boolean {
+  return processedHistory.some((msg) => {
+    if (msg.role !== "assistant") return false;
+    const content = typeof msg.content === "string" ? msg.content : extractTextContent(msg.content);
+    return content.includes(COMPACTION_MARKER);
+  });
+}
+
+/**
+ * Summarize chat history using the current chat model.
+ */
+async function summarizeChatHistory(
+  processedHistory: ProcessedMessage[],
+  summaryTokenTarget: number
+): Promise<string> {
+  const transcript = buildTranscript(processedHistory);
+  const prompt = `You have written a partial transcript for an ongoing task. Summarize the transcript so work can continue later when raw history is unavailable.
+
+Include:
+- Task overview and goals
+- Current state and key decisions
+- Important discoveries, constraints, and errors resolved
+- Next steps
+- Preferences or context to preserve
+
+Target length: about ${summaryTokenTarget} tokens.
+Wrap the summary in <summary></summary> tags.
+
+Transcript:\n${transcript}`;
+
+  const modelManager = ChatModelManager.getInstance();
+  const model = await modelManager.getChatModelWithTemperature(0.1);
+  const response = await model.invoke([new HumanMessage(prompt)]);
+
+  return typeof response.content === "string" ? response.content.trim() : "";
+}
+
+/**
+ * Compact chat history when it exceeds the configured threshold.
+ */
+async function compactChatHistoryIfNeeded(
+  processedHistory: ProcessedMessage[]
+): Promise<ChatHistoryCompactionResult> {
+  const settings = getSettings();
+  if (!settings.enableAutoCompaction || settings.autoCompactThreshold <= 0) {
+    return { wasCompacted: false, summaryText: null, processedHistory };
+  }
+
+  if (processedHistory.length === 0) {
+    return { wasCompacted: false, summaryText: null, processedHistory };
+  }
+
+  if (hasCompactionSummary(processedHistory)) {
+    return { wasCompacted: false, summaryText: null, processedHistory };
+  }
+
+  const estimatedTokens = estimateHistoryTokens(processedHistory);
+  if (estimatedTokens < settings.autoCompactThreshold) {
+    return { wasCompacted: false, summaryText: null, processedHistory };
+  }
+
+  logInfo(
+    `[ChatHistoryCompaction] Triggered at ~${estimatedTokens} tokens (threshold ${settings.autoCompactThreshold}).`
+  );
+
+  const rawSummary = await summarizeChatHistory(
+    processedHistory,
+    settings.autoCompactSummaryTokens
+  );
+  const summaryText = normalizeSummaryBlock(rawSummary);
+  if (!summaryText) {
+    logWarn("[ChatHistoryCompaction] Empty summary result, skipping compaction.");
+    return { wasCompacted: false, summaryText: null, processedHistory };
+  }
+
+  return {
+    wasCompacted: true,
+    summaryText,
+    processedHistory: [{ role: "assistant", content: summaryText }],
+  };
 }
 
 /**
@@ -246,7 +379,21 @@ export async function loadAndAddChatHistory(
     return [];
   }
 
-  const processedHistory = processRawChatHistory(rawHistory);
+  let processedHistory = processRawChatHistory(rawHistory);
+
+  const compactionResult = await compactChatHistoryIfNeeded(processedHistory);
+  if (compactionResult.wasCompacted && compactionResult.summaryText) {
+    try {
+      await memory.clear();
+      await memory.saveContext(
+        { input: "Conversation summary" },
+        { output: compactionResult.summaryText }
+      );
+    } catch (error) {
+      logWarn("[ChatHistoryCompaction] Failed to persist compacted history:", error);
+    }
+    processedHistory = compactionResult.processedHistory;
+  }
 
   // Add history messages directly
   for (const msg of processedHistory) {

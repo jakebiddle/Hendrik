@@ -87,7 +87,7 @@ export class IndexOperations {
 
       const files = await this.getFilesToIndex(overwrite);
       if (files.length === 0) {
-        new Notice("Copilot vault index is up-to-date.");
+        new Notice("Hendrik vault index is up-to-date.");
         return 0;
       }
 
@@ -169,7 +169,7 @@ export class IndexOperations {
 
           if (currentCheckpoint > previousCheckpoint) {
             await this.dbOps.saveDB();
-            console.log("Copilot index checkpoint save completed.");
+            console.log("Hendrik index checkpoint save completed.");
           }
         } catch (err) {
           this.handleError(err, {
@@ -191,7 +191,7 @@ export class IndexOperations {
         this.dbOps
           .saveDB()
           .then(() => {
-            logInfo("Copilot index final save completed.");
+            logInfo("Hendrik index final save completed.");
             this.dbOps.checkIndexIntegrity().catch((err) => {
               logError("Background integrity check failed:", err);
             });
@@ -428,7 +428,7 @@ export class IndexOperations {
     if (this.state.indexNoticeMessage) {
       const status = this.state.isIndexingPaused ? " (Paused)" : "";
       const messages = [
-        `Copilot is indexing your vault...`,
+        `Hendrik is indexing your vault...`,
         `${this.state.indexedCount}/${this.state.totalFilesToIndex} files processed${status}`,
       ];
 
@@ -506,7 +506,7 @@ export class IndexOperations {
     // Handle json stringify string length error consistently
     if (this.isStringLengthError(error)) {
       new Notice(
-        "Vault is too large for 1 partition, please increase the number of partitions in your Copilot QA settings!",
+        "Vault is too large for 1 partition, please increase the number of partitions in your Hendrik QA settings!",
         10000 // Show for 10 seconds
       );
       return;

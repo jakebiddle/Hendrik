@@ -2,7 +2,7 @@ import { getBacklinkedNotes, getLinkedNotes } from "@/noteUtils";
 import { DBOperations } from "@/search/dbOperations";
 import { getSettings } from "@/settings/model";
 import { InternalTypedDocument, Orama, Result } from "@orama/orama";
-import { TFile } from "obsidian";
+import { App, TFile } from "obsidian";
 
 const MAX_K = 20;
 const ORIGINAL_WEIGHT = 0.7;
@@ -216,6 +216,93 @@ export async function findRelevantNotes({
           path,
           title: file.basename,
         },
+        metadata: {
+          score,
+          similarityScore: similarityScoreMap.get(path),
+          hasOutgoingLinks: noteLinks.get(path)?.links ?? false,
+          hasBacklinks: noteLinks.get(path)?.backlinks ?? false,
+        },
+      };
+    })
+    .filter((entry) => entry !== null);
+}
+
+/**
+ * Finds the relevant notes for the given file path using Smart Connections.
+ * Uses SC v4's nearest() which leverages the entity's
+ * embedding vector to find similar notes via cosine similarity.
+ *
+ * Throws on actual errors so callers can fall through to alternative search.
+ * Returns empty array only for legitimate "no data" conditions.
+ *
+ * @param appInstance - The Obsidian App instance
+ * @param filePath - The file path to find relevant notes for
+ * @returns The relevant notes, or empty array if note has no embedding yet
+ * @throws If the SC API call fails or the plugin env is misconfigured
+ */
+export async function findRelevantNotesViaSC({
+  app: appInstance,
+  filePath,
+}: {
+  app: App;
+  filePath: string;
+}): Promise<RelevantNoteEntry[]> {
+  const file = appInstance.vault.getAbstractFileByPath(filePath);
+  if (!(file instanceof TFile)) {
+    return [];
+  }
+
+  const scPlugin = (appInstance as any).plugins?.plugins?.["smart-connections"];
+  const env = scPlugin?.env;
+  if (!env?.smart_sources) {
+    throw new Error("Smart Connections environment not available");
+  }
+
+  const source = env.smart_sources.get(filePath);
+  if (!source) return []; // Note not in SC index yet – legitimate empty
+
+  // Use the source's embedding vector to find nearest neighbors directly
+  // via the collection's vector adapter (cosine similarity).
+  const vec = source.vec;
+  if (!vec) return []; // Note not embedded yet – legitimate empty
+
+  if (typeof env.smart_sources.nearest !== "function") {
+    throw new Error("Smart Connections nearest() API not available – upgrade SC or disable it");
+  }
+
+  const connections = await env.smart_sources.nearest(vec, { limit: MAX_K + 1 });
+  if (!Array.isArray(connections) || connections.length === 0) return [];
+
+  // Build similarity map from SC results
+  const similarityScoreMap = new Map<string, number>();
+  for (const conn of connections) {
+    const connPath = conn.item?.path || conn.item?.key;
+    if (!connPath || connPath === filePath) continue;
+    // SC keys can include block refs (e.g. "file.md#heading"), take base path
+    const basePath = connPath.split("#")[0];
+    const existing = similarityScoreMap.get(basePath);
+    if (!existing || conn.score > existing) {
+      similarityScoreMap.set(basePath, conn.score);
+    }
+  }
+
+  // Merge with link graph data (same logic as Orama path)
+  const noteLinks = getNoteLinks(file);
+  const mergedScoreMap = mergeScoreMaps(similarityScoreMap, noteLinks);
+
+  const sortedHits = Array.from(mergedScoreMap.entries()).sort((a, b) => {
+    const aCategory = getSimilarityCategory(similarityScoreMap.get(a[0]) ?? 0);
+    const bCategory = getSimilarityCategory(similarityScoreMap.get(b[0]) ?? 0);
+    if (aCategory !== bCategory) return bCategory - aCategory;
+    return b[1] - a[1];
+  });
+
+  return sortedHits
+    .map(([path, score]) => {
+      const noteFile = appInstance.vault.getAbstractFileByPath(path);
+      if (!(noteFile instanceof TFile) || noteFile.extension !== "md") return null;
+      return {
+        document: { path, title: noteFile.basename },
         metadata: {
           score,
           similarityScore: similarityScoreMap.get(path),

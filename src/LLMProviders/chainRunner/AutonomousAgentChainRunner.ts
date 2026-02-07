@@ -2,7 +2,6 @@ import { AGENT_LOOP_TIMEOUT_MS } from "@/constants";
 import { MessageContent } from "@/imageProcessing/imageProcessor";
 import { logError, logInfo, logWarn } from "@/logger";
 import { UserMemoryManager } from "@/memory/UserMemoryManager";
-import { checkIsPlusUser } from "@/plusUtils";
 import { getSettings } from "@/settings/model";
 import { getSystemPromptWithMemory } from "@/system-prompts/systemPromptBuilder";
 import { initializeBuiltinTools } from "@/tools/builtinTools";
@@ -12,7 +11,7 @@ import { Runnable } from "@langchain/core/runnables";
 import { ChatMessage, ResponseMetadata, StreamingResult } from "@/types/message";
 import { err2String, withSuppressedTokenWarnings } from "@/utils";
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
-import { CopilotPlusChainRunner } from "./CopilotPlusChainRunner";
+import { ToolCallingChainRunner } from "./ToolCallingChainRunner";
 import { loadAndAddChatHistory } from "./utils/chatHistoryUtils";
 import { ModelAdapter, ModelAdapterFactory } from "./utils/modelAdapter";
 import { ThinkBlockStreamer } from "./utils/ThinkBlockStreamer";
@@ -107,7 +106,7 @@ interface ReActLoopResult {
   responseMetadata?: ResponseMetadata;
 }
 
-export class AutonomousAgentChainRunner extends CopilotPlusChainRunner {
+export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
   private llmFormattedMessages: string[] = []; // Track LLM-formatted messages for memory
   private lastDisplayedContent = ""; // Track the last content displayed to user for error recovery
 
@@ -158,31 +157,31 @@ export class AutonomousAgentChainRunner extends CopilotPlusChainRunner {
 
     // Add initial step immediately for better UX (randomized for variety)
     const initialSteps = [
-      "Understanding your question",
-      "Analyzing your request",
-      "Processing your query",
-      "Thinking about this",
-      "Considering your question",
-      "Working on this",
-      "Pondering the possibilities",
-      "Diving into your request",
-      "Let me think about this",
-      "Exploring your question",
-      "Getting my thoughts together",
-      "Examining the details",
-      "Looking into this",
-      "Mulling this over",
-      "On it",
-      "Firing up the neurons",
-      "Connecting the dots",
-      "Brewing some ideas",
-      "Spinning up the gears",
-      "Warming up the engines",
-      "Crunching the details",
-      "Putting on my thinking cap",
-      "Consulting my notes",
-      "Gathering my thoughts",
-      "Rolling up my sleeves",
+      "Unfurling the ancient scrolls",
+      "Examining the royal manuscripts",
+      "Consulting the chronicle records",
+      "Deciphering the faded parchment",
+      "Searching the sealed archives",
+      "Reviewing the official registers",
+      "Studying the illuminated texts",
+      "Perusing the royal decrees",
+      "Investigating the historical ledgers",
+      "Cross-referencing the records",
+      "Checking the wax seals",
+      "Locating the relevant documents",
+      "Transcribing the old script",
+      "Verifying the royal signatures",
+      "Sifting through the centuries",
+      "Consulting the court records",
+      "Examining the heraldic emblems",
+      "Piecing together the narrative",
+      "Reviewing the historical accounts",
+      "Unlocking the archive's secrets",
+      "Comparing the manuscript versions",
+      "Studying the royal correspondence",
+      "Analyzing the historical evidence",
+      "Consulting the deed books",
+      "Gathering the pertinent records",
     ];
     const randomStep = initialSteps[Math.floor(Math.random() * initialSteps.length)];
     this.addReasoningStep(randomStep);
@@ -372,30 +371,10 @@ export class AutonomousAgentChainRunner extends CopilotPlusChainRunner {
     this.llmFormattedMessages = [];
     this.lastDisplayedContent = "";
 
-    const isPlusUser = await checkIsPlusUser({
-      isAutonomousAgent: true,
-    });
-
     const chatModel = this.chainManager.chatModelManager.getChatModel();
     const adapter = ModelAdapterFactory.createAdapter(chatModel);
     // Agent mode should never show thinking tokens in the response
     const thinkStreamer = new ThinkBlockStreamer(updateCurrentAiMessage, true);
-
-    if (!isPlusUser) {
-      await this.handleError(
-        new Error("Invalid license key"),
-        thinkStreamer.processErrorChunk.bind(thinkStreamer)
-      );
-      const errorResponse = thinkStreamer.close().content;
-      return this.handleResponse(
-        errorResponse,
-        userMessage,
-        abortController,
-        addMessage,
-        updateCurrentAiMessage,
-        undefined
-      );
-    }
 
     const modelNameForLog = (chatModel as { modelName?: string } | undefined)?.modelName;
 
@@ -474,7 +453,7 @@ export class AutonomousAgentChainRunner extends CopilotPlusChainRunner {
 
       logError("Autonomous agent failed, falling back to regular Plus mode:", error);
       try {
-        const fallbackRunner = new CopilotPlusChainRunner(this.chainManager);
+        const fallbackRunner = new ToolCallingChainRunner(this.chainManager);
         return await fallbackRunner.run(
           userMessage,
           abortController,

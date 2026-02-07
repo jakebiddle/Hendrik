@@ -16,7 +16,7 @@ export class FileCache<T> {
     this.cacheDir = cacheDir;
   }
 
-  static getInstance<T>(cacheDir: string = ".copilot/file-content-cache"): FileCache<T> {
+  static getInstance<T>(cacheDir: string = ".hendrik/file-content-cache"): FileCache<T> {
     if (!FileCache.instance) {
       FileCache.instance = new FileCache<T>(cacheDir);
     }

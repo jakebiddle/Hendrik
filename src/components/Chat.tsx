@@ -16,19 +16,13 @@ import { logInfo, logError } from "@/logger";
 import type { WebTabContext } from "@/types/message";
 
 import { ChatControls, reloadCurrentProject } from "@/components/chat-components/ChatControls";
+import { ArchivistGreeting } from "@/components/chat-components/ArchivistGreeting";
 import ChatInput from "@/components/chat-components/ChatInput";
 import ChatMessages from "@/components/chat-components/ChatMessages";
 import { NewVersionBanner } from "@/components/chat-components/NewVersionBanner";
 import { ProjectList } from "@/components/chat-components/ProjectList";
 import ProgressCard from "@/components/project/progress-card";
-import {
-  ABORT_REASON,
-  AI_SENDER,
-  EVENT_NAMES,
-  LOADING_MESSAGES,
-  RESTRICTION_MESSAGES,
-  USER_SENDER,
-} from "@/constants";
+import { ABORT_REASON, AI_SENDER, EVENT_NAMES, LOADING_MESSAGES, USER_SENDER } from "@/constants";
 import { AppContext, EventTargetContext } from "@/context";
 import { ChatInputProvider, useChatInput } from "@/context/ChatInputContext";
 import { useChatManager } from "@/hooks/useChatManager";
@@ -38,12 +32,11 @@ import ChainManager from "@/LLMProviders/chainManager";
 import { clearRecordedPromptPayload } from "@/LLMProviders/chainRunner/utils/promptPayloadRecorder";
 import { logFileManager } from "@/logFileManager";
 import CopilotPlugin from "@/main";
-import { useIsPlusUser } from "@/plusUtils";
 import { updateSetting, useSettingsValue } from "@/settings/model";
 import { ChatUIState } from "@/state/ChatUIState";
 import { FileParserManager } from "@/tools/FileParserManager";
 import { ChatMessage } from "@/types/message";
-import { err2String, isPlusChain } from "@/utils";
+import { err2String } from "@/utils";
 import { arrayBufferToBase64 } from "@/utils/base64";
 import { Notice, TFile } from "obsidian";
 import { ContextManageModal } from "@/components/modals/project/context-manage-modal";
@@ -62,6 +55,7 @@ interface ChatProps {
   plugin: CopilotPlugin;
   mode?: ChatMode;
   chatUIState: ChatUIState;
+  onClosePanel?: () => void;
 }
 
 // Internal component that has access to the ChatInput context
@@ -73,6 +67,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
   plugin,
   chatUIState,
   chatInput,
+  onClosePanel,
 }) => {
   const settings = useSettingsValue();
   const eventTarget = useContext(EventTargetContext);
@@ -188,7 +183,6 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
 
   const [previousMode, setPreviousMode] = useState<ChainType | null>(null);
   const [selectedChain, setSelectedChain] = useChainType();
-  const isPlusUser = useIsPlusUser();
 
   const appContext = useContext(AppContext);
   const app = plugin.app || appContext;
@@ -219,14 +213,6 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     webTabs?: WebTabContext[];
   } = {}) => {
     if (!inputMessage && selectedImages.length === 0) return;
-
-    // Check for URL restrictions in non-Plus chains and show notice, but continue processing
-    const hasUrlsInContext = urls && urls.length > 0;
-
-    if (hasUrlsInContext && !isPlusChain(currentChain)) {
-      // Show notice but continue processing the message without URL context
-      new Notice(RESTRICTION_MESSAGES.URL_PROCESSING_RESTRICTED);
-    }
 
     try {
       // Create message content array
@@ -266,10 +252,10 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
         displayText += " " + toolCalls.join("\n");
       }
 
-      // Create message context - filter out URLs for non-Plus chains
+      // Create message context
       const context = {
         notes,
-        urls: isPlusChain(currentChain) ? urls || [] : [],
+        urls: urls || [],
         tags: contextTags || [],
         folders: contextFolders || [],
         selectedTextContexts,
@@ -794,45 +780,10 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
 
   const renderChatComponents = () => (
     <>
-      <div className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden">
+      <div className="copilot-chat-root tw-flex tw-size-full tw-flex-col tw-overflow-hidden">
         <NewVersionBanner currentVersion={plugin.manifest.version} />
-        <ChatMessages
-          chatHistory={chatHistory}
-          currentAiMessage={currentAiMessage}
-          streamingMessageId={streamingMessageIdRef.current}
-          loading={loading}
-          loadingMessage={loadingMessage}
-          app={app}
-          onRegenerate={handleRegenerate}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onReplaceChat={setInputMessage}
-          showHelperComponents={selectedChain !== ChainType.PROJECT_CHAIN}
-        />
-        {shouldShowProgressCard() ? (
-          <div className="tw-inset-0 tw-z-modal tw-flex tw-items-center tw-justify-center tw-rounded-xl">
-            <ProgressCard
-              plugin={plugin}
-              setHiddenCard={() => {
-                setProgressCardVisible(false);
-              }}
-              onEditContext={() => {
-                const currentProject = getCurrentProject();
-                if (currentProject) {
-                  // Open the context management modal for editing the project
-                  new ContextManageModal(
-                    app,
-                    (updatedProject) => {
-                      handleEditProject(currentProject, updatedProject);
-                    },
-                    currentProject
-                  ).open();
-                }
-              }}
-            />
-          </div>
-        ) : (
-          <>
+        <div className="copilot-chat-surface tw-relative tw-flex tw-flex-1 tw-flex-col tw-overflow-hidden">
+          <div className="copilot-chat-header">
             <ChatControls
               onNewChat={handleNewChat}
               onSaveAsNote={() => handleSaveAsNote()}
@@ -850,33 +801,76 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
               onLoadChat={handleLoadChat}
               onOpenSourceFile={handleOpenSourceFile}
               latestTokenCount={latestTokenCount}
+              onClosePanel={onClosePanel}
             />
-            <ChatInput
-              inputMessage={inputMessage}
-              setInputMessage={setInputMessage}
-              handleSendMessage={handleSendMessage}
-              isGenerating={loading}
-              onStopGenerating={() => handleStopGenerating(ABORT_REASON.USER_STOPPED)}
+            <ArchivistGreeting />
+          </div>
+          <div className="copilot-chat-body tw-flex tw-flex-1 tw-flex-col tw-overflow-hidden">
+            <ChatMessages
+              chatHistory={chatHistory}
+              currentAiMessage={currentAiMessage}
+              streamingMessageId={streamingMessageIdRef.current}
+              loading={loading}
+              loadingMessage={loadingMessage}
               app={app}
-              contextNotes={contextNotes}
-              setContextNotes={setContextNotes}
-              includeActiveNote={includeActiveNote}
-              setIncludeActiveNote={setIncludeActiveNote}
-              includeActiveWebTab={includeActiveWebTab}
-              setIncludeActiveWebTab={setIncludeActiveWebTab}
-              activeWebTab={currentActiveWebTab}
-              selectedImages={selectedImages}
-              onAddImage={(files: File[]) => setSelectedImages((prev) => [...prev, ...files])}
-              setSelectedImages={setSelectedImages}
-              disableModelSwitch={selectedChain === ChainType.PROJECT_CHAIN}
-              selectedTextContexts={selectedTextContexts}
-              onRemoveSelectedText={handleRemoveSelectedText}
-              showProgressCard={() => {
-                setProgressCardVisible(true);
-              }}
+              onRegenerate={handleRegenerate}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              showHelperComponents={selectedChain !== ChainType.PROJECT_CHAIN}
             />
-          </>
-        )}
+          </div>
+          {!shouldShowProgressCard() && (
+            <div className="copilot-chat-composer">
+              <ChatInput
+                inputMessage={inputMessage}
+                setInputMessage={setInputMessage}
+                handleSendMessage={handleSendMessage}
+                isGenerating={loading}
+                onStopGenerating={() => handleStopGenerating(ABORT_REASON.USER_STOPPED)}
+                app={app}
+                contextNotes={contextNotes}
+                setContextNotes={setContextNotes}
+                includeActiveNote={includeActiveNote}
+                setIncludeActiveNote={setIncludeActiveNote}
+                includeActiveWebTab={includeActiveWebTab}
+                setIncludeActiveWebTab={setIncludeActiveWebTab}
+                activeWebTab={currentActiveWebTab}
+                selectedImages={selectedImages}
+                onAddImage={(files: File[]) => setSelectedImages((prev) => [...prev, ...files])}
+                setSelectedImages={setSelectedImages}
+                disableModelSwitch={selectedChain === ChainType.PROJECT_CHAIN}
+                selectedTextContexts={selectedTextContexts}
+                onRemoveSelectedText={handleRemoveSelectedText}
+                showProgressCard={() => {
+                  setProgressCardVisible(true);
+                }}
+              />
+            </div>
+          )}
+          {shouldShowProgressCard() && (
+            <div className="copilot-chat-progress">
+              <ProgressCard
+                plugin={plugin}
+                setHiddenCard={() => {
+                  setProgressCardVisible(false);
+                }}
+                onEditContext={() => {
+                  const currentProject = getCurrentProject();
+                  if (currentProject) {
+                    // Open the context management modal for editing the project
+                    new ContextManageModal(
+                      app,
+                      (updatedProject) => {
+                        handleEditProject(currentProject, updatedProject);
+                      },
+                      currentProject
+                    ).open();
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
@@ -909,10 +903,8 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
                     setSelectedChain(previousMode);
                     setPreviousMode(null);
                   } else {
-                    // default back to chat or plus mode
-                    setSelectedChain(
-                      isPlusUser ? ChainType.COPILOT_PLUS_CHAIN : ChainType.LLM_CHAIN
-                    );
+                    // default back to tool calling mode
+                    setSelectedChain(ChainType.TOOL_CALLING_CHAIN);
                   }
                 }}
                 showChatUI={(v) => setShowChatUI(v)}

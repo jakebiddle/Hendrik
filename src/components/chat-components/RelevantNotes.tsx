@@ -9,9 +9,12 @@ import { useActiveFile } from "@/hooks/useActiveFile";
 import { cn } from "@/lib/utils";
 import {
   findRelevantNotes,
+  findRelevantNotesViaSC,
   getSimilarityCategory,
   RelevantNoteEntry,
 } from "@/search/findRelevantNotes";
+import { isSmartConnectionsAvailable } from "@/search/smartConnectionsRetriever";
+import { getSettings } from "@/settings/model";
 import {
   ArrowRight,
   ChevronDown,
@@ -33,7 +36,25 @@ function useRelevantNotes(refresher: number) {
   useEffect(() => {
     async function fetchNotes() {
       if (!activeFile?.path) return;
-      // Only show when semantic search is enabled and database is available
+
+      const settings = getSettings();
+
+      // Use Smart Connections when enabled and available
+      if (settings.useSmartConnections && isSmartConnectionsAvailable(app)) {
+        try {
+          const notes = await findRelevantNotesViaSC({ app, filePath: activeFile.path });
+          if (notes.length > 0) {
+            setRelevantNotes(notes);
+            return;
+          }
+          // SC returned empty – fall through to Orama as backup
+        } catch (error) {
+          console.warn("Failed to fetch relevant notes via Smart Connections:", error);
+          // Fall through to Orama path
+        }
+      }
+
+      // Orama path: works when semantic search is enabled and database is available
       try {
         const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
         const db = await VectorStoreManager.getInstance().getDb();
@@ -59,6 +80,13 @@ function useHasIndex(notePath: string, refresher: number) {
   const [hasIndex, setHasIndex] = useState(true);
   useEffect(() => {
     if (!notePath) return;
+
+    // When using Smart Connections, SC manages its own index
+    const settings = getSettings();
+    if (settings.useSmartConnections && isSmartConnectionsAvailable(app)) {
+      setHasIndex(true);
+      return;
+    }
 
     async function fetchHasIndex() {
       try {

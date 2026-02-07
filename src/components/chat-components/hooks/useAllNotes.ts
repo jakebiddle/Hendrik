@@ -6,7 +6,7 @@ import { settingsStore } from "@/settings/model";
 
 /**
  * Custom hook to get all available notes from the vault.
- * Includes canvas files for all users and PDF files when in Copilot Plus mode.
+ * Includes canvas files for all users and PDF files when in Hendrik mode.
  * Automatically updates when files are created, deleted, or renamed.
  * Notes are sorted by creation date in descending order (newest first).
  *

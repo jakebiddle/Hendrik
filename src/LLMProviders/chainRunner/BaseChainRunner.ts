@@ -148,9 +148,7 @@ export abstract class BaseChainRunner implements ChainRunner {
     let errorMessage = "";
 
     // Check for specific error messages
-    if (error?.message?.includes("Invalid license key")) {
-      errorMessage = "Invalid Copilot Plus license key. Please check your license key in settings.";
-    } else if (errorCode === "model_not_found") {
+    if (errorCode === "model_not_found") {
       errorMessage =
         "You do not have access to this model or the model does not exist, please check with your API provider.";
     } else {
@@ -178,7 +176,7 @@ export abstract class BaseChainRunner implements ChainRunner {
     if (this.isAuthenticationError(error, msg)) {
       errorMessage =
         "Something went wrong. Please check if you have set your API key." +
-        "\nPath: Settings > copilot plugin > Basic Tab > Set Keys." +
+        "\nPath: Settings > Hendrik > Basic Tab > Set Keys." +
         "\nOr check model config" +
         "\nError Details: " +
         errorMessage;

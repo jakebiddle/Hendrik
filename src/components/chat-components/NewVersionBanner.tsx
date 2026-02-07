@@ -48,7 +48,7 @@ export function NewVersionBanner({ currentVersion }: NewVersionBannerProps) {
         <div className="tw-flex tw-items-center tw-gap-2">
           <span className="tw-font-medium">Update available:</span>
           <a
-            href={`https://github.com/logancyang/obsidian-copilot/releases/latest`}
+            href={`https://github.com/jakebiddle/hendrik/releases/latest`}
             target="_blank"
             rel="noopener noreferrer"
             className="tw-text-normal"
@@ -62,7 +62,7 @@ export function NewVersionBanner({ currentVersion }: NewVersionBannerProps) {
             variant="ghost2"
             className="tw-text-accent hover:tw-text-accent-hover"
             onClick={() => {
-              window.open(`obsidian://show-plugin?id=copilot`, "_blank");
+              window.open(`obsidian://show-plugin?id=hendrik`, "_blank");
               handleDismiss();
             }}
           >

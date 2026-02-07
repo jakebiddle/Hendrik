@@ -594,7 +594,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
             const insertBefore = contentRef.current!.children[currentIndex];
 
             const textDiv = document.createElement("div");
-            textDiv.className = "message-segment";
+            textDiv.className = "message-segment markdown-rendered";
 
             if (insertBefore) {
               contentRef.current!.insertBefore(textDiv, insertBefore);
@@ -868,7 +868,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
             : undefined
         }
       >
-        <div className="tw-flex tw-max-w-full tw-flex-col tw-gap-2 tw-overflow-hidden">
+        <div className="tw-flex tw-max-w-full tw-flex-col tw-gap-2">
           {!isEditing && <MessageContext context={message.context} />}
 
           {/* Agent Reasoning Block (if present) */}

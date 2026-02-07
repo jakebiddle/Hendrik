@@ -19,6 +19,7 @@ const PARAM_RANGES = {
   topP: { min: 0, max: 1, step: 0.05, default: 0.9 },
   frequencyPenalty: { min: 0, max: 2, step: 0.05, default: 0 },
   maxTokens: { min: 100, max: 128000, step: 100, default: DEFAULT_MODEL_SETTING.MAX_TOKENS },
+  maxContextTokens: { min: 8000, max: 1000000, step: 1000 },
 };
 
 interface ModelParametersEditorProps {
@@ -43,6 +44,7 @@ export function ModelParametersEditor({
   // Parameter values: model.xxx ?? settings.xxx
   const temperature = model.temperature ?? settings.temperature;
   const maxTokens = model.maxTokens ?? settings.maxTokens;
+  const maxContextTokens = model.maxContextTokens ?? settings.defaultMaxContextTokens;
   const topP = model.topP;
   const frequencyPenalty = model.frequencyPenalty;
   const reasoningEffort = model.reasoningEffort;
@@ -97,6 +99,33 @@ export function ModelParametersEditor({
           />
         </FormField>
       )}
+
+      <FormField>
+        <ParameterControl
+          type="slider"
+          optional={true}
+          label="Context window tokens"
+          value={maxContextTokens}
+          onChange={(value) => onChange("maxContextTokens", value)}
+          disableFn={onReset ? () => onReset("maxContextTokens") : undefined}
+          max={PARAM_RANGES.maxContextTokens.max}
+          min={PARAM_RANGES.maxContextTokens.min}
+          step={PARAM_RANGES.maxContextTokens.step}
+          defaultValue={settings.defaultMaxContextTokens}
+          helpText={
+            <>
+              <p>
+                The maximum total context size (input + output) for this model. Used for compaction
+                and pressure indicators.
+              </p>
+              <em>
+                If unset, the global default of {settings.defaultMaxContextTokens.toLocaleString()}{" "}
+                is used.
+              </em>
+            </>
+          }
+        />
+      </FormField>
 
       {/* Temperature */}
       <FormField>

@@ -4,7 +4,7 @@ import { getSettings } from "@/settings/model";
 import { create, load, Orama, RawData, save } from "@orama/orama";
 import { App } from "obsidian";
 
-const CHUNK_PREFIX = "copilot-index-chunk-";
+const CHUNK_PREFIX = "hendrik-index-chunk-";
 const LEGACY_INDEX_SUFFIX = ".json";
 
 export interface ChunkMetadata {
@@ -31,7 +31,7 @@ export class ChunkedStorage {
   }
 
   private getLegacyPath(): string {
-    return `${this.baseDir}/copilot-index-${this.identifier}${LEGACY_INDEX_SUFFIX}`;
+    return `${this.baseDir}/hendrik-index-${this.identifier}${LEGACY_INDEX_SUFFIX}`;
   }
 
   public assignDocumentToPartition(docId: string, totalPartitions: number): number {

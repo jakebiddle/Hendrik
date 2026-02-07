@@ -3,7 +3,7 @@ export type { ChainRunner } from "./BaseChainRunner";
 export { BaseChainRunner } from "./BaseChainRunner";
 export { LLMChainRunner } from "./LLMChainRunner";
 export { VaultQAChainRunner } from "./VaultQAChainRunner";
-export { CopilotPlusChainRunner } from "./CopilotPlusChainRunner";
+export { ToolCallingChainRunner } from "./ToolCallingChainRunner";
 export { ProjectChainRunner } from "./ProjectChainRunner";
 export { AutonomousAgentChainRunner } from "./AutonomousAgentChainRunner";
 

@@ -43,7 +43,6 @@ export async function encryptAllKeys(
   const keysToEncrypt = Object.keys(settings).filter(
     (key) =>
       key.toLowerCase().includes("apikey") ||
-      key === "plusLicenseKey" ||
       key === "githubCopilotAccessToken" ||
       key === "githubCopilotToken"
   );
@@ -146,7 +145,7 @@ export async function getDecryptedKey(apiKey: string): Promise<string> {
     return new TextDecoder().decode(decryptedData);
   } catch (err) {
     console.error("Decryption failed:", err);
-    return "Copilot failed to decrypt API keys!";
+    return "Hendrik failed to decrypt API keys!";
   }
 }
 

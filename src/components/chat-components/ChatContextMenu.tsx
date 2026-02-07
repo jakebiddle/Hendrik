@@ -17,7 +17,7 @@ import { ChainType } from "@/chainFactory";
 import { Separator } from "@/components/ui/separator";
 import { useChainType } from "@/aiParams";
 import { useProjectContextStatus } from "@/hooks/useProjectContextStatus";
-import { getDomainFromUrl, isPlusChain, openFileInWorkspace } from "@/utils";
+import { getDomainFromUrl, openFileInWorkspace } from "@/utils";
 import { mergeWebTabContexts } from "@/utils/urlNormalization";
 import { AtMentionTypeahead } from "./AtMentionTypeahead";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -110,10 +110,11 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
   lexicalEditorRef,
 }) => {
   const [currentChain] = useChainType();
+  // All features ungated (Plus system removed)
+  const isCopilotPlus = true;
   const contextStatus = useProjectContextStatus();
   const [showTypeahead, setShowTypeahead] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const isCopilotPlus = isPlusChain(currentChain);
 
   const handleTypeaheadClose = () => {
     setShowTypeahead(false);

@@ -47,7 +47,6 @@ export interface LegacyCommandSettings {
 
 export interface CopilotSettings {
   userId: string;
-  plusLicenseKey: string;
   openAIApiKey: string;
   openAIOrgId: string;
   huggingfaceApiKey: string;
@@ -118,8 +117,6 @@ export interface CopilotSettings {
   showRelevantNotes: boolean;
   numPartitions: number;
   defaultConversationNoteName: string;
-  // undefined means never checked
-  isPlusUser: boolean | undefined;
   inlineEditCommands: LegacyCommandSettings[] | undefined;
   projectList: Array<ProjectConfig>;
   passMarkdownImages: boolean;
@@ -127,16 +124,8 @@ export interface CopilotSettings {
   enableCustomPromptTemplating: boolean;
   /** Enable semantic search using Orama for meaning-based document retrieval */
   enableSemanticSearchV3: boolean;
-  /** Enable self-host mode (e.g., Miyo) - uses self-hosted services for search, LLMs, OCR, etc. */
-  enableSelfHostMode: boolean;
-  /** Timestamp of last successful Believer validation for self-host mode (null if never validated) */
-  selfHostModeValidatedAt: number | null;
-  /** Count of successful periodic validations (3 = permanently valid) */
-  selfHostValidationCount: number;
-  /** URL endpoint for the self-host mode backend */
-  selfHostUrl: string;
-  /** API key for the self-host mode backend (if required) */
-  selfHostApiKey: string;
+  /** Use Smart Connections plugin for semantic search when available */
+  useSmartConnections: boolean;
   /** Enable lexical boosts (folder and graph) in search - default: true */
   enableLexicalBoosts: boolean;
   /**
@@ -183,6 +172,14 @@ export interface CopilotSettings {
   defaultSystemPromptTitle: string;
   /** Token threshold for auto-compacting large context (range: 64k-1M tokens, default: 128000) */
   autoCompactThreshold: number;
+  /** Enable chat history auto-compaction */
+  enableAutoCompaction: boolean;
+  /** Target token budget for compaction summaries */
+  autoCompactSummaryTokens: number;
+  /** Default context window size when model-specific value is not set */
+  defaultMaxContextTokens: number;
+  /** Show context pressure indicator in chat controls */
+  showContextPressureIndicator: boolean;
 }
 
 export const settingsStore = createStore();
@@ -314,21 +311,6 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
 
   const sanitizedSettings: CopilotSettings = { ...settingsToSanitize };
 
-  // Migration: Rename self-hosted search settings to self-host mode (v3.2.0+)
-  const rawSettings = settingsToSanitize as unknown as Record<string, unknown>;
-  if (
-    rawSettings.enableSelfHostedSearch !== undefined &&
-    sanitizedSettings.enableSelfHostMode === undefined
-  ) {
-    sanitizedSettings.enableSelfHostMode = rawSettings.enableSelfHostedSearch as boolean;
-  }
-  if (rawSettings.selfHostedSearchUrl !== undefined && !sanitizedSettings.selfHostUrl) {
-    sanitizedSettings.selfHostUrl = rawSettings.selfHostedSearchUrl as string;
-  }
-  if (rawSettings.selfHostedSearchApiKey !== undefined && !sanitizedSettings.selfHostApiKey) {
-    sanitizedSettings.selfHostApiKey = rawSettings.selfHostedSearchApiKey as string;
-  }
-
   // Stuff in settings are string even when the interface has number type!
   const temperature = Number(settingsToSanitize.temperature);
   sanitizedSettings.temperature = isNaN(temperature) ? DEFAULT_SETTINGS.temperature : temperature;
@@ -454,6 +436,38 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     );
   }
 
+  // Ensure enableAutoCompaction has a default value
+  if (typeof sanitizedSettings.enableAutoCompaction !== "boolean") {
+    sanitizedSettings.enableAutoCompaction = DEFAULT_SETTINGS.enableAutoCompaction;
+  }
+
+  // Ensure autoCompactSummaryTokens has a valid value (256-16000 range)
+  const autoCompactSummaryTokens = Number(settingsToSanitize.autoCompactSummaryTokens);
+  if (isNaN(autoCompactSummaryTokens)) {
+    sanitizedSettings.autoCompactSummaryTokens = DEFAULT_SETTINGS.autoCompactSummaryTokens;
+  } else {
+    sanitizedSettings.autoCompactSummaryTokens = Math.min(
+      16000,
+      Math.max(256, autoCompactSummaryTokens)
+    );
+  }
+
+  // Ensure defaultMaxContextTokens has a valid value (8k-1M range)
+  const defaultMaxContextTokens = Number(settingsToSanitize.defaultMaxContextTokens);
+  if (isNaN(defaultMaxContextTokens)) {
+    sanitizedSettings.defaultMaxContextTokens = DEFAULT_SETTINGS.defaultMaxContextTokens;
+  } else {
+    sanitizedSettings.defaultMaxContextTokens = Math.min(
+      1000000,
+      Math.max(8000, defaultMaxContextTokens)
+    );
+  }
+
+  // Ensure showContextPressureIndicator has a default value
+  if (typeof sanitizedSettings.showContextPressureIndicator !== "boolean") {
+    sanitizedSettings.showContextPressureIndicator = DEFAULT_SETTINGS.showContextPressureIndicator;
+  }
+
   // Ensure quickCommandIncludeNoteContext has a default value
   if (typeof sanitizedSettings.quickCommandIncludeNoteContext !== "boolean") {
     sanitizedSettings.quickCommandIncludeNoteContext =
@@ -570,7 +584,6 @@ function mergeActiveModels(
           ...builtInModel,
           ...model,
           isBuiltIn: true,
-          believerExclusive: builtInModel.believerExclusive,
         });
       } else {
         modelMap.set(key, {

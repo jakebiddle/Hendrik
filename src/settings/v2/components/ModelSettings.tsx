@@ -23,8 +23,6 @@ export const ModelSettings: React.FC = () => {
         "isBuiltIn",
         "core",
         "projectEnabled",
-        "plusExclusive",
-        "believerExclusive",
         "capabilities",
         "displayName",
         "dimensions",
@@ -170,6 +168,13 @@ export const ModelSettings: React.FC = () => {
 
         <div className="tw-space-y-4">
           <SettingItem
+            type="switch"
+            title="Enable auto-compaction"
+            description="Automatically summarize chat history when context grows too large."
+            checked={settings.enableAutoCompaction}
+            onCheckedChange={(checked: boolean) => updateSetting("enableAutoCompaction", checked)}
+          />
+          <SettingItem
             type="slider"
             title="Conversation turns in context"
             description="The number of previous conversation turns to include in the context. Default is 15 turns, i.e. 30 messages."
@@ -188,6 +193,35 @@ export const ModelSettings: React.FC = () => {
             step={64000}
             value={settings.autoCompactThreshold}
             onChange={(value) => updateSetting("autoCompactThreshold", value)}
+          />
+          <SettingItem
+            type="slider"
+            title="Compaction summary length"
+            description="Target token budget for compaction summaries."
+            min={256}
+            max={16000}
+            step={256}
+            value={settings.autoCompactSummaryTokens}
+            onChange={(value) => updateSetting("autoCompactSummaryTokens", value)}
+          />
+          <SettingItem
+            type="slider"
+            title="Default context window"
+            description="Fallback context window size when a model does not define its own limit."
+            min={8000}
+            max={1000000}
+            step={1000}
+            value={settings.defaultMaxContextTokens}
+            onChange={(value) => updateSetting("defaultMaxContextTokens", value)}
+          />
+          <SettingItem
+            type="switch"
+            title="Context pressure indicator"
+            description="Show usage vs. context window in the chat header."
+            checked={settings.showContextPressureIndicator}
+            onCheckedChange={(checked: boolean) =>
+              updateSetting("showContextPressureIndicator", checked)
+            }
           />
         </div>
       </section>

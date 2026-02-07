@@ -10,10 +10,8 @@ import { BUILTIN_CHAT_MODELS, USER_SENDER } from "@/constants";
 import {
   AutonomousAgentChainRunner,
   ChainRunner,
-  CopilotPlusChainRunner,
-  LLMChainRunner,
+  ToolCallingChainRunner,
   ProjectChainRunner,
-  VaultQAChainRunner,
 } from "@/LLMProviders/chainRunner/index";
 import { logError, logInfo } from "@/logger";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
@@ -92,7 +90,7 @@ export default class ChainManager {
 
     if (!this.chatModelManager.validateChatModel(this.chatModelManager.getChatModel())) {
       const errorMsg =
-        "Chat model is not initialized properly, check your API key in Copilot setting and make sure you have API access.";
+        "Chat model is not initialized properly, check your API key in Hendrik settings and make sure you have API access.";
       throw new MissingModelKeyError(errorMsg);
     }
   }
@@ -230,7 +228,6 @@ export default class ChainManager {
               timeRange: undefined,
               textWeight: undefined,
               returnAll: false,
-              useRerankerThreshold: undefined,
             });
 
         // Create new conversational retrieval chain
@@ -252,7 +249,7 @@ export default class ChainManager {
         break;
       }
 
-      case ChainType.COPILOT_PLUS_CHAIN: {
+      case ChainType.TOOL_CALLING_CHAIN: {
         // For initial load of the plugin
         await this.initializeQAChain(options);
         this.chain = ChainFactory.createNewLLMChain({
@@ -262,7 +259,7 @@ export default class ChainManager {
           abortController: options.abortController,
         }) as RunnableSequence;
 
-        setChainType(ChainType.COPILOT_PLUS_CHAIN);
+        setChainType(ChainType.TOOL_CALLING_CHAIN);
         break;
       }
 
@@ -291,15 +288,13 @@ export default class ChainManager {
 
     switch (chainType) {
       case ChainType.LLM_CHAIN:
-        return new LLMChainRunner(this);
       case ChainType.VAULT_QA_CHAIN:
-        return new VaultQAChainRunner(this);
-      case ChainType.COPILOT_PLUS_CHAIN:
+      case ChainType.TOOL_CALLING_CHAIN:
         // Use AutonomousAgentChainRunner if the setting is enabled
         if (settings.enableAutonomousAgent) {
           return new AutonomousAgentChainRunner(this);
         }
-        return new CopilotPlusChainRunner(this);
+        return new ToolCallingChainRunner(this);
       case ChainType.PROJECT_CHAIN:
         return new ProjectChainRunner(this);
       default:

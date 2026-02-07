@@ -88,6 +88,7 @@ export interface ModelConfig {
   maxRetries: number;
   maxConcurrency: number;
   maxTokens?: number;
+  maxContextTokens?: number;
   maxCompletionTokens?: number;
   openAIApiKey?: string;
   openAIOrgId?: string;
@@ -126,12 +127,11 @@ export interface CustomModel {
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
+  maxContextTokens?: number;
   topP?: number;
   frequencyPenalty?: number;
 
   projectEnabled?: boolean;
-  plusExclusive?: boolean;
-  believerExclusive?: boolean;
   capabilities?: ModelCapability[];
   displayName?: string;
 

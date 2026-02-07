@@ -1,7 +1,7 @@
 import { getStandaloneQuestion } from "@/chainUtils";
 import { TEXT_WEIGHT } from "@/constants";
-import { BrevilabsClient } from "@/LLMProviders/brevilabsClient";
 import { logInfo } from "@/logger";
+import { webSearch } from "@/tools/urlFetcher";
 import { RetrieverFactory } from "@/search/RetrieverFactory";
 import { getSettings } from "@/settings/model";
 import { z } from "zod";
@@ -132,7 +132,6 @@ async function performLexicalSearch({
     timeRange,
     textWeight: TEXT_WEIGHT,
     returnAll,
-    useRerankerThreshold: 0.5,
     returnAllTags,
     tagTerms,
     preExpandedQuery: convertedPreExpansion, // Pass pre-expanded data to skip double expansion
@@ -252,7 +251,6 @@ const semanticSearchTool = createLangChainTool({
       timeRange,
       textWeight: TEXT_WEIGHT,
       returnAll: returnAll,
-      useRerankerThreshold: 0.5,
     });
 
     const documents = await retriever.getRelevantDocuments(query);
@@ -377,10 +375,16 @@ const localSearchTool = createLangChainTool({
 // Note: indexTool behavior depends on which retriever is active
 const indexTool = createLangChainTool({
   name: "indexVault",
-  description: "Index the vault to the Copilot index",
+  description: "Index the vault to the Hendrik index",
   schema: z.object({}), // No parameters
   func: async () => {
     const settings = getSettings();
+    if (settings.useSmartConnections) {
+      return {
+        success: true,
+        message: "Smart Connections manages its own index. No manual indexing required.",
+      };
+    }
     if (settings.enableSemanticSearchV3) {
       // Semantic search uses persistent Orama index - trigger actual indexing
       try {
@@ -433,25 +437,24 @@ const webSearchTool = createLangChainTool({
       // Get standalone question considering chat history
       const standaloneQuestion = await getStandaloneQuestion(query, chatHistory);
 
-      const response = await BrevilabsClient.getInstance().webSearch(standaloneQuestion);
-      const citations = response.response.citations || [];
+      const response = await webSearch(standaloneQuestion);
 
-      // Return structured JSON response for consistency with other tools
-      // Format as an array of results like localSearch does
-      const webContent = response.response.choices[0].message.content;
-      const formattedResults = [
+      // Format results as structured data for the LLM to synthesize
+      const formattedResults = response.results.map((r, i) => ({
+        index: i + 1,
+        title: r.title,
+        snippet: r.snippet,
+        url: r.url,
+      }));
+
+      return [
         {
           type: "web_search",
-          content: webContent,
-          citations: citations,
-          // Instruct the model to use footnote-style citations and definitions.
-          // Chat UI will render [^n] as [n] for readability and show a simple numbered Sources list.
-          // When inserted into a note, the original [^n] footnotes will remain valid Markdown footnotes.
+          content: JSON.stringify(formattedResults, null, 2),
+          citations: response.results.map((r) => r.url),
           instruction: getWebSearchCitationInstructions(),
         },
       ];
-
-      return formattedResults;
     } catch (error) {
       console.error(`Error processing web search query ${query}:`, error);
       return { error: `Web search failed: ${error}` };

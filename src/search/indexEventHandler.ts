@@ -32,7 +32,10 @@ export class IndexEventHandler {
    * @returns {boolean} True when semantic search indexing should run.
    */
   private shouldHandleEvents(): boolean {
-    return getSettings().enableSemanticSearchV3;
+    const settings = getSettings();
+    // Skip indexing events when Smart Connections handles search
+    if (settings.useSmartConnections) return false;
+    return settings.enableSemanticSearchV3;
   }
 
   /**
@@ -41,7 +44,7 @@ export class IndexEventHandler {
   private syncEventListeners(): void {
     const shouldListen = this.shouldHandleEvents();
     if (shouldListen && !this.listenersActive) {
-      logInfo("Copilot Plus: Initializing semantic index event listeners");
+      logInfo("Hendrik: Initializing semantic index event listeners");
       this.app.workspace.on("active-leaf-change", this.handleActiveLeafChange);
       this.app.vault.on("delete", this.handleFileDelete);
       this.listenersActive = true;
@@ -77,7 +80,7 @@ export class IndexEventHandler {
     }
 
     const currentChainType = getChainType();
-    if (currentChainType !== ChainType.COPILOT_PLUS_CHAIN) {
+    if (currentChainType !== ChainType.TOOL_CALLING_CHAIN) {
       return;
     }
 
@@ -124,7 +127,7 @@ export class IndexEventHandler {
 
     this.debounceTimer = window.setTimeout(() => {
       if (getSettings().debug) {
-        console.log("Copilot Plus: Triggering reindex for file ", file.path);
+        console.log("Hendrik: Triggering reindex for file ", file.path);
       }
       this.indexOps.reindexFile(file);
       this.debounceTimer = null;
