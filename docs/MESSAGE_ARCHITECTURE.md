@@ -186,7 +186,7 @@ private notifyListeners(): void
 - **Context Processing**: Handles notes, URLs, selected text, tags, and folders
 - **Reprocessing**: Regenerates fresh context when messages are edited
 - **Envelope Building**: Creates `PromptContextEnvelope` with structured layers and hashes
-- **Chain-Aware Processing**: Applies chain-specific rules (e.g., Copilot Plus URL processing, active-note handling for vision models)
+- **Chain-Aware Processing**: Applies chain-specific rules (e.g., Tool Calling URL processing, active-note handling for vision models)
 
 **Core Methods**:
 

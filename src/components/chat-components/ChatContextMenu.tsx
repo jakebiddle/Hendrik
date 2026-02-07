@@ -111,7 +111,7 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
 }) => {
   const [currentChain] = useChainType();
   // All features ungated (Plus system removed)
-  const isCopilotPlus = true;
+  const isToolCallingEnabled = true;
   const contextStatus = useProjectContextStatus();
   const [showTypeahead, setShowTypeahead] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -200,7 +200,7 @@ export const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
               isOpen={showTypeahead}
               onClose={handleTypeaheadClose}
               onSelect={handleTypeaheadSelect}
-              isCopilotPlus={isCopilotPlus}
+              isToolCallingEnabled={isToolCallingEnabled}
               currentActiveFile={currentActiveFile}
             />
           </PopoverContent>

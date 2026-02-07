@@ -86,7 +86,7 @@ export const ToolCallBanner: React.FC<ToolCallBannerProps> = ({
       onOpenChange={setIsOpen}
       disabled={!canExpand}
       aria-disabled={!canExpand}
-      className="tw-my-3 tw-w-full sm:tw-max-w-sm"
+      className="tw-my-3 tw-w-full"
     >
       <div
         className={cn(

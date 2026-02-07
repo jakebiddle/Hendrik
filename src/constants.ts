@@ -1,5 +1,5 @@
 import { CustomModel } from "@/aiParams";
-import { type CopilotSettings } from "@/settings/model";
+import { type HendrikSettings } from "@/settings/model";
 import { v4 as uuidv4 } from "uuid";
 import type { ChainType } from "./chainFactory";
 import { PromptSortStrategy } from "./types";
@@ -9,12 +9,12 @@ export const USER_SENDER = "user";
 export const AI_SENDER = "ai";
 
 // Default folder names
-export const COPILOT_FOLDER_ROOT = "hendrik";
-export const DEFAULT_CHAT_HISTORY_FOLDER = `${COPILOT_FOLDER_ROOT}/hendrik-conversations`;
-export const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${COPILOT_FOLDER_ROOT}/hendrik-custom-prompts`;
-export const DEFAULT_MEMORY_FOLDER = `${COPILOT_FOLDER_ROOT}/memory`;
-export const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${COPILOT_FOLDER_ROOT}/system-prompts`;
-export const DEFAULT_QA_EXCLUSIONS_SETTING = COPILOT_FOLDER_ROOT;
+export const HENDRIK_FOLDER_ROOT = "hendrik";
+export const DEFAULT_CHAT_HISTORY_FOLDER = `${HENDRIK_FOLDER_ROOT}/hendrik-conversations`;
+export const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${HENDRIK_FOLDER_ROOT}/hendrik-custom-prompts`;
+export const DEFAULT_MEMORY_FOLDER = `${HENDRIK_FOLDER_ROOT}/memory`;
+export const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${HENDRIK_FOLDER_ROOT}/system-prompts`;
+export const DEFAULT_QA_EXCLUSIONS_SETTING = HENDRIK_FOLDER_ROOT;
 export const DEFAULT_SYSTEM_PROMPT = `You are Hendrik, a helpful assistant that integrates AI to Obsidian note-taking.
   1. Never mention that you do not have access to something. Always rely on the user provided context.
   2. Always answer to the best of your knowledge. If you are unsure about something, say so and ask the user to provide more context.
@@ -114,7 +114,7 @@ export const YOUTUBE_VIDEO_CONTEXT_TAG = "youtube_video_context";
 /** Marker text used as placeholder for active web tab in serialized content */
 export const ACTIVE_WEB_TAB_MARKER = "{activeWebTab}";
 export const EMPTY_INDEX_ERROR_MESSAGE =
-  "Hendrik index does not exist. Please index your vault first!\n\n1. Set a working embedding model in QA settings. If it's not a local model, don't forget to set the API key. \n\n2. Click 'Refresh Index for Vault' and wait for indexing to complete. If you encounter the rate limiting error, please turn your request per second down in QA setting.";
+  "The archives have not yet been catalogued. Please index your vault first!\n\n1. Set a working embedding model in QA settings. If it's not a local model, don't forget to set the API key. \n\n2. Click 'Refresh Index for Vault' and wait for indexing to complete. If you encounter the rate limiting error, please turn your request per second down in QA setting.";
 export const CHUNK_SIZE = 6000;
 export const TEXT_WEIGHT = 0.4;
 export const MAX_CHARS_FOR_LOCAL_SEARCH_CONTEXT = 448000;
@@ -123,10 +123,10 @@ export const AGENT_LOOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes timeout for a
 export const AGENT_MAX_ITERATIONS_LIMIT = 64; // Maximum allowed value for agent iterations setting
 export const LOADING_MESSAGES = {
   DEFAULT: "",
-  READING_FILES: "Reading files",
-  SEARCHING_WEB: "Searching the web",
-  READING_FILE_TREE: "Reading file tree",
-  COMPACTING: "Compacting",
+  READING_FILES: "Consulting the archives",
+  SEARCHING_WEB: "Dispatching scouts",
+  READING_FILE_TREE: "Surveying the stacks",
+  COMPACTING: "Condensing the scrolls",
 };
 /**
  * Reasoning effort levels for OpenAI reasoning models
@@ -201,7 +201,7 @@ export enum ChatModelProviders {
   DEEPSEEK = "deepseek",
   COHEREAI = "cohereai",
   SILICONFLOW = "siliconflow",
-  GITHUB_COPILOT = "github-copilot",
+  GITHUB_COPILOT = "github-hendrik",
 }
 
 export enum ModelCapability {
@@ -625,7 +625,7 @@ export const ProviderInfo: Record<Provider, ProviderMetadata> = {
 };
 
 // Map provider to its settings key for API key
-export const ProviderSettingsKeyMap: Record<SettingKeyProviders, keyof CopilotSettings> = {
+export const ProviderSettingsKeyMap: Record<SettingKeyProviders, keyof HendrikSettings> = {
   anthropic: "anthropicApiKey",
   openai: "openAIApiKey",
   "azure openai": "azureOpenAIApiKey",
@@ -638,7 +638,7 @@ export const ProviderSettingsKeyMap: Record<SettingKeyProviders, keyof CopilotSe
   deepseek: "deepseekApiKey",
   "amazon-bedrock": "amazonBedrockApiKey",
   siliconflow: "siliconflowApiKey",
-  "github-copilot": "githubCopilotToken",
+  "github-hendrik": "githubCopilotToken",
 };
 
 export enum VAULT_VECTOR_STORE_STRATEGY {
@@ -665,22 +665,22 @@ export enum SEND_SHORTCUT {
 
 export const COMMAND_IDS = {
   TRIGGER_QUICK_COMMAND: "trigger-quick-command",
-  CLEAR_LOCAL_COPILOT_INDEX: "clear-local-copilot-index",
-  CLEAR_COPILOT_CACHE: "clear-copilot-cache",
+  CLEAR_LOCAL_HENDRIK_INDEX: "clear-local-hendrik-index",
+  CLEAR_HENDRIK_CACHE: "clear-hendrik-cache",
   COUNT_WORD_AND_TOKENS_SELECTION: "count-word-and-tokens-selection",
   COUNT_TOTAL_VAULT_TOKENS: "count-total-vault-tokens",
   DEBUG_WORD_COMPLETION: "debug-word-completion",
-  FORCE_REINDEX_VAULT_TO_COPILOT_INDEX: "force-reindex-vault-to-copilot-index",
-  GARBAGE_COLLECT_COPILOT_INDEX: "garbage-collect-copilot-index",
-  INDEX_VAULT_TO_COPILOT_INDEX: "index-vault-to-copilot-index",
-  INSPECT_COPILOT_INDEX_BY_NOTE_PATHS: "copilot-inspect-index-by-note-paths",
-  LIST_INDEXED_FILES: "copilot-list-indexed-files",
-  LOAD_COPILOT_CHAT_CONVERSATION: "load-copilot-chat-conversation",
+  FORCE_REINDEX_VAULT_TO_HENDRIK_INDEX: "force-reindex-vault-to-hendrik-index",
+  GARBAGE_COLLECT_HENDRIK_INDEX: "garbage-collect-hendrik-index",
+  INDEX_VAULT_TO_HENDRIK_INDEX: "index-vault-to-hendrik-index",
+  INSPECT_HENDRIK_INDEX_BY_NOTE_PATHS: "hendrik-inspect-index-by-note-paths",
+  LIST_INDEXED_FILES: "hendrik-list-indexed-files",
+  LOAD_HENDRIK_CHAT_CONVERSATION: "load-hendrik-chat-conversation",
   NEW_CHAT: "new-chat",
-  OPEN_COPILOT_CHAT_WINDOW: "chat-open-window",
-  REMOVE_FILES_FROM_COPILOT_INDEX: "remove-files-from-copilot-index",
-  SEARCH_ORAMA_DB: "copilot-search-orama-db",
-  TOGGLE_COPILOT_CHAT_WINDOW: "chat-toggle-window",
+  OPEN_HENDRIK_CHAT_WINDOW: "chat-open-window",
+  REMOVE_FILES_FROM_HENDRIK_INDEX: "remove-files-from-hendrik-index",
+  SEARCH_ORAMA_DB: "hendrik-search-orama-db",
+  TOGGLE_HENDRIK_CHAT_WINDOW: "chat-toggle-window",
   ADD_SELECTION_TO_CHAT_CONTEXT: "add-selection-to-chat-context",
   ADD_WEB_SELECTION_TO_CHAT_CONTEXT: "add-web-selection-to-chat-context",
   ADD_CUSTOM_COMMAND: "add-custom-command",
@@ -693,23 +693,23 @@ export const COMMAND_IDS = {
 
 export const COMMAND_NAMES: Record<CommandId, string> = {
   [COMMAND_IDS.TRIGGER_QUICK_COMMAND]: "Trigger quick command",
-  [COMMAND_IDS.CLEAR_LOCAL_COPILOT_INDEX]: "Clear local Hendrik index",
-  [COMMAND_IDS.CLEAR_COPILOT_CACHE]: "Clear Hendrik cache",
+  [COMMAND_IDS.CLEAR_LOCAL_HENDRIK_INDEX]: "Clear local Hendrik index",
+  [COMMAND_IDS.CLEAR_HENDRIK_CACHE]: "Clear Hendrik cache",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "Count total tokens in your vault",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "Count words and tokens in selection",
   [COMMAND_IDS.DEBUG_WORD_COMPLETION]: "Word completion: Debug",
-  [COMMAND_IDS.FORCE_REINDEX_VAULT_TO_COPILOT_INDEX]: "Force reindex vault",
-  [COMMAND_IDS.GARBAGE_COLLECT_COPILOT_INDEX]:
+  [COMMAND_IDS.FORCE_REINDEX_VAULT_TO_HENDRIK_INDEX]: "Force reindex vault",
+  [COMMAND_IDS.GARBAGE_COLLECT_HENDRIK_INDEX]:
     "Garbage collect Hendrik index (remove files that no longer exist in vault)",
-  [COMMAND_IDS.INDEX_VAULT_TO_COPILOT_INDEX]: "Index (refresh) vault",
-  [COMMAND_IDS.INSPECT_COPILOT_INDEX_BY_NOTE_PATHS]: "Inspect Hendrik index by note paths (debug)",
+  [COMMAND_IDS.INDEX_VAULT_TO_HENDRIK_INDEX]: "Index (refresh) vault",
+  [COMMAND_IDS.INSPECT_HENDRIK_INDEX_BY_NOTE_PATHS]: "Inspect Hendrik index by note paths (debug)",
   [COMMAND_IDS.LIST_INDEXED_FILES]: "List all indexed files (debug)",
-  [COMMAND_IDS.LOAD_COPILOT_CHAT_CONVERSATION]: "Load Hendrik chat conversation",
+  [COMMAND_IDS.LOAD_HENDRIK_CHAT_CONVERSATION]: "Load Hendrik chat conversation",
   [COMMAND_IDS.NEW_CHAT]: "New Hendrik Chat",
-  [COMMAND_IDS.OPEN_COPILOT_CHAT_WINDOW]: "Open Hendrik Chat Window",
-  [COMMAND_IDS.REMOVE_FILES_FROM_COPILOT_INDEX]: "Remove files from Hendrik index (debug)",
+  [COMMAND_IDS.OPEN_HENDRIK_CHAT_WINDOW]: "Open Hendrik Chat Window",
+  [COMMAND_IDS.REMOVE_FILES_FROM_HENDRIK_INDEX]: "Remove files from Hendrik index (debug)",
   [COMMAND_IDS.SEARCH_ORAMA_DB]: "Search semantic index (debug)",
-  [COMMAND_IDS.TOGGLE_COPILOT_CHAT_WINDOW]: "Toggle Hendrik Chat Window",
+  [COMMAND_IDS.TOGGLE_HENDRIK_CHAT_WINDOW]: "Toggle Hendrik Chat Window",
   [COMMAND_IDS.ADD_SELECTION_TO_CHAT_CONTEXT]: "Add selection to chat context",
   [COMMAND_IDS.ADD_WEB_SELECTION_TO_CHAT_CONTEXT]: "Add web selection to chat context",
   [COMMAND_IDS.ADD_CUSTOM_COMMAND]: "Add new custom command",
@@ -722,7 +722,7 @@ export const COMMAND_NAMES: Record<CommandId, string> = {
 
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];
 
-export const DEFAULT_SETTINGS: CopilotSettings = {
+export const DEFAULT_SETTINGS: HendrikSettings = {
   userId: uuidv4(),
   openAIApiKey: "",
   openAIOrgId: "",
@@ -742,11 +742,11 @@ export const DEFAULT_SETTINGS: CopilotSettings = {
   amazonBedrockApiKey: "",
   amazonBedrockRegion: "",
   siliconflowApiKey: "",
-  // GitHub Copilot OAuth tokens
+  // GitHub Hendrik OAuth tokens
   githubCopilotAccessToken: "",
   githubCopilotToken: "",
   githubCopilotTokenExpiresAt: 0,
-  defaultChainType: "copilot_plus" as ChainType,
+  defaultChainType: "tool_calling" as ChainType,
   defaultModelKey: ChatModels.OPENROUTER_GEMINI_2_5_FLASH + "|" + ChatModelProviders.OPENROUTERAI,
   embeddingModelKey:
     EmbeddingModels.OPENROUTER_OPENAI_EMBEDDING_SMALL + "|" + EmbeddingModelProviders.OPENROUTERAI,

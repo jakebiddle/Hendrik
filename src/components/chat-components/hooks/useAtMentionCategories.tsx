@@ -60,7 +60,7 @@ export const CATEGORY_OPTIONS: CategoryOption[] = [
  *
  * @returns Array of CategoryOption objects
  */
-export function useAtMentionCategories(isCopilotPlus: boolean = false): CategoryOption[] {
+export function useAtMentionCategories(isToolCallingEnabled: boolean = false): CategoryOption[] {
   return useMemo(() => {
     return CATEGORY_OPTIONS.filter((cat) => {
       // Web Tabs only available on desktop (Web Viewer not supported on mobile)

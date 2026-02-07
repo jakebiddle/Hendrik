@@ -19,7 +19,7 @@ An AI companion for your Obsidian vault, built for control and craft
   <img src="./images/product-ui-screenshot.png" alt="Hendrik UI" width="800"/>
 </p>
 
-## What Hendrik Is
+## What Is Hendrik?
 
 Hendrik The Medieval AI Archivist is an in-vault AI assistant for Obsidian. It pairs fast, local-friendly search with model-agnostic chat, structured context handling, and optional autonomous tool calling. Hendrik is designed for people who want their knowledge base to stay portable, private, and useful across models and workflows.
 
@@ -54,7 +54,7 @@ Model providers change prices, rules, and access. Hendrik keeps you in control b
 ## Quick Usage
 
 - **Chat with a note**: Type `@` to add a note or selection into context and ask a question.
-- **Vault-wide Q&A**: Ask questions against your vault without pre-indexing; enable semantic search when you want deeper recall.
+- **Vault-wide Index & Semantic Search**: Ask questions against your vault with built in semantic search and Smart Connection Plugin Compatability.
 - **Command Palette**: Type `/` in chat or right-click selected text for quick actions.
 - **Project Mode**: Scope conversations to folders or tags to keep context clean.
 - **Agent Mode**: Ask for a result; Hendrik chooses the right tools automatically.

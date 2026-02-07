@@ -1,4 +1,4 @@
-import { type CopilotSettings } from "@/settings/model";
+import { type HendrikSettings } from "@/settings/model";
 import { Buffer } from "buffer";
 import { Platform } from "obsidian";
 
@@ -23,7 +23,7 @@ const ENCRYPTION_PREFIX = "enc_";
 const DECRYPTION_PREFIX = "dec_";
 
 // Add these constants for the Web Crypto implementation
-const ENCRYPTION_KEY = new TextEncoder().encode("obsidian-copilot-v1");
+const ENCRYPTION_KEY = new TextEncoder().encode("obsidian-hendrik-v1");
 const ALGORITHM = { name: "AES-GCM", iv: new Uint8Array(12) };
 
 async function getEncryptionKey(): Promise<CryptoKey> {
@@ -34,8 +34,8 @@ async function getEncryptionKey(): Promise<CryptoKey> {
 }
 
 export async function encryptAllKeys(
-  settings: Readonly<CopilotSettings>
-): Promise<Readonly<CopilotSettings>> {
+  settings: Readonly<HendrikSettings>
+): Promise<Readonly<HendrikSettings>> {
   if (!settings.enableEncryption) {
     return settings;
   }
@@ -48,8 +48,8 @@ export async function encryptAllKeys(
   );
 
   for (const key of keysToEncrypt) {
-    const apiKey = settings[key as keyof CopilotSettings] as string;
-    (newSettings[key as keyof CopilotSettings] as any) = await getEncryptedKey(apiKey);
+    const apiKey = settings[key as keyof HendrikSettings] as string;
+    (newSettings[key as keyof HendrikSettings] as any) = await getEncryptedKey(apiKey);
   }
 
   if (Array.isArray(settings.activeModels)) {

@@ -494,14 +494,14 @@ function buildSourcesDetails(mainContent: string, items: SourcesDisplayItem[]): 
   const listItems = nonEmptyItems
     .map(
       ({ index, html }) =>
-        `<li class="copilot-sources__item"><span class="copilot-sources__index">[${index}]</span><span class="copilot-sources__text">${html}</span></li>`
+        `<li class="hendrik-sources__item"><span class="hendrik-sources__index">[${index}]</span><span class="hendrik-sources__text">${html}</span></li>`
     )
     .join("\n");
 
   return (
     `${mainContent}\n\n<br/>\n` +
-    `<details class="copilot-sources"><summary class="copilot-sources__summary">Sources</summary>\n` +
-    `<ul class="copilot-sources__list">\n${listItems}\n</ul>\n</details>`
+    `<details class="hendrik-sources"><summary class="hendrik-sources__summary">Sources</summary>\n` +
+    `<ul class="hendrik-sources__list">\n${listItems}\n</ul>\n</details>`
   );
 }
 

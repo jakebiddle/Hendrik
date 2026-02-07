@@ -28,10 +28,10 @@ export async function fetchModelsForProvider(
   provider: SettingKeyProviders
 ): Promise<FetchModelsResult> {
   try {
-    // Special handling for GitHub Copilot
+    // Special handling for GitHub Hendrik
     if (provider === ChatModelProviders.GITHUB_COPILOT) {
-      const copilotProvider = GitHubCopilotProvider.getInstance();
-      const response = await copilotProvider.listModels();
+      const hendrikProvider = GitHubCopilotProvider.getInstance();
+      const response = await hendrikProvider.listModels();
       const models = parseModelsResponse(provider, response);
       return { success: true, models };
     }

@@ -29,14 +29,14 @@ export const ContextPressureIndicator: React.FC<ContextPressureIndicatorProps> =
    */
   const getDotClass = (): string => {
     if (ratio >= 0.85) {
-      return "copilot-context-pressure__dot--high";
+      return "hendrik-context-pressure__dot--high";
     }
 
     if (ratio >= 0.6) {
-      return "copilot-context-pressure__dot--medium";
+      return "hendrik-context-pressure__dot--medium";
     }
 
-    return "copilot-context-pressure__dot--low";
+    return "hendrik-context-pressure__dot--low";
   };
 
   const tooltipText = `Context: ${tokenCount.toLocaleString()} / ${maxContextTokens.toLocaleString()} tokens (${percent}%)`;
@@ -44,9 +44,9 @@ export const ContextPressureIndicator: React.FC<ContextPressureIndicatorProps> =
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="copilot-context-pressure" aria-label={tooltipText}>
-          <span className={`copilot-context-pressure__dot ${getDotClass()}`} aria-hidden="true" />
-          <span className="copilot-context-pressure__value">{percent}%</span>
+        <div className="hendrik-context-pressure" aria-label={tooltipText}>
+          <span className={`hendrik-context-pressure__dot ${getDotClass()}`} aria-hidden="true" />
+          <span className="hendrik-context-pressure__value">{percent}%</span>
         </div>
       </TooltipTrigger>
       <TooltipContent side="bottom">{tooltipText}</TooltipContent>

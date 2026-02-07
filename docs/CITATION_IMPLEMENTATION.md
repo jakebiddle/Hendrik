@@ -1,6 +1,6 @@
 # Inline Citation System
 
-This guide explains how inline citations are produced across Copilot Plus, Vault QA, and web search, and how the feature is exercised by automated tests.
+This guide explains how inline citations are produced across Tool Calling, Vault QA, and web search, and how the feature is exercised by automated tests.
 
 ## Feature Toggle & Surface Area
 
@@ -10,16 +10,16 @@ This guide explains how inline citations are produced across Copilot Plus, Vault
 ## Pipeline Overview
 
 1. **Retrieval Conditioning**
-   - Both `CopilotPlusChainRunner.prepareLocalSearchResult` and `VaultQAChainRunner` sanitize note content with `sanitizeContentForCitations` to strip stray `[^n]`/`[n]` markers before prompting.
+   - Both `ToolCallingChainRunner.prepareLocalSearchResult` and `VaultQAChainRunner` sanitize note content with `sanitizeContentForCitations` to strip stray `[^n]`/`[n]` markers before prompting.
    - Retrieved notes receive stable `__sourceId` values and are serialized with `formatSearchResultsForLLM`; `deduplicateSources` keeps the highest-scoring entry per path/title.
-   - A compact source catalog is built via `formatSourceCatalog`, and Copilot Plus caches the first 20 entries in `lastCitationSources` for fallback footnotes.
+   - A compact source catalog is built via `formatSourceCatalog`, and Tool Calling caches the first 20 entries in `lastCitationSources` for fallback footnotes.
 2. **Prompt Assembly**
    - `CITATION_RULES` and `WEB_CITATION_RULES` live in `src/LLMProviders/chainRunner/utils/citationUtils.ts`.
-   - `getCitationInstructions` (Copilot Plus) and `getQACitationInstructionsConditional` (Vault QA) append guidance and a source catalog only when inline citations are enabled.
+   - `getCitationInstructions` (Tool Calling) and `getQACitationInstructionsConditional` (Vault QA) append guidance and a source catalog only when inline citations are enabled.
    - Web search calls `getWebSearchCitationInstructions` so external sources emit `[title](url)` definitions while vault answers stay on `[[Note]]` links.
 3. **Response Safeguards**
    - `addFallbackSources` appends a `#### Sources` block when the model produced inline markers but no definitions. Detection relies on `hasExistingCitations`, which now accepts alternate headings (e.g., `## Sources`, `Sources -`) and `<summary>Sources</summary>` blocks.
-   - Copilot Plus passes structured `lastCitationSources` into the fallback helper; Vault QA derives titles from the retriever output.
+   - Tool Calling passes structured `lastCitationSources` into the fallback helper; Vault QA derives titles from the retriever output.
 4. **Chat Rendering**
    - `src/components/chat-components/ChatSingleMessage.tsx` always pipes assistant messages through `processInlineCitations`.
    - The helper extracts the trailing sources section, builds a first-mention map with `buildCitationMap`, normalizes references (`normalizeCitations`) so constructs like `[^7][^8]` become `[1][2]`, and converts definitions (`convertFootnoteDefinitions`) into clickable wiki links or Markdown anchors.
@@ -39,7 +39,7 @@ This guide explains how inline citations are produced across Copilot Plus, Vault
 ## Manual QA Checklist
 
 - Vault QA turn using only local search: confirm inline `[1]` markers and numbered sources render without duplication.
-- Mixed Copilot Plus turn (local search + another tool): ensure fallback still works if the model omits the sources block.
+- Mixed Tool Calling turn (local search + another tool): ensure fallback still works if the model omits the sources block.
 - Web search answer: verify footnote definitions render as `[title](url)` links when citations are enabled.
 
 ## Watchlist

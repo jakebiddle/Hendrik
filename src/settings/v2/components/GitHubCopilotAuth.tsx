@@ -16,12 +16,12 @@ import React, { useEffect, useRef, useState } from "react";
 type AuthStep = "idle" | "pending" | "polling" | "done" | "error";
 
 /**
- * GitHub Copilot OAuth authentication component.
+ * GitHub Hendrik OAuth authentication component.
  * Handles the device code flow and displays model importer when authenticated.
  */
 export function GitHubCopilotAuth() {
   const settings = useSettingsValue();
-  const [copilotProvider] = useState(() => GitHubCopilotProvider.getInstance());
+  const [hendrikProvider] = useState(() => GitHubCopilotProvider.getInstance());
   const [authStep, setAuthStep] = useState<AuthStep>("idle");
   const [deviceCode, setDeviceCode] = useState<DeviceCodeResponse | null>(null);
   const [pollCount, setPollCount] = useState(0);
@@ -37,21 +37,21 @@ export function GitHubCopilotAuth() {
     return () => {
       isMountedRef.current = false;
       authRequestIdRef.current += 1;
-      copilotProvider.abortPolling();
+      hendrikProvider.abortPolling();
     };
-  }, [copilotProvider]);
+  }, [hendrikProvider]);
 
   // Check initial auth state
   useEffect(() => {
-    const state = copilotProvider.getAuthState();
+    const state = hendrikProvider.getAuthState();
     if (state.status === "authenticated") {
       setAuthStep("done");
     }
-  }, [copilotProvider]);
+  }, [hendrikProvider]);
 
   // Update auth step when settings change - reuse getAuthState() for consistency
   useEffect(() => {
-    const state = copilotProvider.getAuthState();
+    const state = hendrikProvider.getAuthState();
     if (state.status === "authenticated") {
       // Don't override in-flight auth UI during polling
       if (authStep !== "pending" && authStep !== "polling") {
@@ -65,7 +65,7 @@ export function GitHubCopilotAuth() {
     settings.githubCopilotToken,
     settings.githubCopilotAccessToken,
     settings.githubCopilotTokenExpiresAt,
-    copilotProvider,
+    hendrikProvider,
     authStep,
   ]);
 
@@ -76,7 +76,7 @@ export function GitHubCopilotAuth() {
    * @param requestId - The request ID to check for cancellation
    */
   const runPollingFlow = async (code: DeviceCodeResponse, requestId: number) => {
-    await copilotProvider.pollForAccessToken(
+    await hendrikProvider.pollForAccessToken(
       code.deviceCode,
       code.interval,
       code.expiresIn,
@@ -87,7 +87,7 @@ export function GitHubCopilotAuth() {
       }
     );
 
-    await copilotProvider.fetchCopilotToken();
+    await hendrikProvider.fetchHendrikToken();
 
     if (!isMountedRef.current || requestId !== authRequestIdRef.current) {
       return;
@@ -110,7 +110,7 @@ export function GitHubCopilotAuth() {
     setPollCount(0);
 
     try {
-      const deviceCodeResponse = await copilotProvider.startDeviceCodeFlow();
+      const deviceCodeResponse = await hendrikProvider.startDeviceCodeFlow();
 
       // Check if request was cancelled or component unmounted
       if (!isMountedRef.current || requestId !== authRequestIdRef.current) {
@@ -150,7 +150,7 @@ export function GitHubCopilotAuth() {
 
   /**
    * Resets the authentication state and clears all stored tokens.
-   * Disconnects the user from GitHub Copilot or cancels in-progress authentication.
+   * Disconnects the user from GitHub Hendrik or cancels in-progress authentication.
    */
   const handleReset = () => {
     // Check if we're in an auth flow: actively authenticating OR error state with device code
@@ -158,7 +158,7 @@ export function GitHubCopilotAuth() {
       authStep === "pending" || authStep === "polling" || (authStep === "error" && deviceCode);
     // Increment requestId to invalidate any in-flight async operations
     authRequestIdRef.current += 1;
-    copilotProvider.resetAuth();
+    hendrikProvider.resetAuth();
     setAuthStep("idle");
     setDeviceCode(null);
     setError(null);
@@ -219,13 +219,13 @@ export function GitHubCopilotAuth() {
     <>
       <div className="tw-flex tw-flex-col tw-gap-2">
         <div className="tw-flex tw-items-center tw-gap-1 tw-font-medium">
-          <div className="tw-truncate">GitHub Copilot</div>
+          <div className="tw-truncate">GitHub Hendrik</div>
           <HelpTooltip
             content={
               <div className="tw-max-w-[250px]">
                 <div className="tw-font-semibold">Unofficial Integration</div>
                 <p className="tw-mt-1">
-                  This uses GitHub Copilot&apos;s internal API, which is not officially supported
+                  This uses GitHub Hendrik&apos;s internal API, which is not officially supported
                   for third-party apps. It may stop working at any time.
                 </p>
               </div>

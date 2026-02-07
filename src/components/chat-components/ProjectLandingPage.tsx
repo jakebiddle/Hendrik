@@ -92,46 +92,6 @@ async function getChatHistoryForProject(projectId: string): Promise<ChatHistoryI
 }
 
 /**
- * Render a compact list preview with overflow count.
- */
-function ContextPreviewList({
-  title,
-  values,
-  emptyLabel,
-}: {
-  title: string;
-  values: string[];
-  emptyLabel: string;
-}) {
-  const preview = values.slice(0, 3);
-  const remaining = values.length - preview.length;
-
-  return (
-    <div className="tw-space-y-1">
-      <div className="tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">
-        {title}
-      </div>
-      {values.length === 0 ? (
-        <div className="tw-text-xs tw-text-faint">{emptyLabel}</div>
-      ) : (
-        <div className="tw-flex tw-flex-col tw-gap-1">
-          {preview.map((value) => (
-            <div
-              key={value}
-              className="tw-truncate tw-rounded-md tw-border tw-border-solid tw-border-border tw-px-2 tw-py-1 tw-text-xs tw-text-muted tw-bg-primary-alt/50"
-              title={value}
-            >
-              {value}
-            </div>
-          ))}
-          {remaining > 0 && <div className="tw-text-xs tw-text-faint">+{remaining} more</div>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
  * Project landing page shown after selecting a project, before entering chat.
  * Displays project metadata, context sources, summary, and past conversations.
  */
@@ -174,11 +134,12 @@ const ProjectLandingPage = memo(
     }, [onNewChat]);
 
     return (
-      <div className="tw-flex tw-flex-1 tw-flex-col tw-overflow-y-auto tw-p-3">
+      <div className="tw-flex tw-flex-1 tw-flex-col tw-overflow-y-auto tw-overflow-x-hidden tw-p-3">
         <div
-          className="tw-rounded-xl tw-border tw-border-solid tw-border-border tw-p-4"
+          className="tw-rounded-xl tw-p-4"
           style={{
-            background: `linear-gradient(155deg, color-mix(in srgb, ${appearance.color} 18%, transparent), transparent 55%)`,
+            background: `linear-gradient(155deg, color-mix(in srgb, ${appearance.color} 18%, transparent), color-mix(in srgb, var(--background-primary) 94%, #f8f4ed 6%) 55%)`,
+            border: `1px solid color-mix(in srgb, ${appearance.color} 20%, var(--hendrik-border-soft))`,
           }}
         >
           <div className="tw-flex tw-items-start tw-gap-3">
@@ -196,14 +157,9 @@ const ProjectLandingPage = memo(
                 <h2 className="tw-m-0 tw-truncate tw-text-lg tw-font-semibold tw-text-normal">
                   {project.name}
                 </h2>
-                <button
-                  type="button"
-                  className="tw-flex tw-size-8 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-md tw-border-none tw-bg-primary-alt tw-text-muted tw-transition-colors hover:tw-bg-interactive-accent hover:tw-text-on-accent"
-                  onClick={onEdit}
-                  title="Edit project"
-                >
-                  <Edit2 className="tw-size-4" />
-                </button>
+                <Button variant="ghost2" size="icon" onClick={onEdit} title="Edit project">
+                  <Edit2 className="tw-size-3.5" />
+                </Button>
               </div>
               {project.description && (
                 <p className="tw-m-0 tw-line-clamp-2 tw-text-sm tw-text-muted">
@@ -211,17 +167,31 @@ const ProjectLandingPage = memo(
                 </p>
               )}
               <div className="tw-flex tw-flex-wrap tw-gap-1.5 tw-pt-1">
-                <span className="tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-px-2 tw-py-1 tw-text-[11px] tw-text-muted tw-bg-primary-alt/70">
-                  Model: {modelLabel}
+                <span
+                  className="tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-px-2 tw-py-0.5 tw-text-[11px] tw-text-muted"
+                  style={{ border: "1px solid var(--hendrik-border-soft)" }}
+                >
+                  {modelLabel}
                 </span>
-                <span className="tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-px-2 tw-py-1 tw-text-[11px] tw-text-muted tw-bg-primary-alt/70">
-                  Sources: {totalSources}
-                </span>
+                {totalSources > 0 && (
+                  <span
+                    className="tw-inline-flex tw-items-center tw-gap-1 tw-rounded-md tw-px-2 tw-py-0.5 tw-text-[11px] tw-text-muted"
+                    style={{ border: "1px solid var(--hendrik-border-soft)" }}
+                  >
+                    {totalSources} {totalSources === 1 ? "source" : "sources"}
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="tw-mt-3 tw-rounded-lg tw-border tw-border-solid tw-border-border tw-p-3 tw-bg-primary-alt/40">
+          <div
+            className="tw-mt-3 tw-rounded-lg tw-p-3"
+            style={{
+              border: "1px solid var(--hendrik-border-soft)",
+              background: `color-mix(in srgb, var(--background-primary) 92%, #f5ecdd 8%)`,
+            }}
+          >
             <div className="tw-mb-1 tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">
               Summary
             </div>
@@ -229,35 +199,60 @@ const ProjectLandingPage = memo(
           </div>
         </div>
 
-        <div className="tw-mt-3 tw-grid tw-grid-cols-1 tw-gap-3 md:tw-grid-cols-3">
-          <div className="tw-rounded-lg tw-border tw-border-solid tw-border-border tw-p-3">
-            <div className="tw-mb-2 tw-flex tw-items-center tw-gap-1.5 tw-text-xs tw-font-medium tw-text-normal">
-              <FileText className="tw-size-3.5 tw-text-muted" />
-              Vault Context
+        {totalSources > 0 && (
+          <div
+            className="tw-mt-3 tw-rounded-lg tw-p-3"
+            style={{ border: "1px solid var(--hendrik-border-soft)" }}
+          >
+            <div className="tw-mb-2 tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">
+              Context Sources
             </div>
-            <ContextPreviewList
-              title="Patterns"
-              values={inclusions}
-              emptyLabel="No inclusion patterns."
-            />
-          </div>
-
-          <div className="tw-rounded-lg tw-border tw-border-solid tw-border-border tw-p-3">
-            <div className="tw-mb-2 tw-flex tw-items-center tw-gap-1.5 tw-text-xs tw-font-medium tw-text-normal">
-              <Globe className="tw-size-3.5 tw-text-muted" />
-              Web Sources
+            <div className="tw-flex tw-flex-col tw-gap-2">
+              {inclusions.length > 0 && (
+                <div className="tw-flex tw-items-start tw-gap-2">
+                  <FileText className="tw-mt-0.5 tw-size-3.5 tw-shrink-0 tw-text-faint" />
+                  <div className="tw-flex tw-flex-1 tw-flex-wrap tw-gap-1">
+                    {inclusions.slice(0, 4).map((value) => (
+                      <span
+                        key={value}
+                        className="tw-truncate tw-rounded-md tw-px-1.5 tw-py-0.5 tw-text-[11px] tw-text-muted"
+                        style={{
+                          border: "1px solid var(--hendrik-border-soft)",
+                          background:
+                            "color-mix(in srgb, var(--background-primary) 90%, #f5ecdd 10%)",
+                        }}
+                        title={value}
+                      >
+                        {value}
+                      </span>
+                    ))}
+                    {inclusions.length > 4 && (
+                      <span className="tw-text-[11px] tw-text-faint">
+                        +{inclusions.length - 4} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              {webUrls.length > 0 && (
+                <div className="tw-flex tw-items-start tw-gap-2">
+                  <Globe className="tw-mt-0.5 tw-size-3.5 tw-shrink-0 tw-text-faint" />
+                  <span className="tw-text-xs tw-text-muted">
+                    {webUrls.length} web {webUrls.length === 1 ? "source" : "sources"}
+                  </span>
+                </div>
+              )}
+              {youtubeUrls.length > 0 && (
+                <div className="tw-flex tw-items-start tw-gap-2">
+                  <Youtube className="tw-mt-0.5 tw-size-3.5 tw-shrink-0 tw-text-faint" />
+                  <span className="tw-text-xs tw-text-muted">
+                    {youtubeUrls.length} {youtubeUrls.length === 1 ? "video" : "videos"}
+                  </span>
+                </div>
+              )}
             </div>
-            <ContextPreviewList title="URLs" values={webUrls} emptyLabel="No web URLs." />
           </div>
-
-          <div className="tw-rounded-lg tw-border tw-border-solid tw-border-border tw-p-3">
-            <div className="tw-mb-2 tw-flex tw-items-center tw-gap-1.5 tw-text-xs tw-font-medium tw-text-normal">
-              <Youtube className="tw-size-3.5 tw-text-muted" />
-              YouTube
-            </div>
-            <ContextPreviewList title="Videos" values={youtubeUrls} emptyLabel="No YouTube URLs." />
-          </div>
-        </div>
+        )}
 
         <div className="tw-mt-3">
           <Button
@@ -275,7 +270,10 @@ const ProjectLandingPage = memo(
           </Button>
         </div>
 
-        <div className="tw-mt-3 tw-flex-1 tw-rounded-lg tw-border tw-border-solid tw-border-border tw-p-3">
+        <div
+          className="tw-mt-3 tw-flex-1 tw-rounded-lg tw-p-3"
+          style={{ border: "1px solid var(--hendrik-border-soft)" }}
+        >
           <span className="tw-mb-2 tw-block tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">
             Recent Chats {chatHistory.length > 0 ? `(${chatHistory.length})` : ""}
           </span>
@@ -287,7 +285,10 @@ const ProjectLandingPage = memo(
                 <button
                   key={chat.id}
                   type="button"
-                  className="tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-border-none tw-bg-primary-alt tw-px-2 tw-py-1.5 tw-text-left tw-transition-colors hover:tw-bg-primary-alt/70"
+                  className="tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-border-none tw-px-2 tw-py-1.5 tw-text-left tw-transition-colors"
+                  style={{
+                    background: "color-mix(in srgb, var(--background-primary) 90%, #f5ecdd 10%)",
+                  }}
                   onClick={() => onLoadChat(chat.id)}
                 >
                   <MessageSquare className="tw-size-3.5 tw-shrink-0 tw-text-faint" />

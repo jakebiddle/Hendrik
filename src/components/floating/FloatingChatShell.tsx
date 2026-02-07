@@ -1,5 +1,5 @@
 import { AppContext, EventTargetContext } from "@/context";
-import type CopilotPlugin from "@/main";
+import type HendrikPlugin from "@/main";
 import type { ChatUIState } from "@/state/ChatUIState";
 import type { FileParserManager } from "@/tools/FileParserManager";
 import type ChainManager from "@/LLMProviders/chainManager";
@@ -12,7 +12,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 interface FloatingChatShellProps {
   chainManager: ChainManager;
   fileParserManager: FileParserManager;
-  plugin: CopilotPlugin;
+  plugin: HendrikPlugin;
   chatUIState: ChatUIState;
 }
 
@@ -90,17 +90,17 @@ const FloatingChatShell: React.FC<FloatingChatShellProps> = ({
   const shellState = isClosing ? "closing" : isOpen ? "true" : "false";
 
   return (
-    <div className="copilot-floating-shell" data-open={shellState}>
+    <div className="hendrik-floating-shell" data-open={shellState}>
       <div
         className={cn(
-          "copilot-floating-panel",
-          isOpen && !isClosing && "copilot-floating-panel--open",
-          isClosing && "copilot-floating-panel--closing"
+          "hendrik-floating-panel",
+          isOpen && !isClosing && "hendrik-floating-panel--open",
+          isClosing && "hendrik-floating-panel--closing"
         )}
         role="dialog"
         aria-hidden={isOpen && !isClosing ? "false" : "true"}
       >
-        <div className="copilot-floating-panel__content">
+        <div className="hendrik-floating-panel__content">
           <AppContext.Provider value={plugin.app}>
             <EventTargetContext.Provider value={eventTargetRef.current}>
               <Tooltip.Provider delayDuration={0}>
@@ -125,11 +125,11 @@ const FloatingChatShell: React.FC<FloatingChatShellProps> = ({
 
       <button
         type="button"
-        className="copilot-floating-launcher"
+        className="hendrik-floating-launcher"
         onClick={toggleOpen}
         aria-label={isOpen ? "Close Hendrik" : "Open Hendrik"}
       >
-        <span className="copilot-floating-launcher__badge" aria-hidden="true" />
+        <span className="hendrik-floating-launcher__badge" aria-hidden="true" />
       </button>
     </div>
   );

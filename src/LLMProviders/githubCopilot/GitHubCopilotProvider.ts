@@ -7,7 +7,7 @@ import { createParser, type ParsedEvent, type ReconnectInterval } from "eventsou
 import { AuthCancelledError } from "./errors";
 
 /**
- * GitHub Copilot OAuth Client ID (from VSCode).
+ * GitHub Hendrik OAuth Client ID (from VSCode).
  * WARNING: This is VSCode's OAuth client ID. Using it in third-party apps
  * may violate GitHub's Terms of Service. GitHub could revoke this at any time.
  * This integration is unofficial and provided "as-is" without guarantees.
@@ -15,10 +15,10 @@ import { AuthCancelledError } from "./errors";
 const CLIENT_ID = "Iv1.b507a08c87ecfe98";
 const DEVICE_CODE_URL = "https://github.com/login/device/code";
 const ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
-const COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
-const COPILOT_API_BASE = "https://api.githubcopilot.com";
-const CHAT_COMPLETIONS_URL = `${COPILOT_API_BASE}/chat/completions`;
-const MODELS_URL = `${COPILOT_API_BASE}/models`;
+const HENDRIK_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token";
+const HENDRIK_API_BASE = "https://api.githubcopilot.com";
+const CHAT_COMPLETIONS_URL = `${HENDRIK_API_BASE}/chat/completions`;
+const MODELS_URL = `${HENDRIK_API_BASE}/models`;
 
 // Token refresh buffer: refresh 1 minute before expiration
 const TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
@@ -27,10 +27,10 @@ const DEFAULT_TOKEN_EXPIRATION_MS = 60 * 60 * 1000;
 // Maximum refresh attempts before giving up
 const MAX_REFRESH_ATTEMPTS = 3;
 
-// Common HTTP status error messages for Copilot API
+// Common HTTP status error messages for Hendrik API
 const HTTP_STATUS_MESSAGES: Record<number, string> = {
   401: "Authentication failed - token may be expired",
-  403: "Access denied - check your Copilot subscription",
+  403: "Access denied - check your Hendrik subscription",
   429: "Rate limited - please wait before retrying",
 };
 
@@ -51,7 +51,7 @@ interface GitHubOAuthTokenResponse {
   error_description?: string;
 }
 
-interface CopilotTokenApiResponse {
+interface HendrikTokenApiResponse {
   token?: string;
   expires_at?: number | string;
   expires_in?: number | string;
@@ -67,12 +67,12 @@ export interface DeviceCodeResponse {
   interval: number;
 }
 
-export interface CopilotAuthState {
+export interface HendrikAuthState {
   status: "idle" | "pending" | "authenticated" | "error";
   error?: string;
 }
 
-export interface CopilotChatResponse {
+export interface HendrikChatResponse {
   choices: Array<{
     message: { role: string; content: string };
     finish_reason: string;
@@ -90,7 +90,7 @@ export interface CopilotChatResponse {
   id?: string;
 }
 
-export interface CopilotStreamChunk {
+export interface HendrikStreamChunk {
   choices: Array<{
     index: number;
     delta: {
@@ -110,10 +110,10 @@ export interface CopilotStreamChunk {
 }
 
 /**
- * Options for Copilot API requests.
+ * Options for Hendrik API requests.
  * Using an options object instead of positional parameters for consistency and extensibility.
  */
-export interface CopilotRequestOptions {
+export interface HendrikRequestOptions {
   /** Model name (default: "gpt-4o") */
   model?: string;
   /** AbortSignal for cancellation/timeout. NOTE: Not honored when using safeFetch (CORS bypass). */
@@ -125,10 +125,10 @@ export interface CopilotRequestOptions {
 /**
  * GitHubCopilotProvider handles:
  * - GitHub OAuth device code flow
- * - Token management (access token + copilot token)
+ * - Token management (access token + hendrik token)
  * - Chat API calls
  *
- * WARNING: This uses GitHub Copilot's internal API which is not officially
+ * WARNING: This uses GitHub Hendrik's internal API which is not officially
  * supported for third-party applications. Use at your own risk.
  */
 export class GitHubCopilotProvider {
@@ -155,22 +155,22 @@ export class GitHubCopilotProvider {
 
   /**
    * Get current authentication state based on stored tokens
-   * Returns authenticated only if we have a valid copilot token or can refresh it
+   * Returns authenticated only if we have a valid hendrik token or can refresh it
    */
-  getAuthState(): CopilotAuthState {
+  getAuthState(): HendrikAuthState {
     const settings = getSettings();
     const hasAccessToken = Boolean(settings.githubCopilotAccessToken);
-    const hasCopilotToken = Boolean(settings.githubCopilotToken);
+    const hasHendrikToken = Boolean(settings.githubCopilotToken);
     const tokenExpiresAt = settings.githubCopilotTokenExpiresAt;
-    // Use same expiry logic as getValidCopilotToken: treat missing/invalid expiresAt as expired
+    // Use same expiry logic as getValidHendrikToken: treat missing/invalid expiresAt as expired
     const hasKnownExpiry = typeof tokenExpiresAt === "number" && tokenExpiresAt > 0;
     const isExpired = !hasKnownExpiry || tokenExpiresAt < Date.now();
 
     // Authenticated if:
-    // - we have a valid copilot token, OR
-    // - we have a copilot token (even if expired/unknown expiry) AND we can refresh it via access token.
-    // Pending if we only have access token but haven't fetched copilot token yet.
-    if ((hasCopilotToken && !isExpired) || (hasCopilotToken && hasAccessToken)) {
+    // - we have a valid hendrik token, OR
+    // - we have a hendrik token (even if expired/unknown expiry) AND we can refresh it via access token.
+    // Pending if we only have access token but haven't fetched hendrik token yet.
+    if ((hasHendrikToken && !isExpired) || (hasHendrikToken && hasAccessToken)) {
       return { status: "authenticated" };
     }
     if (hasAccessToken) {
@@ -377,9 +377,9 @@ export class GitHubCopilotProvider {
   }
 
   /**
-   * Step 3: Exchange GitHub access token for Copilot token
+   * Step 3: Exchange GitHub access token for Hendrik token
    */
-  async fetchCopilotToken(accessToken?: string): Promise<string> {
+  async fetchHendrikToken(accessToken?: string): Promise<string> {
     // Capture current auth generation to detect if reset was called during async operations
     const currentGeneration = this.authGeneration;
 
@@ -392,7 +392,7 @@ export class GitHubCopilotProvider {
     token = await getDecryptedKey(token);
 
     const res = await requestUrl({
-      url: COPILOT_TOKEN_URL,
+      url: HENDRIK_TOKEN_URL,
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -406,7 +406,7 @@ export class GitHubCopilotProvider {
       throw new AuthCancelledError("Authentication was reset during token refresh.");
     }
 
-    const data = this.getRequestUrlJson(res) as Partial<CopilotTokenApiResponse>;
+    const data = this.getRequestUrlJson(res) as Partial<HendrikTokenApiResponse>;
 
     if (res.status !== 200) {
       const detail =
@@ -417,41 +417,41 @@ export class GitHubCopilotProvider {
             : "";
       throw new Error(
         detail
-          ? `Failed to get Copilot token: ${res.status} (${detail})`
-          : `Failed to get Copilot token: ${res.status}`
+          ? `Failed to get Hendrik token: ${res.status} (${detail})`
+          : `Failed to get Hendrik token: ${res.status}`
       );
     }
 
-    const copilotToken = data.token;
+    const hendrikToken = data.token;
 
     // Validate token response
-    if (!copilotToken || typeof copilotToken !== "string") {
-      throw new Error("Invalid response from Copilot API: missing or invalid token");
+    if (!hendrikToken || typeof hendrikToken !== "string") {
+      throw new Error("Invalid response from Hendrik API: missing or invalid token");
     }
 
     // Handle expires_at: support numeric seconds/millis, ISO string, and expires_in fallback.
-    const expiresAt = this.parseCopilotTokenExpiresAt(data);
+    const expiresAt = this.parseHendrikTokenExpiresAt(data);
 
     // Final check before storing tokens (generation may have changed)
     if (this.authGeneration !== currentGeneration) {
       throw new AuthCancelledError("Authentication was reset during token refresh.");
     }
 
-    // Store copilot token and expiration
+    // Store hendrik token and expiration
     setSettings({
-      githubCopilotToken: copilotToken,
+      githubCopilotToken: hendrikToken,
       githubCopilotTokenExpiresAt: expiresAt,
     });
 
-    return copilotToken;
+    return hendrikToken;
   }
 
   /**
-   * Get valid Copilot token, refreshing if needed.
+   * Get valid Hendrik token, refreshing if needed.
    * Uses a promise lock to prevent concurrent refresh requests.
    * Includes retry limit to prevent infinite refresh loops.
    */
-  async getValidCopilotToken(): Promise<string> {
+  async getValidHendrikToken(): Promise<string> {
     const settings = getSettings();
     const tokenExpiresAt = settings.githubCopilotTokenExpiresAt;
     // Treat missing/invalid expiresAt as expired to force refresh
@@ -467,14 +467,14 @@ export class GitHubCopilotProvider {
 
     // Need to refresh
     if (!settings.githubCopilotAccessToken) {
-      throw new Error("Not authenticated with GitHub Copilot. Please set up authentication first.");
+      throw new Error("Not authenticated with GitHub Hendrik. Please set up authentication first.");
     }
 
     // Check refresh attempt limit
     if (this.refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
       this.refreshAttempts = 0; // Reset for next time
       throw new Error(
-        "Failed to refresh Copilot token after multiple attempts. Please try reconnecting."
+        "Failed to refresh Hendrik token after multiple attempts. Please try reconnecting."
       );
     }
 
@@ -484,7 +484,7 @@ export class GitHubCopilotProvider {
     }
 
     this.refreshAttempts++;
-    this.refreshPromise = this.fetchCopilotToken().finally(() => {
+    this.refreshPromise = this.fetchHendrikToken().finally(() => {
       this.refreshPromise = null;
     });
 
@@ -492,9 +492,9 @@ export class GitHubCopilotProvider {
   }
 
   /**
-   * Build common headers for Copilot API requests
+   * Build common headers for Hendrik API requests
    */
-  private buildCopilotHeaders(token: string): Record<string, string> {
+  private buildHendrikHeaders(token: string): Record<string, string> {
     return {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
@@ -507,14 +507,14 @@ export class GitHubCopilotProvider {
 
   /**
    * Execute a fetch request with automatic 401 retry.
-   * On 401, clears cached Copilot token and retries once with a fresh token.
+   * On 401, clears cached Hendrik token and retries once with a fresh token.
    * @param doRequest - Function that performs the actual request given a token
    * @returns The response from the successful request
    */
   private async executeWithTokenRetry(
     doRequest: (token: string) => Promise<Response>
   ): Promise<Response> {
-    let token = await this.getValidCopilotToken();
+    let token = await this.getValidHendrikToken();
     let response = await doRequest(token);
 
     // 401: clear cached token and retry once
@@ -524,8 +524,8 @@ export class GitHubCopilotProvider {
       } catch {
         // Ignore cancellation errors - body may already be closed
       }
-      this.clearCopilotToken();
-      token = await this.getValidCopilotToken();
+      this.clearHendrikToken();
+      token = await this.getValidHendrikToken();
       response = await doRequest(token);
     }
 
@@ -533,15 +533,15 @@ export class GitHubCopilotProvider {
   }
 
   /**
-   * Send chat message to Copilot API.
+   * Send chat message to Hendrik API.
    * Uses fetch API for parity with other providers and to surface CORS issues during ping validation.
    * @param messages - Chat messages
    * @param options - Request options (model, signal, fetchImpl)
    */
   async sendChatMessage(
     messages: Array<{ role: string; content: string }>,
-    options: CopilotRequestOptions = {}
-  ): Promise<CopilotChatResponse> {
+    options: HendrikRequestOptions = {}
+  ): Promise<HendrikChatResponse> {
     const { model = "gpt-4o", signal, fetchImpl } = options;
     // Use provided fetch implementation or default to native fetch
     const fetchImplementation = fetchImpl ?? fetch;
@@ -550,7 +550,7 @@ export class GitHubCopilotProvider {
       fetchImplementation(CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
-          ...this.buildCopilotHeaders(token),
+          ...this.buildHendrikHeaders(token),
           Accept: "application/json",
         },
         body: JSON.stringify({
@@ -608,22 +608,22 @@ export class GitHubCopilotProvider {
       typeof data !== "object" ||
       !Array.isArray((data as Record<string, unknown>).choices)
     ) {
-      throw new Error("Invalid response from Copilot API: missing choices array");
+      throw new Error("Invalid response from Hendrik API: missing choices array");
     }
 
-    return data as CopilotChatResponse;
+    return data as HendrikChatResponse;
   }
 
   /**
-   * Send chat message to Copilot API with streaming response.
+   * Send chat message to Hendrik API with streaming response.
    * Uses fetch API for true streaming support.
    * @param messages - Chat messages
    * @param options - Request options (model, signal, fetchImpl)
    */
   async *sendChatMessageStream(
     messages: Array<{ role: string; content: string }>,
-    options: CopilotRequestOptions = {}
-  ): AsyncGenerator<CopilotStreamChunk> {
+    options: HendrikRequestOptions = {}
+  ): AsyncGenerator<HendrikStreamChunk> {
     const { model = "gpt-4o", signal, fetchImpl } = options;
     // Use provided fetch implementation or default to native fetch
     const fetchImplementation = fetchImpl ?? fetch;
@@ -632,7 +632,7 @@ export class GitHubCopilotProvider {
       fetchImplementation(CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
-          ...this.buildCopilotHeaders(token),
+          ...this.buildHendrikHeaders(token),
           Accept: "text/event-stream",
         },
         body: JSON.stringify({
@@ -671,7 +671,7 @@ export class GitHubCopilotProvider {
     const decoder = new TextDecoder();
 
     // Declare chunkQueue before parser to avoid use-before-define issues
-    const chunkQueue: CopilotStreamChunk[] = [];
+    const chunkQueue: HendrikStreamChunk[] = [];
     let receivedDone = false;
     let yieldedChunks = 0;
     let rawResponsePreview = ""; // For diagnostics if no chunks are produced
@@ -689,7 +689,7 @@ export class GitHubCopilotProvider {
       }
 
       try {
-        const chunk = JSON.parse(data) as CopilotStreamChunk;
+        const chunk = JSON.parse(data) as HendrikStreamChunk;
         // Store chunk in a queue to be yielded
         chunkQueue.push(chunk);
       } catch {
@@ -743,7 +743,7 @@ export class GitHubCopilotProvider {
       if (yieldedChunks === 0) {
         const preview = rawResponsePreview.slice(0, 200);
         throw new Error(
-          `GitHub Copilot streaming produced no chunks. ` +
+          `GitHub Hendrik streaming produced no chunks. ` +
             `Content-Type: ${contentType || "(empty)"}, ` +
             `Response preview: ${preview || "(empty)"}`
         );
@@ -787,7 +787,7 @@ export class GitHubCopilotProvider {
   }
 
   /**
-   * List available models from GitHub Copilot API
+   * List available models from GitHub Hendrik API
    */
   async listModels(): Promise<GitHubCopilotModelResponse> {
     const doRequest = async (token: string): Promise<RequestUrlResponse> => {
@@ -803,13 +803,13 @@ export class GitHubCopilotProvider {
       });
     };
 
-    let token = await this.getValidCopilotToken();
+    let token = await this.getValidHendrikToken();
     let res = await doRequest(token);
 
     // 401: clear cached token and retry once
     if (res.status === 401) {
-      this.clearCopilotToken();
-      token = await this.getValidCopilotToken();
+      this.clearHendrikToken();
+      token = await this.getValidHendrikToken();
       res = await doRequest(token);
     }
 
@@ -821,9 +821,9 @@ export class GitHubCopilotProvider {
   }
 
   /**
-   * Clear stored Copilot token so the next request forces a refresh.
+   * Clear stored Hendrik token so the next request forces a refresh.
    */
-  private clearCopilotToken(): void {
+  private clearHendrikToken(): void {
     setSettings({
       githubCopilotToken: "",
       githubCopilotTokenExpiresAt: 0,
@@ -847,11 +847,11 @@ export class GitHubCopilotProvider {
   }
 
   /**
-   * Parse the Copilot token expiry timestamp from the token endpoint response.
+   * Parse the Hendrik token expiry timestamp from the token endpoint response.
    * Supports numeric seconds/milliseconds `expires_at`, ISO string `expires_at`, and `expires_in` seconds.
-   * @param data - Parsed JSON response from Copilot token endpoint.
+   * @param data - Parsed JSON response from Hendrik token endpoint.
    */
-  private parseCopilotTokenExpiresAt(data: unknown): number {
+  private parseHendrikTokenExpiresAt(data: unknown): number {
     if (!data || typeof data !== "object") {
       return Date.now() + DEFAULT_TOKEN_EXPIRATION_MS;
     }

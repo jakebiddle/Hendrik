@@ -8,8 +8,8 @@ import { logWarn } from "@/logger";
 
 declare global {
   interface Window {
-    __copilotToolCallRoots?: Map<string, Map<string, ToolCallRootRecord>>;
-    __copilotErrorBlocks?: Map<string, Map<string, ToolCallRootRecord>>;
+    __hendrikToolCallRoots?: Map<string, Map<string, ToolCallRootRecord>>;
+    __hendrikErrorBlocks?: Map<string, Map<string, ToolCallRootRecord>>;
   }
 }
 
@@ -27,11 +27,11 @@ const STALE_ROOT_MAX_AGE_MS = 60 * 60 * 1000;
  * The registry is stored on `window` to preserve state across component lifecycles.
  */
 const getRegistry = (): Map<string, Map<string, ToolCallRootRecord>> => {
-  if (!window.__copilotToolCallRoots) {
-    window.__copilotToolCallRoots = new Map<string, Map<string, ToolCallRootRecord>>();
+  if (!window.__hendrikToolCallRoots) {
+    window.__hendrikToolCallRoots = new Map<string, Map<string, ToolCallRootRecord>>();
   }
 
-  return window.__copilotToolCallRoots;
+  return window.__hendrikToolCallRoots;
 };
 
 /**
@@ -39,11 +39,11 @@ const getRegistry = (): Map<string, Map<string, ToolCallRootRecord>> => {
  * Separate from tool call roots to prevent ID collisions and race conditions.
  */
 const getErrorBlockRegistry = (): Map<string, Map<string, ToolCallRootRecord>> => {
-  if (!window.__copilotErrorBlocks) {
-    window.__copilotErrorBlocks = new Map<string, Map<string, ToolCallRootRecord>>();
+  if (!window.__hendrikErrorBlocks) {
+    window.__hendrikErrorBlocks = new Map<string, Map<string, ToolCallRootRecord>>();
   }
 
-  return window.__copilotErrorBlocks;
+  return window.__hendrikErrorBlocks;
 };
 
 /**

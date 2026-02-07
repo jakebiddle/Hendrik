@@ -1,6 +1,5 @@
 import {
-  ChatModelProviders,
-  COPILOT_FOLDER_ROOT,
+  HENDRIK_FOLDER_ROOT,
   DEFAULT_QA_EXCLUSIONS_SETTING,
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_SETTINGS,
@@ -27,18 +26,18 @@ jest.mock("@/settings/model", () => {
 });
 
 describe("sanitizeQaExclusions", () => {
-  it("defaults to copilot root when value is not a string", () => {
+  it("defaults to hendrik root when value is not a string", () => {
     expect(sanitizeQaExclusions(undefined)).toBe(encodeURIComponent(DEFAULT_QA_EXCLUSIONS_SETTING));
   });
 
   it("keeps slash-only patterns distinct from canonical entries", () => {
-    const rawValue = `${encodeURIComponent("///")},${encodeURIComponent(COPILOT_FOLDER_ROOT)}`;
+    const rawValue = `${encodeURIComponent("///")},${encodeURIComponent(HENDRIK_FOLDER_ROOT)}`;
 
     const sanitized = sanitizeQaExclusions(rawValue);
 
     expect(sanitized.split(",")).toEqual([
       encodeURIComponent("///"),
-      encodeURIComponent(COPILOT_FOLDER_ROOT),
+      encodeURIComponent(HENDRIK_FOLDER_ROOT),
     ]);
   });
 
@@ -49,7 +48,7 @@ describe("sanitizeQaExclusions", () => {
 
     expect(sanitized.split(",")).toEqual([
       encodeURIComponent("folder/"),
-      encodeURIComponent(COPILOT_FOLDER_ROOT),
+      encodeURIComponent(HENDRIK_FOLDER_ROOT),
     ]);
   });
 });
@@ -173,53 +172,6 @@ describe("sanitizeSettings - autoAddSelectionToContext migration", () => {
     const sanitized = sanitizeSettings(newSettings);
 
     expect(sanitized.autoAddSelectionToContext).toBe(DEFAULT_SETTINGS.autoAddSelectionToContext);
-  });
-});
-
-describe("sanitizeSettings - legacy Copilot Plus cleanup", () => {
-  it("removes legacy models and repairs invalid selected model keys", () => {
-    const settingsWithLegacyModels = {
-      ...DEFAULT_SETTINGS,
-      activeModels: [
-        {
-          name: "copilot-plus-large",
-          provider: "copilot-plus",
-          enabled: true,
-        },
-        {
-          name: "gpt-4.1",
-          provider: "openai",
-          enabled: true,
-        },
-      ] as any,
-      defaultModelKey: "copilot-plus-large|copilot-plus",
-      quickCommandModelKey: "copilot-plus-mulitlingual|github-copilot",
-    };
-
-    const sanitized = sanitizeSettings(settingsWithLegacyModels as any);
-
-    expect(sanitized.activeModels.some((model) => model.provider === "copilot-plus")).toBe(false);
-    expect(sanitized.defaultModelKey).toBe("gpt-4.1|openai");
-    expect(sanitized.quickCommandModelKey).toBeUndefined();
-  });
-
-  it("falls back to the global default key when filtering removes all active models", () => {
-    const settingsWithOnlyLegacyModels = {
-      ...DEFAULT_SETTINGS,
-      activeModels: [
-        {
-          name: "Copilot Plus Flash",
-          provider: ChatModelProviders.GITHUB_COPILOT,
-          enabled: true,
-        },
-      ] as any,
-      defaultModelKey: "Copilot Plus Flash|github-copilot",
-    };
-
-    const sanitized = sanitizeSettings(settingsWithOnlyLegacyModels as any);
-
-    expect(sanitized.activeModels).toEqual([]);
-    expect(sanitized.defaultModelKey).toBe(DEFAULT_SETTINGS.defaultModelKey);
   });
 });
 

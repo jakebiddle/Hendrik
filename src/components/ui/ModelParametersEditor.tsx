@@ -3,7 +3,7 @@ import { CustomModel } from "@/aiParams";
 import { FormField } from "@/components/ui/form-field";
 import { ParameterControl } from "@/components/ui/parameter-controls";
 import { DEFAULT_MODEL_SETTING, ModelCapability, ReasoningEffort } from "@/constants";
-import { CopilotSettings } from "@/settings/model";
+import { HendrikSettings } from "@/settings/model";
 import {
   getDefaultReasoningEffort,
   getDefaultVerbosity,
@@ -24,7 +24,7 @@ const PARAM_RANGES = {
 
 interface ModelParametersEditorProps {
   model: CustomModel;
-  settings: CopilotSettings;
+  settings: HendrikSettings;
   onChange: (field: keyof CustomModel, value: any) => void;
   onReset?: (field: keyof CustomModel) => void;
   showTokenLimit?: boolean; // Whether to show Token limit, defaults to true

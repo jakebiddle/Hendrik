@@ -8,15 +8,13 @@ import {
   AGENT_MAX_ITERATIONS_LIMIT,
   BUILTIN_CHAT_MODELS,
   BUILTIN_EMBEDDING_MODELS,
-  ChatModelProviders,
-  COPILOT_FOLDER_ROOT,
+  HENDRIK_FOLDER_ROOT,
   DEFAULT_OPEN_AREA,
   DEFAULT_QA_EXCLUSIONS_SETTING,
   DEFAULT_SETTINGS,
   EmbeddingModelProviders,
   SEND_SHORTCUT,
 } from "@/constants";
-import { isLegacyCopilotPlusModelIdentifier } from "@/settings/providerModels";
 
 /**
  * We used to store commands in the settings file with the following interface.
@@ -47,7 +45,7 @@ export interface LegacyCommandSettings {
   showInContextMenu: boolean;
 }
 
-export interface CopilotSettings {
+export interface HendrikSettings {
   userId: string;
   openAIApiKey: string;
   openAIOrgId: string;
@@ -67,7 +65,7 @@ export interface CopilotSettings {
   amazonBedrockApiKey: string;
   amazonBedrockRegion: string;
   siliconflowApiKey: string;
-  // GitHub Copilot OAuth tokens
+  // GitHub Hendrik OAuth tokens
   githubCopilotAccessToken: string;
   githubCopilotToken: string;
   githubCopilotTokenExpiresAt: number;
@@ -197,18 +195,18 @@ export interface CopilotSettings {
 }
 
 export const settingsStore = createStore();
-export const settingsAtom = atom<CopilotSettings>(DEFAULT_SETTINGS);
+export const settingsAtom = atom<HendrikSettings>(DEFAULT_SETTINGS);
 
 /**
  * Sets the settings in the atom.
  */
-export function setSettings(settings: Partial<CopilotSettings>) {
+export function setSettings(settings: Partial<HendrikSettings>) {
   const newSettings = mergeAllActiveModelsWithCoreModels({ ...getSettings(), ...settings });
   settingsStore.set(settingsAtom, newSettings);
 }
 
 /**
- * Normalize QA exclusion patterns and guarantee the Copilot folder root is excluded.
+ * Normalize QA exclusion patterns and guarantee the Hendrik folder root is excluded.
  * @param rawValue - Persisted QA exclusion setting value.
  * @returns Encoded QA exclusion patterns string.
  */
@@ -225,8 +223,8 @@ export function sanitizeQaExclusions(rawValue: unknown): string {
   decodedPatterns.forEach((pattern) => {
     const canonical = pattern.replace(/\/+$/, "");
     const canonicalKey = canonical.length > 0 ? canonical : pattern;
-    if (canonicalKey === COPILOT_FOLDER_ROOT) {
-      canonicalToOriginalPattern.set(COPILOT_FOLDER_ROOT, COPILOT_FOLDER_ROOT);
+    if (canonicalKey === HENDRIK_FOLDER_ROOT) {
+      canonicalToOriginalPattern.set(HENDRIK_FOLDER_ROOT, HENDRIK_FOLDER_ROOT);
       return;
     }
     if (!canonicalToOriginalPattern.has(canonicalKey)) {
@@ -236,7 +234,7 @@ export function sanitizeQaExclusions(rawValue: unknown): string {
     }
   });
 
-  canonicalToOriginalPattern.set(COPILOT_FOLDER_ROOT, COPILOT_FOLDER_ROOT);
+  canonicalToOriginalPattern.set(HENDRIK_FOLDER_ROOT, HENDRIK_FOLDER_ROOT);
 
   return Array.from(canonicalToOriginalPattern.values())
     .map((pattern) => encodeURIComponent(pattern))
@@ -246,7 +244,7 @@ export function sanitizeQaExclusions(rawValue: unknown): string {
 /**
  * Sets a single setting in the atom.
  */
-export function updateSetting<K extends keyof CopilotSettings>(key: K, value: CopilotSettings[K]) {
+export function updateSetting<K extends keyof HendrikSettings>(key: K, value: HendrikSettings[K]) {
   const settings = getSettings();
   setSettings({ ...settings, [key]: value });
 }
@@ -255,7 +253,7 @@ export function updateSetting<K extends keyof CopilotSettings>(key: K, value: Co
  * Gets the settings from the atom. Use this if you don't need to subscribe to
  * changes.
  */
-export function getSettings(): Readonly<CopilotSettings> {
+export function getSettings(): Readonly<HendrikSettings> {
   return settingsStore.get(settingsAtom);
 }
 
@@ -275,7 +273,7 @@ export function resetSettings(): void {
  * Subscribes to changes in the settings atom.
  */
 export function subscribeToSettingsChange(
-  callback: (prev: CopilotSettings, next: CopilotSettings) => void
+  callback: (prev: HendrikSettings, next: HendrikSettings) => void
 ): () => void {
   let previousValue = getSettings();
 
@@ -289,30 +287,10 @@ export function subscribeToSettingsChange(
 /**
  * Hook to get the settings value from the atom.
  */
-export function useSettingsValue(): Readonly<CopilotSettings> {
+export function useSettingsValue(): Readonly<HendrikSettings> {
   return useAtomValue(settingsAtom, {
     store: settingsStore,
   });
-}
-
-/**
- * Checks whether the provided model matches a removed legacy Copilot Plus variant.
- *
- * @param model - Model to evaluate.
- * @returns True when the model should be removed from persisted settings.
- */
-function isRemovedLegacyCopilotPlusModel(model: CustomModel): boolean {
-  const provider = typeof model.provider === "string" ? model.provider.trim().toLowerCase() : "";
-
-  if (provider === "copilot-plus") {
-    return true;
-  }
-
-  if (provider !== ChatModelProviders.GITHUB_COPILOT) {
-    return false;
-  }
-
-  return isLegacyCopilotPlusModelIdentifier(model.name);
 }
 
 /**
@@ -351,7 +329,7 @@ function getFallbackDefaultModelKey(models: ReadonlyArray<CustomModel>): string 
  * Sanitizes the settings to ensure they are valid.
  * Note: This will be better handled by Zod in the future.
  */
-export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
+export function sanitizeSettings(settings: HendrikSettings): HendrikSettings {
   // If settings is null/undefined, use DEFAULT_SETTINGS
   const settingsToSanitize = settings || DEFAULT_SETTINGS;
 
@@ -375,14 +353,9 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
     });
   }
 
-  const sanitizedSettings: CopilotSettings = { ...settingsToSanitize };
+  const sanitizedSettings: HendrikSettings = { ...settingsToSanitize };
 
-  // Remove legacy Copilot Plus variants from persisted active model lists.
-  if (Array.isArray(settingsToSanitize.activeModels)) {
-    sanitizedSettings.activeModels = settingsToSanitize.activeModels.filter(
-      (model) => !isRemovedLegacyCopilotPlusModel(model)
-    );
-  } else {
+  if (!Array.isArray(settingsToSanitize.activeModels)) {
     sanitizedSettings.activeModels = BUILTIN_CHAT_MODELS.map((model) => ({ ...model }));
   }
 
@@ -673,7 +646,7 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
   return sanitizedSettings;
 }
 
-function mergeAllActiveModelsWithCoreModels(settings: CopilotSettings): CopilotSettings {
+function mergeAllActiveModelsWithCoreModels(settings: HendrikSettings): HendrikSettings {
   settings.activeModels = mergeActiveModels(settings.activeModels, BUILTIN_CHAT_MODELS);
   settings.activeEmbeddingModels = mergeActiveModels(
     settings.activeEmbeddingModels,

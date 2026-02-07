@@ -9,7 +9,7 @@ export const EMPTY_SYSTEM_PROMPT: UserSystemPrompt = {
 };
 
 // System prompt frontmatter property constants
-export const COPILOT_SYSTEM_PROMPT_CREATED = "copilot-system-prompt-created";
-export const COPILOT_SYSTEM_PROMPT_MODIFIED = "copilot-system-prompt-modified";
-export const COPILOT_SYSTEM_PROMPT_LAST_USED = "copilot-system-prompt-last-used";
-export const COPILOT_SYSTEM_PROMPT_DEFAULT = "copilot-system-prompt-default";
+export const HENDRIK_SYSTEM_PROMPT_CREATED = "hendrik-system-prompt-created";
+export const HENDRIK_SYSTEM_PROMPT_MODIFIED = "hendrik-system-prompt-modified";
+export const HENDRIK_SYSTEM_PROMPT_LAST_USED = "hendrik-system-prompt-last-used";
+export const HENDRIK_SYSTEM_PROMPT_DEFAULT = "hendrik-system-prompt-default";

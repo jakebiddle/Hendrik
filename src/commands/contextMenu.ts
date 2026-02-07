@@ -40,19 +40,19 @@ export function registerContextMenu(menu: Menu, obsidianApp: App): void {
     // Add the main selection command
     submenu.addItem((subItem) => {
       subItem.setTitle("Add selection to chat context").onClick(() => {
-        execute(`copilot:${COMMAND_IDS.ADD_SELECTION_TO_CHAT_CONTEXT}`);
+        execute(`hendrik:${COMMAND_IDS.ADD_SELECTION_TO_CHAT_CONTEXT}`);
       });
     });
 
     submenu.addItem((subItem) => {
       subItem.setTitle("Quick Ask").onClick(() => {
-        execute(`copilot:${COMMAND_IDS.TRIGGER_QUICK_ASK}`);
+        execute(`hendrik:${COMMAND_IDS.TRIGGER_QUICK_ASK}`);
       });
     });
 
     submenu.addItem((subItem) => {
       subItem.setTitle("Trigger quick command").onClick(() => {
-        execute(`copilot:${COMMAND_IDS.TRIGGER_QUICK_COMMAND}`);
+        execute(`hendrik:${COMMAND_IDS.TRIGGER_QUICK_COMMAND}`);
       });
     });
 
@@ -71,7 +71,7 @@ export function registerContextMenu(menu: Menu, obsidianApp: App): void {
     sortCommandsByOrder(visibleCustomCommands).forEach((command: CustomCommand) => {
       submenu.addItem((subItem) => {
         subItem.setTitle(command.title).onClick(() => {
-          execute(`copilot:${getCommandId(command.title)}`);
+          execute(`hendrik:${getCommandId(command.title)}`);
         });
       });
     });

@@ -25,11 +25,11 @@ export interface GitHubCopilotChatModelParams extends BaseChatModelParams {
 }
 
 /**
- * LangChain BaseChatModel implementation for GitHub Copilot
+ * LangChain BaseChatModel implementation for GitHub Hendrik
  */
 export class GitHubCopilotChatModel extends BaseChatModel {
   lc_serializable = false;
-  lc_namespace = ["langchain", "chat_models", "github_copilot"];
+  lc_namespace = ["langchain", "chat_models", "github_hendrik"];
 
   private provider: GitHubCopilotProvider;
   modelName: string;
@@ -47,12 +47,12 @@ export class GitHubCopilotChatModel extends BaseChatModel {
   }
 
   _llmType(): string {
-    return "github-copilot";
+    return "github-hendrik";
   }
 
   /**
    * Convert LangChain message type to OpenAI role.
-   * Note: Copilot API may not support tool/function roles, so we normalize them to user.
+   * Note: Hendrik API may not support tool/function roles, so we normalize them to user.
    */
   private convertMessageType(messageType: string): string {
     switch (messageType) {
@@ -64,7 +64,7 @@ export class GitHubCopilotChatModel extends BaseChatModel {
         return "system";
       case "tool":
       case "function":
-        // Copilot API may not support these roles, normalize to user
+        // Hendrik API may not support these roles, normalize to user
         return "user";
       case "generic":
       default:
@@ -73,9 +73,9 @@ export class GitHubCopilotChatModel extends BaseChatModel {
   }
 
   /**
-   * Convert LangChain messages to Copilot API format.
+   * Convert LangChain messages to Hendrik API format.
    */
-  private toCopilotMessages(messages: BaseMessage[]): Array<{ role: string; content: string }> {
+  private toHendrikMessages(messages: BaseMessage[]): Array<{ role: string; content: string }> {
     return messages.map((m) => ({
       role: this.convertMessageType(m._getType()),
       content: extractTextFromChunk(m.content),
@@ -90,9 +90,9 @@ export class GitHubCopilotChatModel extends BaseChatModel {
     options: this["ParsedCallOptions"],
     _runManager?: CallbackManagerForLLMRun
   ): Promise<ChatResult> {
-    const chatMessages = this.toCopilotMessages(messages);
+    const chatMessages = this.toHendrikMessages(messages);
 
-    // Call Copilot API with fetchImpl for CORS detection parity with other providers
+    // Call Hendrik API with fetchImpl for CORS detection parity with other providers
     const response = await this.provider.sendChatMessage(chatMessages, {
       model: this.modelName,
       fetchImpl: this.fetchImpl,
@@ -170,7 +170,7 @@ export class GitHubCopilotChatModel extends BaseChatModel {
       return;
     }
 
-    const chatMessages = this.toCopilotMessages(messages);
+    const chatMessages = this.toHendrikMessages(messages);
     let yieldedUsableChunk = false;
 
     // Stream directly, no fallback - errors are propagated to caller

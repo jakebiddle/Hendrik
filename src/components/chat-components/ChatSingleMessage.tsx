@@ -39,9 +39,9 @@ import { App, Component, MarkdownRenderer, MarkdownView, TFile } from "obsidian"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSettingsValue } from "@/settings/model";
 import {
-  buildCopilotCollapsibleDomId,
-  captureCopilotCollapsibleOpenStates,
-  getCopilotCollapsibleDetailsFromEvent,
+  buildHendrikCollapsibleDomId,
+  captureHendrikCollapsibleOpenStates,
+  getHendrikCollapsibleDetailsFromEvent,
   getMessageCollapsibleStates,
   isEventWithinDetailsSummary,
 } from "@/components/chat-components/collapsibleStateUtils";
@@ -296,7 +296,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
           content = content.replace(completeRegex, (_match, sectionContent) => {
             const sectionKey = `${tagName}-${sectionIndex}`;
             sectionIndex += 1;
-            const domId = buildCopilotCollapsibleDomId(messageId.current, sectionKey);
+            const domId = buildHendrikCollapsibleDomId(messageId.current, sectionKey);
             // Check if user has explicitly set a state; if not, default to collapsed (original behavior)
             const openAttribute = collapsibleOpenStateMap.get(domId) ? " open" : "";
 
@@ -323,7 +323,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
         return content.replace(regex, (_match, sectionContent) => {
           const sectionKey = `${tagName}-${sectionIndex}`;
           sectionIndex += 1;
-          const domId = buildCopilotCollapsibleDomId(messageId.current, sectionKey);
+          const domId = buildHendrikCollapsibleDomId(messageId.current, sectionKey);
           // Restore open state from previous render
           const openAttribute = collapsibleOpenStateMap.get(domId) ? " open" : "";
 
@@ -488,7 +488,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
         return;
       }
 
-      const details = getCopilotCollapsibleDetailsFromEvent(event, root);
+      const details = getHendrikCollapsibleDetailsFromEvent(event, root);
       if (!details || !isEventWithinDetailsSummary(event, details)) {
         return;
       }
@@ -504,7 +504,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
      * Since we already handled the state change in pointerdown, block the default behavior.
      */
     const handleSummaryClick = (event: Event): void => {
-      const details = getCopilotCollapsibleDetailsFromEvent(event, root);
+      const details = getHendrikCollapsibleDetailsFromEvent(event, root);
       if (!details || !isEventWithinDetailsSummary(event, details)) {
         return;
       }
@@ -515,7 +515,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
      * Captures actual open/closed state changes from native <details> interactions.
      */
     const handleDetailsToggle = (event: Event): void => {
-      const details = getCopilotCollapsibleDetailsFromEvent(event, root);
+      const details = getHendrikCollapsibleDetailsFromEvent(event, root);
       if (!details) {
         return;
       }
@@ -548,7 +548,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
       // Capture open states of collapsible sections before re-rendering
       // During streaming, don't overwrite user's explicit state changes from pointerdown
-      captureCopilotCollapsibleOpenStates(contentRef.current, collapsibleOpenStateMap, {
+      captureHendrikCollapsibleOpenStates(contentRef.current, collapsibleOpenStateMap, {
         overwriteExisting: !isStreaming,
       });
 
@@ -881,32 +881,32 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   return (
     <div
       className={cn(
-        "copilot-chat-message-row tw-my-1 tw-flex tw-w-full",
+        "hendrik-chat-message-row tw-my-1 tw-flex tw-w-full",
         isUserMessage
-          ? "copilot-chat-message-row--user tw-justify-end"
-          : "copilot-chat-message-row--assistant"
+          ? "hendrik-chat-message-row--user tw-justify-end"
+          : "hendrik-chat-message-row--assistant"
       )}
       style={staggerDelayMs != null ? { animationDelay: `${staggerDelayMs}ms` } : undefined}
     >
-      {!isUserMessage && <div className="copilot-chat-message-row__avatar" aria-hidden="true" />}
+      {!isUserMessage && <div className="hendrik-chat-message-row__avatar" aria-hidden="true" />}
 
       <div
         className={cn(
-          "copilot-chat-message-card tw-group tw-flex tw-max-w-[92%] tw-flex-col tw-gap-2 tw-rounded-xl tw-px-3 tw-py-2",
+          "hendrik-chat-message-card tw-group tw-flex tw-max-w-[92%] tw-flex-col tw-gap-2 tw-rounded-xl tw-px-3 tw-py-2",
           isUserMessage
-            ? "copilot-chat-message-card--user"
-            : "copilot-chat-message-card--assistant",
-          isStreaming && !isUserMessage && "copilot-chat-message-card--streaming"
+            ? "hendrik-chat-message-card--user"
+            : "hendrik-chat-message-card--assistant",
+          isStreaming && !isUserMessage && "hendrik-chat-message-card--streaming"
         )}
       >
         <div className="tw-flex tw-max-w-full tw-flex-col tw-gap-2">
           {showAssistantMeta && (
-            <div className="copilot-chat-message-card__meta">
-              <span className="copilot-chat-message-card__sender">Hendrik</span>
+            <div className="hendrik-chat-message-card__meta">
+              <span className="hendrik-chat-message-card__sender">Hendrik</span>
               {isStreaming && (
-                <span className="copilot-chat-message-card__typing">
+                <span className="hendrik-chat-message-card__typing">
                   Thinking
-                  <span className="copilot-chat-message-card__typing-pulse" aria-hidden="true" />
+                  <span className="hendrik-chat-message-card__typing-pulse" aria-hidden="true" />
                 </span>
               )}
             </div>

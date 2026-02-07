@@ -1,9 +1,9 @@
 import {
-  COPILOT_COMMAND_CONTEXT_MENU_ENABLED,
-  COPILOT_COMMAND_CONTEXT_MENU_ORDER,
-  COPILOT_COMMAND_LAST_USED,
-  COPILOT_COMMAND_MODEL_KEY,
-  COPILOT_COMMAND_SLASH_ENABLED,
+  HENDRIK_COMMAND_CONTEXT_MENU_ENABLED,
+  HENDRIK_COMMAND_CONTEXT_MENU_ORDER,
+  HENDRIK_COMMAND_LAST_USED,
+  HENDRIK_COMMAND_MODEL_KEY,
+  HENDRIK_COMMAND_SLASH_ENABLED,
   EMPTY_COMMAND,
   LEGACY_SELECTED_TEXT_PLACEHOLDER,
   QUICK_COMMAND_CODE_BLOCK,
@@ -100,7 +100,7 @@ export function isCustomCommandFile(file: TAbstractFile): boolean {
 
 export function hasOrderFrontmatter(file: TFile): boolean {
   const metadata = app.metadataCache.getFileCache(file);
-  return metadata?.frontmatter?.[COPILOT_COMMAND_CONTEXT_MENU_ORDER] != null;
+  return metadata?.frontmatter?.[HENDRIK_COMMAND_CONTEXT_MENU_ORDER] != null;
 }
 
 /**
@@ -111,13 +111,13 @@ export async function parseCustomCommandFile(file: TFile): Promise<CustomCommand
   const content = stripFrontmatter(rawContent);
   const metadata = app.metadataCache.getFileCache(file);
   const showInContextMenu =
-    metadata?.frontmatter?.[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] ??
+    metadata?.frontmatter?.[HENDRIK_COMMAND_CONTEXT_MENU_ENABLED] ??
     EMPTY_COMMAND.showInContextMenu;
   const showInSlashMenu =
-    metadata?.frontmatter?.[COPILOT_COMMAND_SLASH_ENABLED] ?? EMPTY_COMMAND.showInSlashMenu;
-  const lastUsedMs = metadata?.frontmatter?.[COPILOT_COMMAND_LAST_USED] ?? EMPTY_COMMAND.lastUsedMs;
-  const order = metadata?.frontmatter?.[COPILOT_COMMAND_CONTEXT_MENU_ORDER] ?? EMPTY_COMMAND.order;
-  const modelKey = metadata?.frontmatter?.[COPILOT_COMMAND_MODEL_KEY] ?? EMPTY_COMMAND.modelKey;
+    metadata?.frontmatter?.[HENDRIK_COMMAND_SLASH_ENABLED] ?? EMPTY_COMMAND.showInSlashMenu;
+  const lastUsedMs = metadata?.frontmatter?.[HENDRIK_COMMAND_LAST_USED] ?? EMPTY_COMMAND.lastUsedMs;
+  const order = metadata?.frontmatter?.[HENDRIK_COMMAND_CONTEXT_MENU_ORDER] ?? EMPTY_COMMAND.order;
+  const modelKey = metadata?.frontmatter?.[HENDRIK_COMMAND_MODEL_KEY] ?? EMPTY_COMMAND.modelKey;
 
   return {
     title: file.basename,
@@ -206,12 +206,12 @@ export async function processCommandPrompt(
   }
 
   // This is the legacy custom command selected text placeholder. It replaced
-  // {copilot-selection} in the prompt with the selected text. This is different
+  // {hendrik-selection} in the prompt with the selected text. This is different
   // from the custom prompt processor which uses {} in the prompt and appends
   // the selected text to the prompt. We cannot change user's custom commands
   // that have the old placeholder, so we need to support both.
   // Also, selected text is required for custom commands. If neither `{}` nor
-  // `{copilot-selection}` is found, append the selected text to the prompt.
+  // `{hendrik-selection}` is found, append the selected text to the prompt.
   const index = processedPrompt.indexOf(LEGACY_SELECTED_TEXT_PLACEHOLDER);
   if (index === -1) {
     // No legacy placeholder found
@@ -241,13 +241,13 @@ export async function processCommandPrompt(
 
 /**
  * Find all variables between {} in a custom command prompt.
- * {copilot-selection} is the legacy custom command special placeholder. It must
+ * {hendrik-selection} is the legacy custom command special placeholder. It must
  * be skipped when processing custom prompts because it's handled differently
  * by the custom command prompt processor.
  *
  * Also excludes {[[...]]} patterns which are handled separately by extractTemplateNoteFiles.
  */
-const VARIABLE_REGEX = /\{(?!copilot-selection\}|\[\[)([^}]+)\}/g;
+const VARIABLE_REGEX = /\{(?!hendrik-selection\}|\[\[)([^}]+)\}/g;
 
 /**
  * Represents the result of processing a custom prompt variable.
@@ -494,20 +494,20 @@ export async function ensureCommandFrontmatter(file: TFile, command: CustomComma
   try {
     addPendingFileWrite(file.path);
     await app.fileManager.processFrontMatter(file, (frontmatter) => {
-      if (frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] == null) {
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
+      if (frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ENABLED] == null) {
+        frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
       }
-      if (frontmatter[COPILOT_COMMAND_SLASH_ENABLED] == null) {
-        frontmatter[COPILOT_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
+      if (frontmatter[HENDRIK_COMMAND_SLASH_ENABLED] == null) {
+        frontmatter[HENDRIK_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
       }
-      if (frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] == null) {
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] = command.order;
+      if (frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ORDER] == null) {
+        frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ORDER] = command.order;
       }
-      if (frontmatter[COPILOT_COMMAND_MODEL_KEY] == null) {
-        frontmatter[COPILOT_COMMAND_MODEL_KEY] = command.modelKey;
+      if (frontmatter[HENDRIK_COMMAND_MODEL_KEY] == null) {
+        frontmatter[HENDRIK_COMMAND_MODEL_KEY] = command.modelKey;
       }
-      if (frontmatter[COPILOT_COMMAND_LAST_USED] == null) {
-        frontmatter[COPILOT_COMMAND_LAST_USED] = command.lastUsedMs;
+      if (frontmatter[HENDRIK_COMMAND_LAST_USED] == null) {
+        frontmatter[HENDRIK_COMMAND_LAST_USED] = command.lastUsedMs;
       }
     });
   } finally {

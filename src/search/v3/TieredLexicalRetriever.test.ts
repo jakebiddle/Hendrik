@@ -556,7 +556,7 @@ describe("TieredLexicalRetriever", () => {
           stat: { mtime: now - 1000, ctime: now - 2000 },
         },
         {
-          path: "copilot/custom-prompt.md",
+          path: "hendrik/custom-prompt.md",
           basename: "custom-prompt",
           stat: { mtime: now - 1000, ctime: now - 2000 },
         },
@@ -572,9 +572,9 @@ describe("TieredLexicalRetriever", () => {
         Object.setPrototypeOf(f, (TFile as any).prototype);
       });
 
-      // Mock shouldIndexFile to exclude files in copilot/ folder
+      // Mock shouldIndexFile to exclude files in hendrik/ folder
       shouldIndexFile.mockImplementation((file: any) => {
-        return !file.path.startsWith("copilot/");
+        return !file.path.startsWith("hendrik/");
       });
 
       // Mock vault.getMarkdownFiles to return all files
@@ -602,7 +602,7 @@ describe("TieredLexicalRetriever", () => {
 
       // Should only include files not in excluded folder
       expect(results.length).toBe(2);
-      expect(results.every((r) => !r.metadata.path.startsWith("copilot/"))).toBe(true);
+      expect(results.every((r) => !r.metadata.path.startsWith("hendrik/"))).toBe(true);
       expect(results.some((r) => r.metadata.path === "notes/valid-note.md")).toBe(true);
       expect(results.some((r) => r.metadata.path === "notes/another-note.md")).toBe(true);
 

@@ -22,7 +22,19 @@ import { cn } from "@/lib/utils";
 import { logError } from "@/logger";
 import { updateSetting, useSettingsValue } from "@/settings/model";
 import { RecentUsageManager, sortByStrategy } from "@/utils/recentUsageManager";
-import { ChevronDown, ChevronUp, Edit2, LibraryBig, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  FolderOpen,
+  LibraryBig,
+  MessageSquare,
+  Plus,
+  Search,
+  Settings2,
+  Trash2,
+  X,
+} from "lucide-react";
 import { App, Notice } from "obsidian";
 import React, { memo, useEffect, useMemo, useState } from "react";
 import { filterProjects } from "@/utils/projectUtils";
@@ -54,6 +66,36 @@ function useRecentUsageManagerRevision<Key extends string>(
   return revision;
 }
 
+/**
+ * Counts total context sources for a project.
+ */
+function countContextSources(project: ProjectConfig): number {
+  const inclusions = (project.contextSource?.inclusions ?? "")
+    .split(",")
+    .filter((s) => s.trim()).length;
+  const webUrls = (project.contextSource?.webUrls ?? "").split("\n").filter((s) => s.trim()).length;
+  const youtubeUrls = (project.contextSource?.youtubeUrls ?? "")
+    .split("\n")
+    .filter((s) => s.trim()).length;
+  return inclusions + webUrls + youtubeUrls;
+}
+
+/**
+ * Formats a timestamp as a compact relative time label.
+ */
+function formatRelativeTime(timestamp: number): string {
+  if (!timestamp) return "";
+  const now = Date.now();
+  const diffMs = now - timestamp;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 function ProjectItem({
   app,
   project,
@@ -69,129 +111,92 @@ function ProjectItem({
 }) {
   const appearance = resolveProjectAppearance(project);
   const ProjectIcon = getProjectIconComponent(appearance.icon);
+  const sourceCount = countContextSources(project);
+  const lastUsedLabel = formatRelativeTime(project.UsageTimestamps);
 
   return (
     <div
-      className="copilot-project-list-item tw-group tw-flex tw-cursor-pointer tw-items-center tw-justify-between tw-gap-2 tw-rounded-xl tw-p-3 tw-transition-colors tw-duration-150"
+      className="hendrik-project-list-item tw-group tw-flex tw-cursor-pointer tw-items-center tw-gap-0 tw-rounded-lg tw-transition-colors tw-duration-150"
       onClick={() => loadContext(project)}
     >
-      <div className="tw-flex tw-flex-1 tw-items-center tw-gap-3 tw-overflow-hidden">
-        <div
-          className="tw-flex tw-size-7 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-md"
-          style={{
-            backgroundColor: `color-mix(in srgb, ${appearance.color} 18%, transparent)`,
-            color: appearance.color,
-          }}
-        >
-          <ProjectIcon className="tw-size-4" />
-        </div>
-        <div className="tw-flex tw-flex-1 tw-flex-col tw-gap-0.5 tw-overflow-hidden">
-          <span className="tw-w-full tw-truncate tw-text-[13px] tw-font-medium tw-text-normal">
-            {project.name}
-          </span>
-          {project.description && (
-            <span className="tw-w-full tw-truncate tw-text-[11px] tw-text-faint">
-              {project.description}
+      {/* Accent bar */}
+      <div
+        className="tw-w-[3px] tw-shrink-0 tw-self-stretch tw-rounded-l-lg"
+        style={{ backgroundColor: `color-mix(in srgb, ${appearance.color} 50%, transparent)` }}
+      />
+      <div className="tw-flex tw-flex-1 tw-items-center tw-justify-between tw-gap-2 tw-p-2.5">
+        <div className="tw-flex tw-flex-1 tw-items-center tw-gap-2.5 tw-overflow-hidden">
+          <div
+            className="tw-flex tw-size-8 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-lg"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${appearance.color} 15%, transparent)`,
+              color: appearance.color,
+            }}
+          >
+            <ProjectIcon className="tw-size-4" />
+          </div>
+          <div className="tw-flex tw-flex-1 tw-flex-col tw-gap-0.5 tw-overflow-hidden">
+            <span className="tw-w-full tw-truncate tw-text-sm tw-font-medium tw-text-normal">
+              {project.name}
             </span>
-          )}
-        </div>
-      </div>
-      <div className="tw-flex tw-flex-row tw-items-center tw-gap-0 tw-opacity-80 tw-transition-opacity tw-duration-150 hover:tw-opacity-100">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost2"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit(project);
-              }}
-            >
-              <Edit2 className="tw-size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Edit</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost2"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                const modal = new ConfirmModal(
-                  app,
-                  () => onDelete(project),
-                  `Are you sure you want to delete project "${project.name}"?`,
-                  "Delete Project"
-                );
-                modal.open();
-              }}
-            >
-              <Trash2 className="tw-size-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Delete</TooltipContent>
-        </Tooltip>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Summary card for the project list view.
- * Keeps the entry experience aligned with the richer project landing aesthetic.
- */
-function ProjectListOverviewCard({
-  projectCount,
-  onCreateProject,
-}: {
-  projectCount: number;
-  onCreateProject: () => void;
-}) {
-  return (
-    <div
-      className="copilot-project-overview-card tw-rounded-xl tw-border tw-border-solid tw-border-border tw-p-4"
-      style={{
-        background:
-          "linear-gradient(155deg, color-mix(in srgb, var(--interactive-accent) 5%, transparent), transparent 62%), color-mix(in srgb, var(--background-primary) 90%, var(--background-secondary) 10%)",
-      }}
-    >
-      <div className="tw-flex tw-items-start tw-gap-2.5">
-        <div
-          className="tw-flex tw-size-8 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-lg"
-          style={{
-            backgroundColor: "color-mix(in srgb, var(--interactive-accent) 12%, transparent)",
-            color: "var(--interactive-accent)",
-          }}
-        >
-          <LibraryBig className="tw-size-4" />
-        </div>
-        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-1">
-          <div className="tw-text-sm tw-font-medium tw-text-normal">Project Workspaces</div>
-          <p className="tw-m-0 tw-text-xs tw-leading-snug tw-text-muted">
-            Group your context, instructions, and model into reusable workspaces for focused chats.
-          </p>
-          <div className="tw-mt-0.5 tw-flex tw-flex-wrap tw-gap-1.5">
-            <span className="copilot-project-overview-card__chip tw-inline-flex tw-items-center tw-rounded-md tw-px-1.5 tw-py-0.5 tw-text-[10px] tw-text-muted">
-              {projectCount} {projectCount === 1 ? "project" : "projects"}
-            </span>
-            <span className="copilot-project-overview-card__chip tw-inline-flex tw-items-center tw-rounded-md tw-px-1.5 tw-py-0.5 tw-text-[10px] tw-text-muted">
-              Isolated project chat memory
-            </span>
+            {project.description && (
+              <span className="tw-w-full tw-truncate tw-text-xs tw-text-faint">
+                {project.description}
+              </span>
+            )}
+            <div className="tw-flex tw-items-center tw-gap-2 tw-pt-0.5">
+              {sourceCount > 0 && (
+                <span className="tw-text-[11px] tw-text-faint">
+                  {sourceCount} {sourceCount === 1 ? "source" : "sources"}
+                </span>
+              )}
+              {sourceCount > 0 && lastUsedLabel && (
+                <span className="tw-text-[11px] tw-text-faint">·</span>
+              )}
+              {lastUsedLabel && (
+                <span className="tw-text-[11px] tw-text-faint">{lastUsedLabel}</span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      <div className="tw-mt-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          className="tw-w-full tw-gap-2"
-          onClick={onCreateProject}
-        >
-          <Plus className="tw-size-3.5" />
-          New Project
-        </Button>
+        <div className="tw-flex tw-flex-row tw-items-center tw-gap-0 tw-opacity-0 tw-transition-opacity tw-duration-150 group-hover:tw-opacity-100">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost2"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(project);
+                }}
+              >
+                <Edit2 className="tw-size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Edit</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost2"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const modal = new ConfirmModal(
+                    app,
+                    () => onDelete(project),
+                    `Are you sure you want to delete project "${project.name}"?`,
+                    "Delete Project"
+                  );
+                  modal.open();
+                }}
+              >
+                <Trash2 className="tw-size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Delete</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
     </div>
   );
@@ -213,12 +218,13 @@ export const ProjectList = memo(
     onLoadChat,
     backSignal = 0,
     onCanGoBackChange,
+    onViewingProjectChange,
   }: {
     className?: string;
     projects: ProjectConfig[];
     defaultOpen?: boolean;
     app: App;
-    plugin?: any; // CopilotPlugin, optional for backwards compatibility
+    plugin?: any; // HendrikPlugin, optional for backwards compatibility
     onProjectAdded: (project: ProjectConfig) => void;
     onEditProject: (originP: ProjectConfig, updateP: ProjectConfig) => void;
     hasMessages?: boolean;
@@ -228,6 +234,7 @@ export const ProjectList = memo(
     onLoadChat?: (id: string) => Promise<void>;
     backSignal?: number;
     onCanGoBackChange?: (canGoBack: boolean) => void;
+    onViewingProjectChange?: (project: ProjectConfig | null) => void;
   }): React.ReactElement => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const [showChatInput, setShowChatInput] = useState(false);
@@ -261,6 +268,13 @@ export const ProjectList = memo(
     useEffect(() => {
       onCanGoBackChange?.(Boolean(showChatInput || viewingProject));
     }, [onCanGoBackChange, showChatInput, viewingProject]);
+
+    /**
+     * Notify parent when the currently-viewed project changes (for header display).
+     */
+    useEffect(() => {
+      onViewingProjectChange?.(viewingProject);
+    }, [onViewingProjectChange, viewingProject]);
 
     /**
      * Handle external back requests (from top header back button).
@@ -447,7 +461,12 @@ export const ProjectList = memo(
     };
 
     return (
-      <div className={cn("tw-relative tw-flex tw-h-full tw-flex-col", className)}>
+      <div
+        className={cn(
+          "tw-relative tw-flex tw-h-full tw-min-w-0 tw-flex-col tw-overflow-hidden",
+          className
+        )}
+      >
         {projectFormState && (
           <div className="tw-absolute tw-inset-0 tw-z-modal tw-overflow-y-auto tw-bg-overlay/50 tw-p-2 tw-backdrop-blur-sm">
             <div className="tw-mx-auto tw-my-2 tw-w-full tw-max-w-2xl tw-rounded-xl tw-border tw-border-solid tw-border-border tw-bg-primary tw-shadow-lg">
@@ -459,8 +478,8 @@ export const ProjectList = memo(
             </div>
           </div>
         )}
-        <div className="tw-overflow-y-auto">
-          <div className="tw-flex tw-flex-col">
+        <div className="tw-overflow-y-auto tw-overflow-x-hidden">
+          <div className="tw-flex tw-min-w-0 tw-flex-col">
             {viewingProject ? (
               <ProjectLandingPage
                 project={viewingProject}
@@ -469,7 +488,13 @@ export const ProjectList = memo(
                 onEdit={() => handleEditProject(viewingProject)}
               />
             ) : showChatInput && selectedProject ? (
-              <div className="tw-flex tw-items-center tw-justify-between tw-px-3 tw-py-2">
+              <div
+                className="tw-flex tw-items-center tw-justify-between tw-rounded-lg tw-px-3 tw-py-2"
+                style={{
+                  background: "var(--background-secondary)",
+                  borderBottom: "1px solid var(--background-modifier-border)",
+                }}
+              >
                 <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-2">
                   <Select
                     value={selectedProject.name}
@@ -538,13 +563,13 @@ export const ProjectList = memo(
                 </div>
               </div>
             ) : (
-              <div className="copilot-project-list-shell tw-p-3">
+              <div className="hendrik-project-list-shell tw-p-3">
                 <Collapsible
                   open={isOpen}
                   onOpenChange={setIsOpen}
-                  className="copilot-project-list-card tw-overflow-hidden tw-rounded-xl tw-border tw-border-solid tw-border-border tw-shadow-sm tw-transition-all tw-duration-200 tw-ease-in-out"
+                  className="hendrik-project-list-card tw-overflow-hidden tw-rounded-xl tw-shadow-sm tw-transition-all tw-duration-200 tw-ease-in-out"
                 >
-                  <div className="copilot-project-list-card__header tw-flex tw-items-center tw-justify-between tw-px-3 tw-py-2">
+                  <div className="hendrik-project-list-card__header tw-flex tw-items-center tw-justify-between tw-px-3 tw-py-2">
                     <div className="tw-flex tw-flex-1 tw-items-center tw-gap-2">
                       <span className="tw-text-sm tw-font-medium tw-text-normal">Projects</span>
                       <HelpTooltip
@@ -575,27 +600,42 @@ export const ProjectList = memo(
                       )}
                     </div>
                   </div>
-                  <CollapsibleContent className="copilot-project-list-card__content tw-transition-all tw-duration-200 tw-ease-in-out">
-                    <div className="copilot-project-list-card__body tw-relative tw-space-y-2.5 tw-p-3">
-                      <ProjectListOverviewCard
-                        projectCount={projects.length}
-                        onCreateProject={handleAddProject}
-                      />
-                      {projects.length > 0 && (
-                        <div className="tw-py-0.5">
-                          <SearchBar
-                            value={searchQuery}
-                            onChange={setSearchQuery}
-                            placeholder="Search projects..."
-                          />
-                        </div>
+                  <CollapsibleContent className="hendrik-project-list-card__content tw-transition-all tw-duration-200 tw-ease-in-out">
+                    <div className="hendrik-project-list-card__body tw-relative tw-space-y-2 tw-p-3">
+                      {projects.length > 3 && (
+                        <SearchBar
+                          value={searchQuery}
+                          onChange={setSearchQuery}
+                          placeholder="Search projects..."
+                        />
                       )}
                       {projects.length === 0 ? (
-                        <div className="tw-rounded-lg tw-border tw-border-dashed tw-border-border tw-px-3 tw-py-4 tw-text-center tw-text-xs tw-text-faint">
-                          No projects yet. Create one to start a focused workspace.
+                        <div
+                          className="tw-flex tw-flex-col tw-items-center tw-gap-2 tw-rounded-lg tw-border tw-border-dashed tw-px-4 tw-py-5 tw-text-center"
+                          style={{ borderColor: "var(--background-modifier-border)" }}
+                        >
+                          <LibraryBig className="tw-size-9 tw-text-faint/40" />
+                          <div className="tw-space-y-1">
+                            <p className="tw-m-0 tw-text-sm tw-font-medium tw-text-muted">
+                              No projects yet
+                            </p>
+                            <p className="tw-m-0 tw-text-sm tw-text-faint">
+                              Create a project to group context, instructions, and model into a
+                              focused workspace.
+                            </p>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="tw-mt-1 tw-gap-1.5"
+                            onClick={handleAddProject}
+                          >
+                            <Plus className="tw-size-3.5" />
+                            New Project
+                          </Button>
                         </div>
                       ) : (
-                        <div className="tw-max-h-[calc(3*4.5rem)] tw-overflow-y-auto tw-pr-1">
+                        <div className="tw-max-h-[320px] tw-overflow-y-auto tw-overflow-x-hidden">
                           <div className="tw-flex tw-flex-col tw-gap-0.5">
                             {filteredProjects.map((project) => (
                               <ProjectItem
@@ -610,8 +650,30 @@ export const ProjectList = memo(
                           </div>
                           {searchQuery.trim() && filteredProjects.length === 0 && (
                             <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-py-6 tw-text-faint">
-                              <Search className="tw-mb-2 tw-size-8 tw-text-faint/40" />
-                              <p className="tw-text-sm">No matching projects</p>
+                              <Search className="tw-mb-2 tw-size-6 tw-text-faint/40" />
+                              <p className="tw-m-0 tw-text-sm">No matching projects</p>
+                            </div>
+                          )}
+                          {/* Contextual tip when project list is short */}
+                          {!searchQuery.trim() && filteredProjects.length <= 2 && (
+                            <div
+                              className="tw-mt-2 tw-flex tw-items-start tw-gap-2.5 tw-rounded-lg tw-p-2.5"
+                              style={{ background: "var(--background-secondary-alt)" }}
+                            >
+                              <Plus className="tw-mt-0.5 tw-size-3.5 tw-shrink-0 tw-text-faint" />
+                              <div className="tw-space-y-0.5">
+                                <p className="tw-m-0 tw-text-xs tw-text-muted">
+                                  Each project gets its own context, model, and conversation
+                                  history.
+                                </p>
+                                <button
+                                  type="button"
+                                  className="tw-cursor-pointer tw-border-none tw-bg-transparent tw-p-0 tw-text-xs tw-font-medium tw-text-accent hover:tw-underline"
+                                  onClick={handleAddProject}
+                                >
+                                  Create another project
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -619,6 +681,44 @@ export const ProjectList = memo(
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
+
+                {/* Feature overview — fills empty space below project list */}
+                <div className="tw-mt-4 tw-space-y-3 tw-px-1">
+                  {[
+                    {
+                      icon: FolderOpen,
+                      label: "Scoped Context",
+                      desc: "Each project uses only the notes, URLs, and videos you assign.",
+                    },
+                    {
+                      icon: Settings2,
+                      label: "Dedicated Model",
+                      desc: "Pick a model and temperature tuned to each project's needs.",
+                    },
+                    {
+                      icon: MessageSquare,
+                      label: "Isolated History",
+                      desc: "Conversations stay separate — no cross-project bleed.",
+                    },
+                  ].map((feature) => (
+                    <div key={feature.label} className="tw-flex tw-items-start tw-gap-2.5">
+                      <div
+                        className="tw-mt-0.5 tw-flex tw-size-7 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-md"
+                        style={{ background: "var(--background-secondary-alt)" }}
+                      >
+                        <feature.icon className="tw-size-3.5 tw-text-muted" />
+                      </div>
+                      <div>
+                        <p className="tw-m-0 tw-text-sm tw-font-medium tw-text-normal">
+                          {feature.label}
+                        </p>
+                        <p className="tw-m-0 tw-text-xs tw-leading-relaxed tw-text-faint">
+                          {feature.desc}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

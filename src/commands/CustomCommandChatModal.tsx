@@ -590,7 +590,7 @@ export class CustomCommandChatModal {
 
     const doc = this.resolveDocument(activeView);
     this.container = doc.createElement("div");
-    this.container.className = "copilot-menu-command-modal-container";
+    this.container.className = "hendrik-menu-command-modal-container";
     doc.body.appendChild(this.container);
 
     this.root = createRoot(this.container);

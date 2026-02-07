@@ -1936,6 +1936,111 @@ describe("ChatManager", () => {
         expect(systemPromptArg).toContain("<project_system_prompt>");
         expect(systemPromptArg).not.toContain("<project_context>");
       });
+
+      it("should truncate oversized project context to fit model budget", async () => {
+        const mockActiveFile = { path: "test.md", basename: "Test Note" } as TFile;
+        const mockMessage = createMockMessage("msg-1", "Hello", USER_SENDER);
+        const context: MessageContext = { notes: [], urls: [], selectedTextContexts: [] };
+        const oversizedProjectContext = "A".repeat(60000);
+
+        const mockProject = {
+          id: "proj-1",
+          name: "Test Project",
+          systemPrompt: "Project prompt",
+          projectModelKey: "test-model|openai",
+          modelConfigs: { maxTokens: 1200 },
+        };
+
+        getCurrentProject.mockReturnValue(mockProject);
+        getProjectContextMock().mockResolvedValue(oversizedProjectContext);
+        getSettings.mockReturnValue({
+          enableCustomPromptTemplating: true,
+          defaultMaxContextTokens: 8000,
+          maxTokens: 6000,
+          activeModels: [
+            {
+              name: "test-model",
+              provider: "openai",
+              maxContextTokens: 8000,
+              maxTokens: 1200,
+            },
+          ],
+        });
+
+        getEffectiveUserPrompt.mockReturnValue("");
+        getSystemPrompt.mockReturnValue("DEFAULT");
+        getSystemPromptWithMemory.mockResolvedValue("DEFAULT");
+        processPrompt.mockResolvedValue({
+          processedPrompt: "PROCESSED",
+          includedFiles: [],
+        });
+
+        mockPlugin.app.workspace.getActiveFile.mockReturnValue(mockActiveFile);
+        mockPlugin.app.vault = { adapter: { stat: jest.fn() } };
+        mockMessageRepo.addMessage.mockReturnValue("msg-1");
+        mockMessageRepo.getMessage.mockReturnValue(mockMessage);
+        mockContextManager.processMessageContext.mockResolvedValue(createContextResult());
+
+        await chatManager.sendMessage("Hello", context, ChainType.PROJECT_CHAIN);
+
+        const systemPromptArg = mockContextManager.processMessageContext.mock.calls[0][7];
+        expect(systemPromptArg).toContain("<project_context>");
+        expect(systemPromptArg).toContain(
+          "[project_context truncated to fit the model context window.]"
+        );
+        expect(systemPromptArg).not.toContain(oversizedProjectContext);
+      });
+
+      it("should omit project context when budget is fully exhausted", async () => {
+        const mockActiveFile = { path: "test.md", basename: "Test Note" } as TFile;
+        const mockMessage = createMockMessage("msg-1", "Hello", USER_SENDER);
+        const context: MessageContext = { notes: [], urls: [], selectedTextContexts: [] };
+        const veryLongBasePrompt = "BASE_PROMPT_".repeat(2000);
+
+        const mockProject = {
+          id: "proj-1",
+          name: "Test Project",
+          systemPrompt: "Project prompt",
+          projectModelKey: "test-model|openai",
+          modelConfigs: { maxTokens: 1200 },
+        };
+
+        getCurrentProject.mockReturnValue(mockProject);
+        getProjectContextMock().mockResolvedValue("project context");
+        getSettings.mockReturnValue({
+          enableCustomPromptTemplating: true,
+          defaultMaxContextTokens: 2048,
+          maxTokens: 6000,
+          activeModels: [
+            {
+              name: "test-model",
+              provider: "openai",
+              maxContextTokens: 2048,
+              maxTokens: 1200,
+            },
+          ],
+        });
+
+        getEffectiveUserPrompt.mockReturnValue("");
+        getSystemPrompt.mockReturnValue(veryLongBasePrompt);
+        getSystemPromptWithMemory.mockResolvedValue(veryLongBasePrompt);
+        processPrompt.mockResolvedValue({
+          processedPrompt: "PROCESSED",
+          includedFiles: [],
+        });
+
+        mockPlugin.app.workspace.getActiveFile.mockReturnValue(mockActiveFile);
+        mockPlugin.app.vault = { adapter: { stat: jest.fn() } };
+        mockMessageRepo.addMessage.mockReturnValue("msg-1");
+        mockMessageRepo.getMessage.mockReturnValue(mockMessage);
+        mockContextManager.processMessageContext.mockResolvedValue(createContextResult());
+
+        await chatManager.sendMessage("Hello", context, ChainType.PROJECT_CHAIN);
+
+        const systemPromptArg = mockContextManager.processMessageContext.mock.calls[0][7];
+        expect(systemPromptArg).toContain("<project_system_prompt>");
+        expect(systemPromptArg).not.toContain("<project_context>");
+      });
     });
   });
 });

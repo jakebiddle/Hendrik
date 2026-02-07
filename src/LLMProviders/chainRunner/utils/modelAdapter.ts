@@ -100,29 +100,29 @@ class BaseModelAdapter implements ModelAdapter {
       }
     }
 
-    const copilotCommandInstructions = this.buildCopilotCommandInstructions(toolMetadata);
-    if (copilotCommandInstructions) {
-      instructions.push(copilotCommandInstructions);
+    const hendrikCommandInstructions = this.buildHendrikCommandInstructions(toolMetadata);
+    if (hendrikCommandInstructions) {
+      instructions.push(hendrikCommandInstructions);
     }
 
     return instructions.length > 0 ? instructions.join("\n\n") : "";
   }
 
   /**
-   * Build instructional text that maps Copilot command aliases to tool names.
+   * Build instructional text that maps Hendrik command aliases to tool names.
    *
    * @param toolMetadata - Metadata for all tools available to the agent.
-   * @returns Instructional string or null if there are no Copilot aliases.
+   * @returns Instructional string or null if there are no Hendrik aliases.
    */
-  private buildCopilotCommandInstructions(toolMetadata: ToolMetadata[]): string | null {
+  private buildHendrikCommandInstructions(toolMetadata: ToolMetadata[]): string | null {
     const aliasLines: string[] = [];
 
     for (const meta of toolMetadata) {
-      if (!meta.copilotCommands || meta.copilotCommands.length === 0) {
+      if (!meta.hendrikCommands || meta.hendrikCommands.length === 0) {
         continue;
       }
 
-      for (const command of meta.copilotCommands) {
+      for (const command of meta.hendrikCommands) {
         aliasLines.push(`- ${command}: call the tool named ${meta.id}`);
       }
     }
@@ -132,7 +132,7 @@ class BaseModelAdapter implements ModelAdapter {
     }
 
     return [
-      "When the user explicitly includes a Copilot command alias (e.g., @vault) in their message, treat it as a direct request to call the mapped tool before proceeding.",
+      "When the user explicitly includes a Hendrik command alias (e.g., @vault) in their message, treat it as a direct request to call the mapped tool before proceeding.",
       "Honor these aliases exactly (case-insensitive):",
       ...aliasLines,
       "If the referenced tool is unavailable, explain that the command cannot be fulfilled instead of ignoring it.",
@@ -603,65 +603,6 @@ Remember: The user has already told you what to do. Execute it NOW with the avai
 }
 
 /**
- * Copilot Plus adapter for Flash models with anti-hallucination focus
- */
-class CopilotPlusModelAdapter extends BaseModelAdapter {
-  buildSystemPromptSections(
-    basePrompt: string,
-    toolDescriptions: string,
-    availableToolNames?: string[],
-    toolMetadata?: ToolMetadata[]
-  ): PromptSection[] {
-    const sections = super.buildSystemPromptSections(
-      basePrompt,
-      toolDescriptions,
-      availableToolNames,
-      toolMetadata
-    );
-
-    sections.push({
-      id: "copilot-plus-guidelines",
-      label: "Copilot Plus model guidance",
-      source:
-        "src/LLMProviders/chainRunner/utils/modelAdapter.ts#CopilotPlusModelAdapter.buildSystemPromptSections",
-      content: `🚨 CRITICAL: NO HALLUCINATED TOOL CALLS OR SOURCES 🚨
-
-You are a Copilot Plus model. You MUST follow these rules strictly:
-
-## Tool Call Integrity
-- You can ONLY reference results from tools you have ACTUALLY called in this conversation
-- NEVER claim to have performed a web search unless you called the webSearch tool AND received results
-- NEVER claim to have searched notes unless you called localSearch AND received results
-- If you want to search the web, you MUST call the webSearch tool first - do not make up results
-
-## Citation Rules
-- Every citation [1], [2], etc. MUST correspond to a real source returned by a tool
-- Do NOT invent sources like "General web search results for X" unless webSearch was actually called
-- If you only called localSearch, your citations can ONLY reference notes from that search
-- Count your actual tool calls - if you only made 1 tool call, you cannot have citations from multiple different tools
-
-## Before Writing Citations
-Ask yourself: "Did I actually call this tool and receive this result?"
-- If YES: You may cite it
-- If NO: Do NOT cite it or claim you did
-
-REMEMBER: It is better to say "I only searched your notes, not the web" than to fabricate web search results.
-
-## Formatting Guidelines
-- AVOID using markdown tables - they often render poorly in chat interfaces
-- Instead of tables, use bullet points, numbered lists, or simple formatted text
-- Only use tables when the user explicitly requests tabular format`,
-    });
-
-    return sections;
-  }
-
-  needsSpecialHandling(): boolean {
-    return true;
-  }
-}
-
-/**
  * Factory to create appropriate adapter based on model
  */
 export class ModelAdapterFactory {
@@ -692,12 +633,6 @@ export class ModelAdapterFactory {
     if (modelName.includes("gemini") || modelName.includes("google/gemini")) {
       logInfo("Using GeminiModelAdapter");
       return new GeminiModelAdapter(modelName);
-    }
-
-    // Copilot Plus models (Flash-based, needs anti-hallucination guidance)
-    if (modelName.includes("copilot-plus")) {
-      logInfo("Using CopilotPlusModelAdapter");
-      return new CopilotPlusModelAdapter(modelName);
     }
 
     // Default adapter for unknown models

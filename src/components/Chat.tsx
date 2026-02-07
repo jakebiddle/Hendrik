@@ -31,7 +31,7 @@ import { getAIResponse } from "@/langchainStream";
 import ChainManager from "@/LLMProviders/chainManager";
 import { clearRecordedPromptPayload } from "@/LLMProviders/chainRunner/utils/promptPayloadRecorder";
 import { logFileManager } from "@/logFileManager";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { updateSetting, useSettingsValue } from "@/settings/model";
 import { ChatUIState } from "@/state/ChatUIState";
 import { FileParserManager } from "@/tools/FileParserManager";
@@ -52,7 +52,7 @@ interface ChatProps {
   onSaveChat: (saveAsNote: () => Promise<void>) => void;
   updateUserMessageHistory: (newMessage: string) => void;
   fileParserManager: FileParserManager;
-  plugin: CopilotPlugin;
+  plugin: HendrikPlugin;
   mode?: ChatMode;
   chatUIState: ChatUIState;
   onClosePanel?: () => void;
@@ -117,6 +117,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
   const [showChatUI, setShowChatUI] = useState(false);
   const [projectBackSignal, setProjectBackSignal] = useState(0);
   const [canGoBackInProjectMode, setCanGoBackInProjectMode] = useState(false);
+  const [viewingProject, setViewingProject] = useState<ProjectConfig | null>(null);
   const [chatHistoryItems, setChatHistoryItems] = useState<ChatHistoryItem[]>([]);
   // null: keep default behavior; true: show; false: hide
   const [progressCardVisible, setProgressCardVisible] = useState<boolean | null>(null);
@@ -783,6 +784,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
   useEffect(() => {
     if (selectedChain !== ChainType.PROJECT_CHAIN) {
       setCanGoBackInProjectMode(false);
+      setViewingProject(null);
     }
   }, [selectedChain]);
 
@@ -791,7 +793,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
   const activeProjectAppearance = resolveProjectAppearance(activeProject ?? undefined);
   const projectThemeStyle = activeProject
     ? ({
-        "--copilot-project-accent": activeProjectAppearance.color,
+        "--hendrik-project-accent": activeProjectAppearance.color,
       } as React.CSSProperties)
     : undefined;
 
@@ -801,14 +803,14 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
   const renderChatComponents = () => (
     <>
       <div
-        className={`copilot-chat-root tw-flex tw-size-full tw-flex-col tw-overflow-hidden ${
-          activeProject ? "copilot-chat-root--project-themed" : ""
+        className={`hendrik-chat-root tw-flex tw-size-full tw-flex-col tw-overflow-hidden ${
+          activeProject ? "hendrik-chat-root--project-themed" : ""
         }`}
         style={projectThemeStyle}
       >
         <NewVersionBanner currentVersion={plugin.manifest.version} />
-        <div className="copilot-chat-surface tw-relative tw-flex tw-flex-1 tw-flex-col tw-overflow-hidden">
-          <div className="copilot-chat-body tw-flex tw-flex-1 tw-flex-col tw-overflow-hidden">
+        <div className="hendrik-chat-surface tw-relative tw-flex tw-flex-1 tw-flex-col tw-overflow-hidden">
+          <div className="hendrik-chat-body tw-flex tw-flex-1 tw-flex-col tw-overflow-hidden">
             <ChatMessages
               chatHistory={chatHistory}
               currentAiMessage={currentAiMessage}
@@ -825,10 +827,15 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
                   ? (getCurrentProject()?.name ?? null)
                   : null
               }
+              projectAppearance={
+                selectedChain === ChainType.PROJECT_CHAIN && activeProject
+                  ? activeProjectAppearance
+                  : null
+              }
             />
           </div>
           {!shouldShowProgressCard() && (
-            <div className="copilot-chat-composer">
+            <div className="hendrik-chat-composer">
               <ChatInput
                 inputMessage={inputMessage}
                 setInputMessage={setInputMessage}
@@ -856,7 +863,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
             </div>
           )}
           {shouldShowProgressCard() && (
-            <div className="copilot-chat-progress">
+            <div className="hendrik-chat-progress">
               <ProgressCard
                 plugin={plugin}
                 setHiddenCard={() => {
@@ -889,14 +896,14 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
       onPointerDownCapture={handleChatPointerDownCapture}
       className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden"
     >
-      <div className="tw-h-full">
-        <div className="tw-relative tw-flex tw-h-full tw-flex-col">
+      <div className="tw-h-full tw-overflow-hidden">
+        <div className="tw-relative tw-flex tw-h-full tw-min-w-0 tw-flex-col tw-overflow-hidden">
           {isDragActive && (
             <div className="tw-absolute tw-inset-0 tw-z-modal tw-flex tw-items-center tw-justify-center tw-rounded-md tw-border tw-border-dashed tw-bg-primary tw-opacity-80">
-              <span>Drop files here...</span>
+              <span>Present your documents…</span>
             </div>
           )}
-          <div className="copilot-chat-header">
+          <div className="hendrik-chat-header">
             <ChatControls
               onNewChat={handleNewChat}
               onSaveAsNote={() => handleSaveAsNote()}
@@ -917,6 +924,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
               onClosePanel={onClosePanel}
               isProjectMode={selectedChain === ChainType.PROJECT_CHAIN}
               activeProject={activeProject}
+              viewingProject={viewingProject}
               onBackToProjects={
                 selectedChain === ChainType.PROJECT_CHAIN && canGoBackInProjectMode
                   ? () => {
@@ -925,10 +933,17 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
                     }
                   : undefined
               }
+              onBackFromViewing={
+                viewingProject
+                  ? () => {
+                      setProjectBackSignal((prev) => prev + 1);
+                    }
+                  : undefined
+              }
             />
           </div>
           {selectedChain === ChainType.PROJECT_CHAIN && (
-            <div className="tw-flex-1 tw-overflow-hidden">
+            <div className="hendrik-chat-root hendrik-chat-surface tw-flex-1 tw-overflow-hidden">
               <ProjectList
                 projects={settings.projectList || []}
                 defaultOpen={true}
@@ -953,6 +968,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
                 onLoadChat={handleLoadChat}
                 backSignal={projectBackSignal}
                 onCanGoBackChange={setCanGoBackInProjectMode}
+                onViewingProjectChange={setViewingProject}
               />
             </div>
           )}

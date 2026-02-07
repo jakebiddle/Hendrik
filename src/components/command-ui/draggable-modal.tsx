@@ -5,7 +5,7 @@ import { useRafResizable } from "@/hooks/use-resizable";
 import { DragHandle } from "./drag-handle";
 import { CloseButton } from "./close-button";
 
-const DRAGGABLE_MODAL_DATA_ATTRIBUTE = "data-copilot-draggable-modal";
+const DRAGGABLE_MODAL_DATA_ATTRIBUTE = "data-hendrik-draggable-modal";
 const DRAGGABLE_MODAL_SELECTOR = `[${DRAGGABLE_MODAL_DATA_ATTRIBUTE}="true"]`;
 
 interface DraggableModalProps {

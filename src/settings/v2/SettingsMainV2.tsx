@@ -4,10 +4,18 @@ import { TabContent } from "@/components/ui/setting-tabs";
 import { TabProvider, useTab } from "@/contexts/TabContext";
 import { useLatestVersion } from "@/hooks/useLatestVersion";
 import { cn } from "@/lib/utils";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { resetSettings } from "@/settings/model";
 import { CommandSettings } from "@/settings/v2/components/CommandSettings";
-import { Brain, RotateCcw, Search, Settings, SlidersHorizontal, Terminal } from "lucide-react";
+import {
+  Brain,
+  ExternalLink,
+  RotateCcw,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  Terminal,
+} from "lucide-react";
 import React from "react";
 import { AdvancedSettings } from "./components/AdvancedSettings";
 import { AISettings } from "./components/AISettings";
@@ -83,6 +91,13 @@ const SidebarNavItem: React.FC<{
   </button>
 );
 
+/** Sidebar section label for grouping tabs */
+const SidebarGroupLabel: React.FC<{ label: string }> = ({ label }) => (
+  <div className="tw-px-2.5 tw-pb-1 tw-pt-3 tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">
+    {label}
+  </div>
+);
+
 /** Mobile horizontal pill navigation item */
 const MobileNavPill: React.FC<{
   tab: TabDef;
@@ -115,7 +130,17 @@ const SettingsContent: React.FC = () => {
     <div className="tw-flex tw-flex-col tw-gap-4 md:tw-flex-row md:tw-gap-8">
       {/* Sidebar Navigation (desktop) */}
       <nav className="tw-hidden tw-w-36 tw-shrink-0 md:tw-flex md:tw-flex-col md:tw-gap-0.5">
-        {tabs.map((tab) => (
+        <SidebarGroupLabel label="Core" />
+        {tabs.slice(0, 2).map((tab) => (
+          <SidebarNavItem
+            key={tab.id}
+            tab={tab}
+            isSelected={selectedTab === tab.id}
+            onClick={() => setSelectedTab(tab.id)}
+          />
+        ))}
+        <SidebarGroupLabel label="Features" />
+        {tabs.slice(2).map((tab) => (
           <SidebarNavItem
             key={tab.id}
             tab={tab}
@@ -153,16 +178,16 @@ const SettingsContent: React.FC = () => {
 };
 
 interface SettingsMainV2Props {
-  plugin: CopilotPlugin;
+  plugin: HendrikPlugin;
 }
 
 const SettingsMainV2: React.FC<SettingsMainV2Props> = ({ plugin }) => {
   const [resetKey, setResetKey] = React.useState(0);
   const { latestVersion, hasUpdate } = useLatestVersion(plugin.manifest.version);
   const logoMaskStyle: React.CSSProperties = {
-    backgroundColor: "var(--copilot-icon-ink)",
-    WebkitMaskImage: "var(--copilot-icon-url)",
-    maskImage: "var(--copilot-icon-url)",
+    backgroundColor: "var(--hendrik-icon-ink)",
+    WebkitMaskImage: "var(--hendrik-icon-url)",
+    maskImage: "var(--hendrik-icon-url)",
     WebkitMaskRepeat: "no-repeat",
     maskRepeat: "no-repeat",
     WebkitMaskPosition: "center",
@@ -184,32 +209,16 @@ const SettingsMainV2: React.FC<SettingsMainV2Props> = ({ plugin }) => {
       <div className="tw-space-y-6">
         {/* App Header */}
         <div
-          className="tw-relative tw-overflow-hidden tw-rounded-xl tw-border tw-border-border tw-p-4 md:tw-p-5"
+          className="tw-relative tw-overflow-hidden tw-rounded-xl tw-border tw-border-solid tw-p-4"
           style={{
             background:
-              "radial-gradient(120% 130% at 0% 0%, color-mix(in srgb, var(--interactive-accent) 18%, var(--background-primary)) 0%, var(--background-primary) 62%)",
+              "linear-gradient(155deg, color-mix(in srgb, var(--interactive-accent) 12%, transparent), color-mix(in srgb, var(--background-primary) 96%, transparent) 55%)",
+            borderColor: `color-mix(in srgb, var(--interactive-accent) 18%, var(--hendrik-border-soft))`,
           }}
         >
-          <div className="tw-pointer-events-none tw-absolute tw-inset-0 tw-opacity-50">
-            <div
-              className="tw-absolute tw--right-10 tw-top-[-52px] tw-size-36 tw-rounded-full"
-              style={{
-                backgroundColor: "color-mix(in srgb, var(--interactive-accent) 22%, transparent)",
-                filter: "blur(22px)",
-              }}
-            />
-            <div
-              className="tw-absolute tw-bottom-[-58px] tw-left-8 tw-size-32 tw-rounded-full"
-              style={{
-                backgroundColor: "color-mix(in srgb, var(--interactive-accent) 14%, transparent)",
-                filter: "blur(24px)",
-              }}
-            />
-          </div>
-
-          <div className="tw-relative tw-flex tw-flex-col tw-gap-4 sm:tw-flex-row sm:tw-items-start sm:tw-justify-between">
-            <div className="tw-flex tw-items-start tw-gap-3">
-              <div className="tw-relative tw-size-14 tw-shrink-0 tw-rounded-xl">
+          <div className="tw-flex tw-flex-col tw-gap-3 sm:tw-flex-row sm:tw-items-center sm:tw-justify-between">
+            <div className="tw-flex tw-items-center tw-gap-3">
+              <div className="tw-relative tw-size-11 tw-shrink-0 tw-rounded-xl">
                 <div
                   className="tw-absolute tw-inset-0 tw-rounded-xl"
                   style={{
@@ -221,8 +230,8 @@ const SettingsMainV2: React.FC<SettingsMainV2Props> = ({ plugin }) => {
                 <div
                   className="tw-absolute tw-inset-[2px] tw-rounded-[10px] tw-border"
                   style={{
-                    backgroundColor: "var(--copilot-icon-backdrop)",
-                    borderColor: "var(--copilot-icon-border)",
+                    backgroundColor: "var(--hendrik-icon-backdrop)",
+                    borderColor: "var(--hendrik-icon-border)",
                   }}
                 />
                 <div
@@ -234,7 +243,7 @@ const SettingsMainV2: React.FC<SettingsMainV2Props> = ({ plugin }) => {
 
               <div className="tw-min-w-0">
                 <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-2">
-                  <h1 className="tw-text-xl tw-font-bold tw-leading-tight tw-text-normal">
+                  <h1 className="tw-m-0 tw-text-lg tw-font-bold tw-leading-tight tw-text-normal">
                     Hendrik
                   </h1>
                   <span className="tw-rounded-full tw-bg-modifier-hover tw-px-2 tw-py-0.5 tw-text-[10px] tw-font-medium tw-text-muted">
@@ -245,45 +254,44 @@ const SettingsMainV2: React.FC<SettingsMainV2Props> = ({ plugin }) => {
                       href="obsidian://show-plugin?id=hendrik"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="tw-rounded-full tw-border tw-border-border tw-bg-primary tw-px-2 tw-py-0.5 tw-text-[10px] tw-font-semibold tw-text-accent hover:tw-underline"
+                      className="tw-border-accent tw-rounded-full tw-border tw-border-solid tw-bg-primary tw-px-2 tw-py-0.5 tw-text-[10px] tw-font-semibold tw-text-accent hover:tw-underline"
                     >
                       Update available
                     </a>
                   )}
                 </div>
-                <p className="tw-mt-3 tw-max-w-[52ch] tw-text-sm tw-font-semibold tw-leading-relaxed tw-text-normal">
-                  Hendrik - Your Personal AI Obsidian Archivist. Search, organize, and chat with
-                  your vault.
+                <p className="tw-m-0 tw-mt-1 tw-max-w-[48ch] tw-text-xs tw-leading-relaxed tw-text-muted">
+                  Your personal AI archivist. Configure providers, search, commands, and
+                  preferences.
                 </p>
-                <p className="tw-mt-2 tw-max-w-[52ch] tw-text-xs tw-leading-relaxed tw-text-muted">
-                  Configure AI providers, vector search, custom commands, and advanced options to
-                  customize your AI experience.
-                </p>
-                <div className="tw-mt-3 tw-flex tw-flex-wrap tw-items-center tw-gap-1.5">
-                  <span className="tw-rounded-full tw-border tw-border-border tw-bg-modifier-hover tw-px-2 tw-py-0.5 tw-text-[10px] tw-font-medium tw-text-muted">
-                    Obsidian Settings
-                  </span>
-                  <span className="tw-rounded-full tw-border tw-border-border tw-bg-modifier-hover tw-px-2 tw-py-0.5 tw-text-[10px] tw-font-medium tw-text-muted">
-                    {tabs.length} https://github.com/jakebiddle/Hendrik
-                  </span>
-                </div>
               </div>
             </div>
 
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleReset}
-              className="tw-gap-1.5 tw-self-start tw-rounded-full tw-border tw-border-border"
-            >
-              <RotateCcw className="tw-size-3.5" />
-              Reset
-            </Button>
+            <div className="tw-flex tw-items-center tw-gap-2 tw-self-start">
+              <a
+                href="https://github.com/jakebiddle/Hendrik"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tw-flex tw-items-center tw-gap-1 tw-rounded-full tw-border tw-border-solid tw-px-2 tw-py-1 tw-text-[10px] tw-font-medium tw-text-muted tw-no-underline tw-transition-colors hover:tw-text-normal"
+                style={{ borderColor: "var(--hendrik-border-soft)" }}
+                title="View on GitHub"
+              >
+                <ExternalLink className="tw-size-3" />
+                GitHub
+              </a>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleReset}
+                className="tw-gap-1.5 tw-rounded-full tw-border tw-border-solid"
+                style={{ borderColor: "var(--hendrik-border-soft)" }}
+              >
+                <RotateCcw className="tw-size-3.5" />
+                Reset
+              </Button>
+            </div>
           </div>
         </div>
-
-        {/* Separator */}
-        <div className="tw-h-px tw-bg-[var(--background-modifier-border)]" />
 
         {/* Settings content with sidebar */}
         <SettingsContent key={resetKey} />

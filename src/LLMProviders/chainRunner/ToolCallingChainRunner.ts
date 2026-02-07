@@ -107,7 +107,7 @@ export class ToolCallingChainRunner extends BaseChainRunner {
 
     // Check if model supports native tool calling
     if (typeof (chatModel as any).bindTools !== "function") {
-      logWarn("[CopilotPlus] Model does not support native tool calling, skipping tool planning");
+      logWarn("[ToolCalling] Model does not support native tool calling, skipping tool planning");
       return { toolCalls: [], salientTerms: this.extractSalientTermsFromQuery(userMessage) };
     }
 
@@ -142,7 +142,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       },
     ];
 
-    logInfo("[CopilotPlus] Requesting tool planning with native tool calling...");
+    logInfo("[ToolCalling] Requesting tool planning with native tool calling...");
 
     // Get model response for planning (cast to AIMessage for type safety)
     const response = (await withSuppressedTokenWarnings(() =>
@@ -154,7 +154,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
     const responseText =
       typeof response.content === "string" ? response.content : String(response.content);
 
-    logInfo("[CopilotPlus] Native tool calls:", nativeToolCalls.length);
+    logInfo("[ToolCalling] Native tool calls:", nativeToolCalls.length);
 
     // Extract salient terms from response text
     const salientTerms = this.extractSalientTermsFromResponse(responseText, userMessage);
@@ -168,9 +168,9 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
           tool,
           args: tc.args as Record<string, unknown>,
         });
-        logInfo(`[CopilotPlus] Tool call: ${tc.name}`, tc.args);
+        logInfo(`[ToolCalling] Tool call: ${tc.name}`, tc.args);
       } else {
-        logWarn(`[CopilotPlus] Tool '${tc.name}' not found in available tools`);
+        logWarn(`[ToolCalling] Tool '${tc.name}' not found in available tools`);
       }
     }
 
@@ -342,7 +342,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
     const identifier = identifierMatch ? identifierMatch[1] : undefined;
 
     logInfo(
-      `[CopilotPlus] Extracting images from ${source.displayName}:`,
+      `[ToolCalling] Extracting images from ${source.displayName}:`,
       identifier || `no ${source.identifierTag}`
     );
 
@@ -442,7 +442,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
       if (!envelope) {
         throw new Error(
-          "[CopilotPlus] Context envelope is required but not available. Cannot extract images."
+          "[ToolCalling] Context envelope is required but not available. Cannot extract images."
         );
       }
 
@@ -559,11 +559,11 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
     const envelope = userMessage.contextEnvelope;
     if (!envelope) {
       throw new Error(
-        "[CopilotPlus] Context envelope is required but not available. Cannot proceed with CopilotPlus chain."
+        "[ToolCalling] Context envelope is required but not available. Cannot proceed with ToolCalling chain."
       );
     }
 
-    logInfo("[CopilotPlus] Using envelope-based context construction");
+    logInfo("[ToolCalling] Using envelope-based context construction");
 
     // Use LayerToMessagesConverter to get base messages with L1+L2 system, L3+L5 user
     const baseMessages = LayerToMessagesConverter.convert(envelope, {
@@ -674,7 +674,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
     for await (const chunk of chatStream) {
       if (abortController.signal.aborted) {
-        logInfo("CopilotPlus multimodal stream iteration aborted", {
+        logInfo("ToolCalling multimodal stream iteration aborted", {
           reason: abortController.signal.reason,
         });
         break;
@@ -717,7 +717,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       const envelope = userMessage.contextEnvelope;
       if (!envelope) {
         throw new Error(
-          "[CopilotPlus] Context envelope is required but not available. Cannot proceed with CopilotPlus chain."
+          "[ToolCalling] Context envelope is required but not available. Cannot proceed with ToolCalling chain."
         );
       }
       const l5User = envelope.layers.find((l) => l.id === "L5_USER");
@@ -759,12 +759,12 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
                 timeRange = extractEpochValues(parsed);
               }
             } catch {
-              logWarn("[CopilotPlus] Failed to parse getTimeRangeMs result:", timeRangeResult);
+              logWarn("[ToolCalling] Failed to parse getTimeRangeMs result:", timeRangeResult);
             }
           } else if (timeRangeResult && !timeRangeResult.error) {
             timeRange = extractEpochValues(timeRangeResult);
           }
-          logInfo("[CopilotPlus] Executed getTimeRangeMs, result:", timeRange);
+          logInfo("[ToolCalling] Executed getTimeRangeMs, result:", timeRange);
         }
 
         // Filter tool calls: skip getFileTree in project mode, skip getTimeRangeMs if already executed
@@ -834,7 +834,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
       // Check if the error is due to abort signal
       if (error.name === "AbortError" || abortController.signal.aborted) {
-        logInfo("CopilotPlus stream aborted by user", { reason: abortController.signal.reason });
+        logInfo("ToolCalling stream aborted by user", { reason: abortController.signal.reason });
         // Don't show error message for user-initiated aborts
       } else {
         await this.handleError(error, thinkStreamer.processErrorChunk.bind(thinkStreamer));

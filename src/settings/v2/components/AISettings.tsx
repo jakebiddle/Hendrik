@@ -9,7 +9,7 @@ import { BUILTIN_CHAT_MODELS } from "@/constants";
 import ProjectManager from "@/LLMProviders/projectManager";
 import { logError } from "@/logger";
 import {
-  CopilotSettings,
+  HendrikSettings,
   getModelKeyFromModel,
   setSettings,
   updateSetting,
@@ -111,7 +111,7 @@ export const AISettings: React.FC = () => {
     originalModel: CustomModel,
     updatedModel: CustomModel
   ) => {
-    const settingField: keyof CopilotSettings = isEmbeddingModel
+    const settingField: keyof HendrikSettings = isEmbeddingModel
       ? "activeEmbeddingModels"
       : "activeModels";
 

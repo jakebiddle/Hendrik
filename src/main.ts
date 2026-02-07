@@ -7,7 +7,7 @@ import {
 } from "@/aiParams";
 import { NoteSelectedTextContext, SelectedTextContext } from "@/types/message";
 import { registerCommands } from "@/commands";
-import CopilotView from "@/components/CopilotView";
+import HendrikView from "@/components/HendrikView";
 import { APPLY_VIEW_TYPE, ApplyView } from "@/components/composer/ApplyView";
 import { LoadChatHistoryModal } from "@/components/modals/LoadChatHistoryModal";
 
@@ -30,7 +30,7 @@ import {
 } from "@/services/webViewerService/webViewerServiceSingleton";
 import { WebSelectionTracker } from "@/services/webViewerService/webViewerServiceSelection";
 import VectorStoreManager from "@/search/vectorStoreManager";
-import { CopilotSettingTab } from "@/settings/SettingsPage";
+import { HendrikSettingTab } from "@/settings/SettingsPage";
 import {
   getModelKeyFromModel,
   getSettings,
@@ -73,7 +73,7 @@ import { createRoot, Root } from "react-dom/client";
 
 // Removed unused FileTrackingState interface
 
-export default class CopilotPlugin extends Plugin {
+export default class HendrikPlugin extends Plugin {
   // Plugin components
   projectManager: ProjectManager;
   userMessageHistory: string[] = [];
@@ -105,7 +105,7 @@ export default class CopilotPlugin extends Plugin {
       }
       registerCommands(this, prev, next);
     });
-    this.addSettingTab(new CopilotSettingTab(this.app, this));
+    this.addSettingTab(new HendrikSettingTab(this.app, this));
 
     // Core plugin initialization
 
@@ -156,7 +156,7 @@ export default class CopilotPlugin extends Plugin {
       this.registerEvent(layoutRef);
     }
 
-    this.registerView(CHAT_VIEWTYPE, (leaf: WorkspaceLeaf) => new CopilotView(leaf, this));
+    this.registerView(CHAT_VIEWTYPE, (leaf: WorkspaceLeaf) => new HendrikView(leaf, this));
     this.registerView(APPLY_VIEW_TYPE, (leaf: WorkspaceLeaf) => new ApplyView(leaf));
 
     this.initActiveLeafChangeHandler();
@@ -164,20 +164,20 @@ export default class CopilotPlugin extends Plugin {
     const ribbonIcon = this.addRibbonIcon("message-square", "Open Hendrik Chat", () => {
       this.activateView();
     });
-    ribbonIcon.addClass("copilot-ribbon-icon");
+    ribbonIcon.addClass("hendrik-ribbon-icon");
     ribbonIcon.empty();
 
     // Set the plugin icon URL as a CSS variable so CSS can reference plugin assets
     if (this.manifest.dir) {
       const iconPath = `${this.manifest.dir}/images/HendrikAI.svg`;
       const iconUrl = this.app.vault.adapter.getResourcePath(iconPath);
-      document.documentElement.style.setProperty("--copilot-icon-url", `url("${iconUrl}")`);
+      document.documentElement.style.setProperty("--hendrik-icon-url", `url("${iconUrl}")`);
 
       // Static icon colours — always light backdrop with dark ink
-      document.documentElement.style.setProperty("--copilot-icon-backdrop", "#f7f3ec");
-      document.documentElement.style.setProperty("--copilot-icon-ink", "#0e0e0e");
+      document.documentElement.style.setProperty("--hendrik-icon-backdrop", "#f7f3ec");
+      document.documentElement.style.setProperty("--hendrik-icon-ink", "#0e0e0e");
       document.documentElement.style.setProperty(
-        "--copilot-icon-border",
+        "--hendrik-icon-border",
         "color-mix(in srgb, #f7f3ec 70%, var(--background-modifier-border) 30%)"
       );
     }
@@ -202,11 +202,11 @@ export default class CopilotPlugin extends Plugin {
           if (file) {
             // Note: File tracking and real-time reindexing removed for simplicity
             // Semantic search indexes are rebuilt manually or on startup as needed
-            const activeCopilotView = this.app.workspace
+            const activeHendrikView = this.app.workspace
               .getLeavesOfType(CHAT_VIEWTYPE)
-              .find((leaf) => leaf.view instanceof CopilotView)?.view as CopilotView;
+              .find((leaf) => leaf.view instanceof HendrikView)?.view as HendrikView;
 
-            if (activeCopilotView) {
+            if (activeHendrikView) {
               this.dispatchChatEvent(EVENT_NAMES.ACTIVE_LEAF_CHANGE);
             }
           }
@@ -242,7 +242,7 @@ export default class CopilotPlugin extends Plugin {
     this.clearAllPersistentSelectionHighlights();
 
     // Remove the plugin icon CSS variable
-    document.documentElement.style.removeProperty("--copilot-icon-url");
+    document.documentElement.style.removeProperty("--hendrik-icon-url");
 
     // Cleanup chat selection highlight controller
     this.chatSelectionHighlightController?.cleanup();
@@ -287,7 +287,7 @@ export default class CopilotPlugin extends Plugin {
     }
 
     const container = document.createElement("div");
-    container.className = "copilot-floating-root";
+    container.className = "hendrik-floating-root";
     document.body.appendChild(container);
     this.floatingChatContainer = container;
     this.floatingChatRoot = createRoot(container);
@@ -343,7 +343,7 @@ export default class CopilotPlugin extends Plugin {
 
   async autosaveCurrentChat() {
     if (getSettings().autosaveChat) {
-      const chatView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0]?.view as CopilotView;
+      const chatView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0]?.view as HendrikView;
       if (chatView) {
         await chatView.saveChat();
       }
@@ -664,7 +664,7 @@ export default class CopilotPlugin extends Plugin {
     return Array.from(modelMap.values());
   }
 
-  async loadCopilotChatHistory() {
+  async loadHendrikChatHistory() {
     const chatFiles = await this.getChatHistoryFiles();
     if (chatFiles.length === 0) {
       new Notice("No chat history found.");
@@ -774,7 +774,7 @@ export default class CopilotPlugin extends Plugin {
       // Mark persistence successful for throttling purposes
       this.chatHistoryLastAccessedAtManager.markPersisted(file.path, persistedAtMs);
     } catch (error) {
-      logWarn(`[CopilotPlugin] Failed to update chat lastAccessedAt for ${file.path}`, error);
+      logWarn(`[HendrikPlugin] Failed to update chat lastAccessedAt for ${file.path}`, error);
     }
   }
 
@@ -804,10 +804,10 @@ export default class CopilotPlugin extends Plugin {
     void this.touchChatHistoryLastAccessedAt(file);
 
     // Update the view
-    const copilotView = (existingView || this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0])
-      ?.view as CopilotView;
-    if (copilotView) {
-      copilotView.updateView();
+    const hendrikView = (existingView || this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0])
+      ?.view as HendrikView;
+    if (hendrikView) {
+      hendrikView.updateView();
     }
   }
 
@@ -905,8 +905,8 @@ export default class CopilotPlugin extends Plugin {
 
     // Update view if it exists
     if (existingView) {
-      const copilotView = existingView.view as CopilotView;
-      copilotView.updateView();
+      const hendrikView = existingView.view as HendrikView;
+      hendrikView.updateView();
     } else {
       // If view doesn't exist, open it
       await this.activateView();

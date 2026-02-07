@@ -50,8 +50,8 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         collapsible && "tw-cursor-pointer tw-select-none"
       )}
       style={{
-        backgroundColor: `color-mix(in srgb, ${accentColor} 6%, var(--background-primary))`,
-        borderBottom: "1px solid var(--background-modifier-border)",
+        backgroundColor: `color-mix(in srgb, ${accentColor} 5%, var(--background-primary))`,
+        borderBottom: "1px solid var(--hendrik-border-soft)",
       }}
       onClick={collapsible ? () => setIsOpen((prev) => !prev) : undefined}
     >
@@ -78,7 +78,9 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           </h3>
         </div>
         {description && (
-          <p className="tw-mt-1 tw-pr-2 tw-text-[11px] tw-leading-5 tw-text-muted">{description}</p>
+          <p className="tw-mt-0.5 tw-pr-2 tw-text-[11px] tw-leading-5 tw-text-muted">
+            {description}
+          </p>
         )}
       </div>
 
@@ -114,10 +116,13 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   return (
     <section
       className={cn(
-        "tw-overflow-hidden tw-rounded-lg tw-border tw-border-border tw-bg-primary",
+        "tw-overflow-hidden tw-rounded-lg tw-border tw-border-solid tw-bg-primary",
         "tw-shadow-sm",
         className
       )}
+      style={{
+        borderColor: `color-mix(in srgb, ${accentColor} 15%, var(--hendrik-border-soft))`,
+      }}
     >
       {headerContent}
 

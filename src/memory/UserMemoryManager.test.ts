@@ -46,7 +46,7 @@ describe("UserMemoryManager", () => {
     mockSettings = {
       enableRecentConversations: true,
       enableSavedMemory: true,
-      memoryFolderName: "copilot/memory",
+      memoryFolderName: "hendrik/memory",
       maxRecentConversations: 30,
     };
     (getSettings as jest.Mock).mockReturnValue(mockSettings);
@@ -137,7 +137,7 @@ describe("UserMemoryManager", () => {
 **Summary:** User inquired about linking notes and discovered that backlinks create knowledge connections.
 `;
 
-      const mockMemoryFile = createMockTFile("copilot/memory/Recent Conversations.md");
+      const mockMemoryFile = createMockTFile("hendrik/memory/Recent Conversations.md");
 
       // Mock ensureFolderExists to resolve successfully
       (ensureFolderExists as jest.Mock).mockResolvedValue(undefined);
@@ -191,7 +191,7 @@ describe("UserMemoryManager", () => {
 
     it("should handle LLM JSON parsing errors gracefully", async () => {
       const messages = [createMockMessage("1", "test message")];
-      const mockMemoryFile = createMockTFile("copilot/memory/Recent Conversations.md");
+      const mockMemoryFile = createMockTFile("hendrik/memory/Recent Conversations.md");
 
       (ensureFolderExists as jest.Mock).mockResolvedValue(undefined);
       mockVault.getAbstractFileByPath.mockReturnValue(mockMemoryFile);
@@ -420,7 +420,7 @@ The conversation covered advanced features and included code examples.`,
 
   describe("getUserMemoryPrompt", () => {
     it("should return memory prompt when recent conversations exist", async () => {
-      const mockFile = createMockTFile("copilot/memory/Recent Conversations.md");
+      const mockFile = createMockTFile("hendrik/memory/Recent Conversations.md");
       const mockContent =
         "## Test Conversation\n**Time:** 2024-01-01 10:00\n**Summary:** Test summary";
 
@@ -443,7 +443,7 @@ The conversation covered advanced features and included code examples.`,
     });
 
     it("should handle errors and return null", async () => {
-      const mockFile = createMockTFile("copilot/memory/Recent Conversations.md");
+      const mockFile = createMockTFile("hendrik/memory/Recent Conversations.md");
       mockVault.getAbstractFileByPath.mockReturnValue(mockFile);
       mockVault.read.mockRejectedValue(new Error("Read error"));
 
@@ -487,7 +487,7 @@ The conversation covered advanced features and included code examples.`,
       mockVault.getAbstractFileByPath.mockReturnValue(null);
 
       // Mock file creation
-      const mockNewFile = createMockTFile("copilot/memory/Saved Memories.md");
+      const mockNewFile = createMockTFile("hendrik/memory/Saved Memories.md");
       mockVault.create.mockResolvedValue(mockNewFile);
 
       // Mock LLM merge result content
@@ -502,11 +502,11 @@ The conversation covered advanced features and included code examples.`,
       );
 
       // Verify folder creation was called
-      expect(ensureFolderExists).toHaveBeenCalledWith("copilot/memory");
+      expect(ensureFolderExists).toHaveBeenCalledWith("hendrik/memory");
 
       // Verify file creation was called with proper content
       expect(mockVault.create).toHaveBeenCalledWith(
-        "copilot/memory/Saved Memories.md",
+        "hendrik/memory/Saved Memories.md",
         expect.stringContaining("- The user prefers concise responses")
       );
 
@@ -523,7 +523,7 @@ The conversation covered advanced features and included code examples.`,
 - Another important fact
 `;
 
-      const mockMemoryFile = createMockTFile("copilot/memory/Saved Memories.md");
+      const mockMemoryFile = createMockTFile("hendrik/memory/Saved Memories.md");
 
       // Mock ensureFolderExists to resolve successfully
       (ensureFolderExists as jest.Mock).mockResolvedValue(undefined);

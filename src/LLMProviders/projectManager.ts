@@ -10,10 +10,10 @@ import {
 } from "@/aiParams";
 import { ContextCache, ProjectContextCache } from "@/cache/projectContextCache";
 import { ChainType } from "@/chainFactory";
-import CopilotView from "@/components/CopilotView";
+import HendrikView from "@/components/HendrikView";
 import { CHAT_VIEWTYPE, VAULT_VECTOR_STORE_STRATEGY } from "@/constants";
 import { logError, logInfo, logWarn } from "@/logger";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { Mention } from "@/mentions/Mention";
 import { getMatchingPatterns, shouldIndexFile } from "@/search/searchUtils";
 import { getSettings, subscribeToSettingsChange, updateSetting } from "@/settings/model";
@@ -29,14 +29,14 @@ export default class ProjectManager {
   public static instance: ProjectManager;
   private currentProjectId: string | null;
   private app: App;
-  private plugin: CopilotPlugin;
+  private plugin: HendrikPlugin;
   private readonly chainMangerInstance: ChainManager;
   private readonly projectContextCache: ProjectContextCache;
   private fileParserManager: FileParserManager;
   private loadTracker: ProjectLoadTracker;
   private readonly projectUsageTimestampsManager = new RecentUsageManager<string>();
 
-  private constructor(app: App, plugin: CopilotPlugin) {
+  private constructor(app: App, plugin: HendrikPlugin) {
     this.app = app;
     this.plugin = plugin;
     this.currentProjectId = null;
@@ -118,7 +118,7 @@ export default class ProjectManager {
     return JSON.stringify(prevComparable) !== JSON.stringify(nextComparable);
   }
 
-  public static getInstance(app: App, plugin: CopilotPlugin): ProjectManager {
+  public static getInstance(app: App, plugin: HendrikPlugin): ProjectManager {
     if (!ProjectManager.instance) {
       ProjectManager.instance = new ProjectManager(app, plugin);
     }
@@ -355,7 +355,7 @@ export default class ProjectManager {
 
   private refreshChatView() {
     // get chat view
-    const chatView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0]?.view as CopilotView;
+    const chatView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0]?.view as HendrikView;
     if (chatView) {
       chatView.updateView();
     }
@@ -960,7 +960,7 @@ modified: ${stat ? new Date(stat.mtime).toISOString() : "unknown"}`;
   }
 
   private getProjectAllFiles(project: ProjectConfig) {
-    // NOTE: Must not fallback to GLOBAL inclusions and exclusions in Copilot settings in Projects!
+    // NOTE: Must not fallback to GLOBAL inclusions and exclusions in Hendrik settings in Projects!
     // This is to avoid project inclusions in the project that conflict with the global ones
     // Project UI should be the ONLY source of truth for project inclusions and exclusions
     const { inclusions: inclusionPatterns, exclusions: exclusionPatterns } = getMatchingPatterns({

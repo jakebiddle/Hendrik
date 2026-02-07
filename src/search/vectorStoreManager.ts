@@ -3,7 +3,7 @@
 import { CustomError } from "@/error";
 import EmbeddingsManager from "@/LLMProviders/embeddingManager";
 import { logInfo } from "@/logger";
-import { CopilotSettings, getSettings, subscribeToSettingsChange } from "@/settings/model";
+import { HendrikSettings, getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { Orama } from "@orama/orama";
 import { Notice, Platform, TFile } from "obsidian";
 import { DBOperations } from "./dbOperations";
@@ -15,7 +15,7 @@ export default class VectorStoreManager {
   private indexOps: IndexOperations;
   private eventHandler: IndexEventHandler;
   private initializationPromise: Promise<void>;
-  private lastKnownSettings: CopilotSettings | undefined;
+  private lastKnownSettings: HendrikSettings | undefined;
   private embeddingsManager: EmbeddingsManager;
   private dbOps: DBOperations;
 

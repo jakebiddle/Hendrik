@@ -16,20 +16,20 @@
 | ------------ | ---------------------------------------------------------------- | ------- |
 | Phase 1      | Tool definitions, registry, metadata, nativeToolCalling.ts       | ✅ Done |
 | Phase 2      | Simplified AutonomousAgentChainRunner with ReAct loop            | ✅ Done |
-| Phase 3      | CopilotPlusChainRunner migrated to native tool calling           | ✅ Done |
+| Phase 3      | ToolCallingChainRunner migrated to native tool calling           | ✅ Done |
 | Phase 4      | XML tool parsing functions removed (kept escape/unescape only)   | ✅ Done |
 | Phase 5      | Model adapters cleaned up - XML templates removed                | ✅ Done |
 | Phase 6      | Agent Reasoning Block UI replaces tool call banner               | ✅ Done |
 | Bedrock      | BedrockChatModel native tool calling (streaming + non-streaming) | ✅ Done |
-| Copilot Plus | copilot-plus-flash native tool calling (via ChatOpenRouter)      | ✅ Done |
+| Tool Calling | Tool Calling native tool calling (via ChatOpenRouter)            | ✅ Done |
 
 **Notes:**
 
 - `AutonomousAgentChainRunner` now uses `bindTools()` - no XML format instructions
-- `CopilotPlusChainRunner` now uses `bindTools()` for tool planning
+- `ToolCallingChainRunner` now uses `bindTools()` for tool planning
 - `xmlParsing.ts` simplified to only `escapeXml`, `unescapeXml`, `escapeXmlAttribute` for context envelope processing
 - Model adapters cleaned up - XML `<use_tool>` templates removed, kept behavioral guidance only
-- COPILOT_PLUS provider uses `ChatOpenRouter` for proper SSE tool_call parsing
+- TOOL_CALLING provider uses `ChatOpenRouter` for proper SSE tool_call parsing
 - `ToolCall` interface moved to `toolExecution.ts`
 - Agent Reasoning Block shows reasoning process with timer and step summaries
 
@@ -102,7 +102,7 @@ Gemini only supports subset of JSON Schema. Avoid:
 - [ ] Google Gemini
 - [ ] OpenRouter models
 - [x] Amazon Bedrock
-- [x] Copilot Plus (copilot-plus-flash)
+- [x] Tool Calling
 - [x] LM Studio (gpt-oss-20b)
 - [ ] Ollama (tool-capable models)
 
@@ -117,16 +117,16 @@ Gemini only supports subset of JSON Schema. Avoid:
 
 ## 🔲 What's Left to Remove XML Completely
 
-### ✅ Phase 3: Migrate CopilotPlusChainRunner
+### ✅ Phase 3: Migrate ToolCallingChainRunner
 
-**COMPLETED** - CopilotPlusChainRunner now uses native tool calling.
+**COMPLETED** - ToolCallingChainRunner now uses native tool calling.
 
 | Task                         | Description                                                           | Status  |
 | ---------------------------- | --------------------------------------------------------------------- | ------- |
 | [x] Replace XML tool format  | Use `bindTools()` instead of XML instructions                         | ✅ Done |
 | [x] Update response parsing  | Parse `tool_calls` from AIMessage instead of XML regex                | ✅ Done |
 | [x] Remove XML system prompt | Remove tool format instructions                                       | ✅ Done |
-| [x] Tool result handling     | CopilotPlus doesn't use ReAct loop - results passed to final LLM call | ✅ N/A  |
+| [x] Tool result handling     | ToolCalling doesn't use ReAct loop - results passed to final LLM call | ✅ N/A  |
 
 **Implementation notes:**
 
@@ -328,7 +328,7 @@ Main Agent → Deep Search Subagent → (multiple internal search rounds) → ag
 
 1. **Testing** - Complete manual functional tests and provider validation
 2. ~~**Agent Reasoning Block**~~ - ✅ Done (Phase 6, see `docs/AGENT_REASONING_BLOCK.md`)
-3. ~~**CopilotPlusChainRunner**~~ - ✅ Done (Phase 3)
+3. ~~**ToolCallingChainRunner**~~ - ✅ Done (Phase 3)
 4. ~~**XML Cleanup**~~ - ✅ Done (Phases 4, 5 - kept escape/unescape for context envelope)
 5. **Simplify Chat Persistence** - Only persist user messages + AI final responses (Phase 7)
 6. **Final Cleanup** - Audit remaining XML refs, update documentation (Phase 8)
@@ -343,7 +343,7 @@ Main Agent → Deep Search Subagent → (multiple internal search rounds) → ag
 | xmlParsing.ts          | ~400   | ~50   | 87%       |
 | modelAdapter.ts        | ~900   | ~650  | 28%       |
 | xmlParsing.test.ts     | ~400   | ~130  | 67%       |
-| CopilotPlusChainRunner | ~300   | ~200  | 33%       |
+| ToolCallingChainRunner | ~300   | ~200  | 33%       |
 
 **Notes:**
 

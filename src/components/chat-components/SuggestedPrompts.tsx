@@ -49,7 +49,7 @@ const SUGGESTED_PROMPTS: Record<string, NotePrompt> = {
       `Based on my notes on <topic>, what is the question that I should be asking, but am not?`,
     ],
   },
-  copilotPlus: {
+  toolCalling: {
     title: "Hendrik",
     prompts: [
       `Give me a recap of last week @vault`,
@@ -64,10 +64,10 @@ const SUGGESTED_PROMPTS: Record<string, NotePrompt> = {
 };
 
 const PROMPT_KEYS: Record<ChainType, Array<keyof typeof SUGGESTED_PROMPTS>> = {
-  [ChainType.LLM_CHAIN]: ["copilotPlus", "copilotPlus", "copilotPlus"],
-  [ChainType.VAULT_QA_CHAIN]: ["copilotPlus", "copilotPlus", "copilotPlus"],
-  [ChainType.TOOL_CALLING_CHAIN]: ["copilotPlus", "copilotPlus", "copilotPlus"],
-  [ChainType.PROJECT_CHAIN]: ["copilotPlus", "copilotPlus", "copilotPlus"],
+  [ChainType.LLM_CHAIN]: ["toolCalling", "toolCalling", "toolCalling"],
+  [ChainType.VAULT_QA_CHAIN]: ["toolCalling", "toolCalling", "toolCalling"],
+  [ChainType.TOOL_CALLING_CHAIN]: ["toolCalling", "toolCalling", "toolCalling"],
+  [ChainType.PROJECT_CHAIN]: ["toolCalling", "toolCalling", "toolCalling"],
 };
 
 /**
@@ -89,7 +89,7 @@ function getRandomPrompt(chainType: ChainType = ChainType.TOOL_CALLING_CHAIN) {
 }
 
 export const SuggestedPrompts: React.FC<SuggestedPromptsProps> = ({
-  title = "Suggested prompts",
+  title = "The Archivist suggests",
   maxItems = 3,
 }) => {
   const [chainType] = useChainType();
@@ -113,19 +113,19 @@ export const SuggestedPrompts: React.FC<SuggestedPromptsProps> = ({
   );
 
   return (
-    <section className="copilot-suggested-prompts">
-      <div className="copilot-suggested-prompts__title">{title}</div>
-      <div className="copilot-suggested-prompts__list">
+    <section className="hendrik-suggested-prompts">
+      <div className="hendrik-suggested-prompts__title">{title}</div>
+      <div className="hendrik-suggested-prompts__list">
         {prompts.map((prompt, i) => (
           <button
             key={`${prompt.title}-${i}`}
             type="button"
-            className="copilot-suggested-prompts__pill"
+            className="hendrik-suggested-prompts__pill"
             onClick={() => handleAddPromptToChat(prompt.text)}
             title={prompt.text}
           >
-            <span className="copilot-suggested-prompts__pill-text">{prompt.text}</span>
-            <PlusCircle className="copilot-suggested-prompts__pill-icon" />
+            <span className="hendrik-suggested-prompts__pill-text">{prompt.text}</span>
+            <PlusCircle className="hendrik-suggested-prompts__pill-icon" />
           </button>
         ))}
       </div>

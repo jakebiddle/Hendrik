@@ -276,7 +276,7 @@ export function clearRecordedPromptPayload(): void {
 }
 
 /**
- * Flush the recorded payload into the Copilot log file using a markdown block.
+ * Flush the recorded payload into the Hendrik log file using a markdown block.
  * Shows the ACTUAL messages sent to the LLM, plus layered metadata if available.
  */
 export async function flushRecordedPromptPayloadToLog(): Promise<void> {

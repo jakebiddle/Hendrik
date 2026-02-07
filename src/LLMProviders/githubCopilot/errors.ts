@@ -1,5 +1,5 @@
 /**
- * Custom error types for GitHub Copilot authentication flow.
+ * Custom error types for GitHub Hendrik authentication flow.
  * Using custom error classes instead of string comparison for type safety.
  */
 

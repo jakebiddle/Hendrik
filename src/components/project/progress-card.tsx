@@ -5,11 +5,11 @@ import { AlertCircle, ChevronDown, ChevronRight, Loader2, RotateCcw, X } from "l
 import { FailedItem, useProjectContextLoad } from "@/aiParams";
 import { Button } from "@/components/ui/button";
 import { TruncatedText } from "@/components/TruncatedText";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { logError } from "@/logger";
 
 interface ProgressCardProps {
-  plugin?: CopilotPlugin;
+  plugin?: HendrikPlugin;
   setHiddenCard: (hidden: boolean) => void;
   onEditContext?: () => void;
 }
@@ -52,7 +52,7 @@ export default function ProgressCard({ plugin, setHiddenCard, onEditContext }: P
   };
 
   return (
-    <div className="copilot-progress-card">
+    <div className="hendrik-progress-card">
       {/* Header row */}
       <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
         <div className="tw-flex tw-items-center tw-gap-2 tw-text-sm tw-font-medium tw-text-normal">

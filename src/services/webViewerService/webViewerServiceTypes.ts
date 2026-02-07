@@ -222,7 +222,7 @@ export interface ActiveWebTabStateSnapshot {
 export interface StartActiveWebTabTrackingOptions {
   /**
    * View types that should preserve `activeWebTabForMentions` when they become active.
-   * Example: preserve the last active Web Viewer tab while the Copilot chat view is focused.
+   * Example: preserve the last active Web Viewer tab while the Hendrik chat view is focused.
    */
   preserveOnViewTypes?: string[];
 }

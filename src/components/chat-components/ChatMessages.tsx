@@ -9,6 +9,10 @@ import {
   useActiveNoteInsight,
 } from "@/components/chat-components/hooks/useActiveNoteInsight";
 import { RelevantNotes } from "@/components/chat-components/RelevantNotes";
+import {
+  getProjectIconComponent,
+  type ResolvedProjectAppearance,
+} from "@/components/project/projectAppearance";
 import { USER_SENDER } from "@/constants";
 import { useChatInput } from "@/context/ChatInputContext";
 import { useChatScrolling } from "@/hooks/useChatScrolling";
@@ -16,7 +20,7 @@ import { useSettingsValue } from "@/settings/model";
 import { ChatMessage } from "@/types/message";
 import { App } from "obsidian";
 import { Folder } from "lucide-react";
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 interface ChatMessagesProps {
   chatHistory: ChatMessage[];
@@ -32,12 +36,29 @@ interface ChatMessagesProps {
   showHelperComponents: boolean;
   /** When set, renders a project-specific empty state instead of the generic one. */
   projectName?: string | null;
+  /** Appearance (color + icon) for the active project, used by the project empty state. */
+  projectAppearance?: ResolvedProjectAppearance | null;
 }
 
 interface QuickAction {
   label: string;
   prompt: string;
 }
+
+/**
+ * Brief archivist-themed phrases shown during the loading dots animation
+ * when no specific system loading message is set.
+ */
+const ARCHIVIST_WAITING_PHRASES = [
+  "Turning pages",
+  "Ink drying",
+  "Cross-referencing",
+  "Gathering parchment",
+  "Perusing the tomes",
+  "Deciphering marginalia",
+  "Scanning the index",
+  "Unrolling the scrolls",
+] as const;
 
 /**
  * Builds compact quick actions tailored to the active note context.
@@ -91,8 +112,12 @@ const ChatMessages = memo(
     onDelete,
     showHelperComponents = true,
     projectName,
+    projectAppearance,
   }: ChatMessagesProps) => {
     const [loadingDots, setLoadingDots] = useState("");
+    const waitingPhraseRef = useRef(
+      ARCHIVIST_WAITING_PHRASES[Math.floor(Math.random() * ARCHIVIST_WAITING_PHRASES.length)]
+    );
     const settings = useSettingsValue();
     const chatInput = useChatInput();
     const activeNote = useActiveNoteInsight();
@@ -150,6 +175,9 @@ const ChatMessages = memo(
     useEffect(() => {
       let intervalId: NodeJS.Timeout;
       if (loading) {
+        // Pick a fresh archivist phrase each time loading begins
+        waitingPhraseRef.current =
+          ARCHIVIST_WAITING_PHRASES[Math.floor(Math.random() * ARCHIVIST_WAITING_PHRASES.length)];
         intervalId = setInterval(() => {
           setLoadingDots((dots) => (dots.length < 6 ? dots + "." : ""));
         }, 200);
@@ -175,20 +203,32 @@ const ChatMessages = memo(
     if (!hasVisibleMessages && !currentAiMessage) {
       // Project-specific empty state
       if (projectName) {
+        const ProjectIcon = projectAppearance
+          ? getProjectIconComponent(projectAppearance.icon)
+          : Folder;
+        const projectColor = projectAppearance?.color ?? "var(--interactive-accent)";
+
         return (
-          <div className="copilot-chat-empty">
-            <div className="copilot-chat-empty__center">
-              <div className="copilot-project-empty__icon" aria-hidden="true">
-                <Folder className="tw-size-6" />
+          <div className="hendrik-chat-empty">
+            <div className="hendrik-chat-empty__center">
+              <div
+                className="hendrik-project-empty__icon"
+                aria-hidden="true"
+                style={{
+                  background: `color-mix(in srgb, ${projectColor} 16%, transparent)`,
+                  color: projectColor,
+                }}
+              >
+                <ProjectIcon className="tw-size-6" />
               </div>
-              <h2 className="copilot-chat-empty__title">{projectName}</h2>
-              <p className="copilot-chat-empty__subtitle">
+              <h2 className="hendrik-chat-empty__title">{projectName}</h2>
+              <p className="hendrik-chat-empty__subtitle">
                 Ask questions about this project&apos;s context, or use the suggestions below.
               </p>
-              <div className="copilot-chat-empty__actions">
+              <div className="hendrik-chat-empty__actions">
                 <button
                   type="button"
-                  className="copilot-chat-empty__action"
+                  className="hendrik-chat-empty__action"
                   onClick={() =>
                     handleQuickAction("Summarize the key themes and structure of this project.")
                   }
@@ -197,7 +237,7 @@ const ChatMessages = memo(
                 </button>
                 <button
                   type="button"
-                  className="copilot-chat-empty__action"
+                  className="hendrik-chat-empty__action"
                   onClick={() =>
                     handleQuickAction("What are the open questions or gaps in this project?")
                   }
@@ -206,7 +246,7 @@ const ChatMessages = memo(
                 </button>
                 <button
                   type="button"
-                  className="copilot-chat-empty__action"
+                  className="hendrik-chat-empty__action"
                   onClick={() =>
                     handleQuickAction("Draft an outline for the next section of this project.")
                   }
@@ -220,17 +260,17 @@ const ChatMessages = memo(
       }
 
       return (
-        <div className="copilot-chat-empty">
-          <div className="copilot-chat-empty__center">
-            <div className="copilot-chat-empty__avatar" aria-hidden="true" />
-            <h2 className="copilot-chat-empty__title">{emptyTitle}</h2>
-            <p className="copilot-chat-empty__subtitle">{emptySubtitle}</p>
-            <div className="copilot-chat-empty__actions">
+        <div className="hendrik-chat-empty">
+          <div className="hendrik-chat-empty__center">
+            <div className="hendrik-chat-empty__avatar" aria-hidden="true" />
+            <h2 className="hendrik-chat-empty__title">{emptyTitle}</h2>
+            <p className="hendrik-chat-empty__subtitle">{emptySubtitle}</p>
+            <div className="hendrik-chat-empty__actions">
               {quickActions.map((action) => (
                 <button
                   key={action.label}
                   type="button"
-                  className="copilot-chat-empty__action"
+                  className="hendrik-chat-empty__action"
                   onClick={() => handleQuickAction(action.prompt)}
                 >
                   {action.label}
@@ -239,7 +279,7 @@ const ChatMessages = memo(
             </div>
           </div>
           {showHelperComponents && settings.showRelevantNotes && (
-            <div className="copilot-chat-empty__footer">
+            <div className="hendrik-chat-empty__footer">
               <RelevantNotes defaultOpen={false} key="relevant-notes-before-chat" />
             </div>
           )}
@@ -248,14 +288,17 @@ const ChatMessages = memo(
     }
 
     const getLoadingMessage = () => {
-      return loadingMessage ? `${loadingMessage} ${loadingDots}` : loadingDots;
+      if (loadingMessage) {
+        return `${loadingMessage} ${loadingDots}`;
+      }
+      return `${waitingPhraseRef.current} ${loadingDots}`;
     };
 
     return (
       // eslint-disable-next-line tailwindcss/no-custom-classname
-      <div className="copilot-chat-stream tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
+      <div className="hendrik-chat-stream tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
         {showHelperComponents && settings.showRelevantNotes && (
-          <div className="copilot-chat-inline-helpers">
+          <div className="hendrik-chat-inline-helpers">
             <RelevantNotes defaultOpen={false} key="relevant-notes-in-chat" />
           </div>
         )}

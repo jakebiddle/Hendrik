@@ -352,13 +352,13 @@ export class IndexOperations {
 
   private createIndexingNotice(): Notice {
     const frag = document.createDocumentFragment();
-    const container = frag.createEl("div", { cls: "copilot-notice-container" });
+    const container = frag.createEl("div", { cls: "hendrik-notice-container" });
 
-    this.state.indexNoticeMessage = container.createEl("div", { cls: "copilot-notice-message" });
+    this.state.indexNoticeMessage = container.createEl("div", { cls: "hendrik-notice-message" });
     this.updateIndexingNoticeMessage();
 
     // Create button container for better layout
-    const buttonContainer = container.createEl("div", { cls: "copilot-notice-buttons" });
+    const buttonContainer = container.createEl("div", { cls: "hendrik-notice-buttons" });
 
     // Pause/Resume button
     const pauseButton = buttonContainer.createEl("button");

@@ -173,7 +173,7 @@ function ApiKeyModalContent({ onClose, onGoToModelTab }: ApiKeyModalContentProps
           </div>
         </ModalSection>
 
-        {/* GitHub Copilot */}
+        {/* GitHub Hendrik */}
         <ModalSection
           icon={<Users className="tw-size-3.5" />}
           title="GitHub Copilot"

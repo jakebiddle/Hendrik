@@ -199,7 +199,7 @@ export class DBOperations {
       }
       this.markUnsavedChanges();
     } catch (err) {
-      logError("Error deleting document from local Copilotindex:", err);
+      logError("Error deleting document from local Hendrikindex:", err);
     }
   }
 

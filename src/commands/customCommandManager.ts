@@ -7,11 +7,11 @@ import {
 import { CustomCommand } from "@/commands/type";
 import { CustomError } from "@/error";
 import {
-  COPILOT_COMMAND_CONTEXT_MENU_ENABLED,
-  COPILOT_COMMAND_CONTEXT_MENU_ORDER,
-  COPILOT_COMMAND_LAST_USED,
-  COPILOT_COMMAND_MODEL_KEY,
-  COPILOT_COMMAND_SLASH_ENABLED,
+  HENDRIK_COMMAND_CONTEXT_MENU_ENABLED,
+  HENDRIK_COMMAND_CONTEXT_MENU_ORDER,
+  HENDRIK_COMMAND_LAST_USED,
+  HENDRIK_COMMAND_MODEL_KEY,
+  HENDRIK_COMMAND_SLASH_ENABLED,
 } from "@/commands/constants";
 import {
   addPendingFileWrite,
@@ -64,11 +64,11 @@ export class CustomCommandManager {
       }
 
       await app.fileManager.processFrontMatter(commandFile, (frontmatter) => {
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
-        frontmatter[COPILOT_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
-        frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] = command.order;
-        frontmatter[COPILOT_COMMAND_MODEL_KEY] = command.modelKey;
-        frontmatter[COPILOT_COMMAND_LAST_USED] = command.lastUsedMs;
+        frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
+        frontmatter[HENDRIK_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
+        frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ORDER] = command.order;
+        frontmatter[HENDRIK_COMMAND_MODEL_KEY] = command.modelKey;
+        frontmatter[HENDRIK_COMMAND_LAST_USED] = command.lastUsedMs;
       });
 
       if (!mergedOptions.skipStoreUpdate) {
@@ -124,11 +124,11 @@ export class CustomCommandManager {
       if (commandFile instanceof TFile) {
         await app.vault.modify(commandFile, command.content);
         await app.fileManager.processFrontMatter(commandFile, (frontmatter) => {
-          frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
-          frontmatter[COPILOT_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
-          frontmatter[COPILOT_COMMAND_CONTEXT_MENU_ORDER] = command.order;
-          frontmatter[COPILOT_COMMAND_MODEL_KEY] = command.modelKey;
-          frontmatter[COPILOT_COMMAND_LAST_USED] = command.lastUsedMs;
+          frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ENABLED] = command.showInContextMenu;
+          frontmatter[HENDRIK_COMMAND_SLASH_ENABLED] = command.showInSlashMenu;
+          frontmatter[HENDRIK_COMMAND_CONTEXT_MENU_ORDER] = command.order;
+          frontmatter[HENDRIK_COMMAND_MODEL_KEY] = command.modelKey;
+          frontmatter[HENDRIK_COMMAND_LAST_USED] = command.lastUsedMs;
         });
       }
     } finally {

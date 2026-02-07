@@ -5,7 +5,7 @@ import {
   getSystemPromptWithMemory,
 } from "@/system-prompts/systemPromptBuilder";
 import { ChainType } from "@/chainFactory";
-import { getCurrentProject } from "@/aiParams";
+import { getCurrentProject, type ProjectConfig } from "@/aiParams";
 import { logInfo, logWarn } from "@/logger";
 import { ChatMessage, MessageContext, WebTabContext } from "@/types/message";
 import { processPrompt, type ProcessedPromptResult } from "@/commands/customCommandUtils";
@@ -13,7 +13,7 @@ import { FileParserManager } from "@/tools/FileParserManager";
 import ChainManager from "@/LLMProviders/chainManager";
 import ProjectManager from "@/LLMProviders/projectManager";
 import { updateChatMemory } from "@/chatUtils";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { ContextManager } from "./ContextManager";
 import { MessageRepository } from "./MessageRepository";
 import { ChatPersistenceManager } from "./ChatPersistenceManager";
@@ -25,6 +25,10 @@ import {
   normalizeUrlString,
   sanitizeWebTabContexts,
 } from "@/utils/urlNormalization";
+
+const APPROX_CHARS_PER_TOKEN = 4;
+const MIN_RESERVED_COMPLETION_TOKENS = 512;
+const MIN_RESERVED_HEADROOM_TOKENS = 1024;
 
 /**
  * ChatManager - Central business logic coordinator
@@ -45,7 +49,7 @@ export class ChatManager {
     private messageRepo: MessageRepository,
     private chainManager: ChainManager,
     private fileParserManager: FileParserManager,
-    private plugin: CopilotPlugin
+    private plugin: HendrikPlugin
   ) {
     this.contextManager = ContextManager.getInstance();
     // Initialize default project repository
@@ -210,6 +214,160 @@ export class ChatManager {
   }
 
   /**
+   * Normalize a numeric value into a positive integer when possible.
+   * @param value - Unknown input value.
+   * @returns Positive integer, or null when the value is missing/invalid.
+   */
+  private normalizePositiveInteger(value: unknown): number | null {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return null;
+    }
+
+    const normalized = Math.floor(value);
+    return normalized > 0 ? normalized : null;
+  }
+
+  /**
+   * Estimate token usage from raw text using a char/token heuristic.
+   * @param text - Prompt text to estimate.
+   * @returns Estimated token count.
+   */
+  private estimateTokenCount(text: string): number {
+    if (!text) {
+      return 0;
+    }
+    return Math.ceil(text.length / APPROX_CHARS_PER_TOKEN);
+  }
+
+  /**
+   * Resolve model-aware context budgeting for project prompts.
+   * @param project - Active project configuration.
+   * @returns Budget tuple for max context and reserved headroom.
+   */
+  private resolveProjectPromptBudget(project: ProjectConfig): {
+    maxContextTokens: number;
+    reservedCompletionTokens: number;
+    reservedHeadroomTokens: number;
+  } {
+    const settings = getSettings();
+    const activeModels = Array.isArray(settings.activeModels) ? settings.activeModels : [];
+    const configuredModel = activeModels.find(
+      (model) => `${model.name}|${model.provider}` === project.projectModelKey
+    );
+
+    const maxContextTokens =
+      this.normalizePositiveInteger(configuredModel?.maxContextTokens) ??
+      this.normalizePositiveInteger(settings.defaultMaxContextTokens) ??
+      128000;
+
+    const requestedCompletionTokens =
+      this.normalizePositiveInteger(project.modelConfigs?.maxTokens) ??
+      this.normalizePositiveInteger(configuredModel?.maxTokens) ??
+      this.normalizePositiveInteger(settings.maxTokens) ??
+      1000;
+
+    const completionCapByWindow = Math.max(
+      MIN_RESERVED_COMPLETION_TOKENS,
+      Math.floor(maxContextTokens * 0.35)
+    );
+    const reservedCompletionTokens = Math.min(requestedCompletionTokens, completionCapByWindow);
+    const reservedHeadroomTokens = Math.max(
+      MIN_RESERVED_HEADROOM_TOKENS,
+      Math.floor(maxContextTokens * 0.2)
+    );
+
+    return {
+      maxContextTokens,
+      reservedCompletionTokens,
+      reservedHeadroomTokens,
+    };
+  }
+
+  /**
+   * Truncate project context content to a target character budget.
+   * Keeps both head and tail segments for better information retention.
+   * @param context - Raw project context text.
+   * @param maxChars - Maximum allowed characters.
+   * @returns Truncated context.
+   */
+  private truncateProjectContextToBudget(context: string, maxChars: number): string {
+    if (maxChars <= 0) {
+      return "";
+    }
+    if (context.length <= maxChars) {
+      return context;
+    }
+
+    const marker = "\n\n[...project context truncated...]\n\n";
+    const remaining = maxChars - marker.length;
+    if (remaining <= 0) {
+      return context.slice(0, maxChars);
+    }
+
+    const headLength = Math.ceil(remaining * 0.75);
+    const tailLength = Math.max(0, remaining - headLength);
+    const head = context.slice(0, headLength);
+    const tail = tailLength > 0 ? context.slice(context.length - tailLength) : "";
+    return `${head}${marker}${tail}`;
+  }
+
+  /**
+   * Fit project context into the model context window by applying a budget-aware trim.
+   * @param project - Active project configuration.
+   * @param projectContext - Raw project context returned from ProjectManager.
+   * @param staticPromptWithoutProjectContext - Prompt content excluding the project context block.
+   * @returns Budgeted project context text, or empty string when no budget remains.
+   */
+  private fitProjectContextToModelBudget(
+    project: ProjectConfig,
+    projectContext: string,
+    staticPromptWithoutProjectContext: string
+  ): string {
+    const normalizedContext = projectContext.trim();
+    if (!normalizedContext) {
+      return "";
+    }
+
+    const { maxContextTokens, reservedCompletionTokens, reservedHeadroomTokens } =
+      this.resolveProjectPromptBudget(project);
+
+    const projectWrapperTokens = this.estimateTokenCount(
+      "\n\n<project_context>\n\n</project_context>"
+    );
+    const staticPromptTokens = this.estimateTokenCount(staticPromptWithoutProjectContext);
+    const availableContextTokens =
+      maxContextTokens -
+      staticPromptTokens -
+      projectWrapperTokens -
+      reservedCompletionTokens -
+      reservedHeadroomTokens;
+
+    if (availableContextTokens <= 0) {
+      logWarn(
+        `[ChatManager] Omitted project context for "${project.name}" due to context budget exhaustion.`
+      );
+      return "";
+    }
+
+    const contextTokens = this.estimateTokenCount(normalizedContext);
+    if (contextTokens <= availableContextTokens) {
+      return normalizedContext;
+    }
+
+    const maxChars = availableContextTokens * APPROX_CHARS_PER_TOKEN;
+    const truncated = this.truncateProjectContextToBudget(normalizedContext, maxChars);
+    logWarn(
+      `[ChatManager] Truncated project context for "${project.name}" from ~${contextTokens} to ~${availableContextTokens} tokens.`
+    );
+
+    if (!truncated.trim()) {
+      return "";
+    }
+
+    return `${truncated}\n\n[project_context truncated to fit the model context window.]`;
+  }
+
+  /**
    * Build system prompt for the current message, including project context if in project mode.
    * Also expands template variables (e.g., {activeNote}, {[[Note Title]]}, {#tag}) using the
    * same behavior as custom commands.
@@ -287,11 +445,19 @@ export class ChatManager {
         );
         allIncludedFiles.push(...projectPromptResult.includedFiles);
 
-        let result = `${processedBasePromptWithMemory}\n\n<project_system_prompt>\n${projectPromptResult.processedPrompt}\n</project_system_prompt>`;
+        const promptWithoutProjectContext = `${processedBasePromptWithMemory}\n\n<project_system_prompt>\n${projectPromptResult.processedPrompt}\n</project_system_prompt>`;
+        let result = promptWithoutProjectContext;
 
         // Only add project_context block if context exists
         if (context) {
-          result += `\n\n<project_context>\n${context}\n</project_context>`;
+          const boundedContext = this.fitProjectContextToModelBudget(
+            project,
+            context,
+            promptWithoutProjectContext
+          );
+          if (boundedContext) {
+            result += `\n\n<project_context>\n${boundedContext}\n</project_context>`;
+          }
         }
 
         return {

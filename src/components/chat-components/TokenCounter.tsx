@@ -31,7 +31,7 @@ export const TokenCounter: React.FC<TokenCounterProps> = ({ tokenCount }) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="copilot-token-counter" aria-label="Token usage">
+        <span className="hendrik-token-counter" aria-label="Token usage">
           {formatTokenCount(tokenCount)} tokens
         </span>
       </TooltipTrigger>

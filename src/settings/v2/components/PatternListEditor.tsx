@@ -273,7 +273,7 @@ export const PatternListEditor: React.FC<PatternListEditorProps> = ({
 
         {/* Gradient fade mask */}
         {isTruncated && (
-          <div className="copilot-fade-mask-bottom tw-pointer-events-none tw-absolute tw-inset-x-0 tw-bottom-0 tw-h-10 tw-rounded-b-md" />
+          <div className="hendrik-fade-mask-bottom tw-pointer-events-none tw-absolute tw-inset-x-0 tw-bottom-0 tw-h-10 tw-rounded-b-md" />
         )}
       </div>
 

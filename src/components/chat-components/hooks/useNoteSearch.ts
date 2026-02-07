@@ -32,19 +32,19 @@ const DEFAULT_CONFIG: Required<NoteSearchConfig> = {
  * Performs fuzzy searching over note metadata, including name (basename) and path.
  *
  * @param query - Search query string
- * @param isCopilotPlus - Whether Hendrik features are enabled (includes PDFs)
+ * @param isToolCallingEnabled - Whether Hendrik features are enabled (includes PDFs)
  * @param config - Optional configuration for search behavior
  * @param currentActiveFile - Current active file to show as "Active Note" option
  * @returns Array of NoteSearchOption objects matching the query
  */
 export function useNoteSearch(
   query: string,
-  isCopilotPlus: boolean = false,
+  isToolCallingEnabled: boolean = false,
   config: NoteSearchConfig = {},
   currentActiveFile: TFile | null = null
 ): NoteSearchOption[] {
   // Get all available notes (including PDFs in Plus mode)
-  const allNotes = useAllNotes(isCopilotPlus);
+  const allNotes = useAllNotes(isToolCallingEnabled);
 
   // Transform files into NoteSearchOption objects
   const allNoteOptions = useMemo(() => {

@@ -2,14 +2,14 @@ import ChainManager from "@/LLMProviders/chainManager";
 import Chat from "@/components/Chat";
 import { CHAT_VIEWTYPE } from "@/constants";
 import { AppContext, EventTargetContext } from "@/context";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { FileParserManager } from "@/tools/FileParserManager";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";
 
-export default class CopilotView extends ItemView {
+export default class HendrikView extends ItemView {
   private get chainManager(): ChainManager {
     return this.plugin.projectManager.getCurrentChainManager();
   }
@@ -21,7 +21,7 @@ export default class CopilotView extends ItemView {
 
   constructor(
     leaf: WorkspaceLeaf,
-    private plugin: CopilotPlugin
+    private plugin: HendrikPlugin
   ) {
     super(leaf);
     this.app = plugin.app;

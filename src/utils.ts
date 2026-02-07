@@ -9,7 +9,7 @@ import {
   USER_SENDER,
 } from "@/constants";
 import { logInfo, logWarn } from "@/logger";
-import { CopilotSettings } from "@/settings/model";
+import { HendrikSettings } from "@/settings/model";
 import { ChatMessage } from "@/types/message";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { MemoryVariables } from "@langchain/core/memory";
@@ -243,7 +243,8 @@ export const stringToChainType = (chain: string): ChainType => {
   switch (chain) {
     case "llm_chain":
     case "vault_qa":
-    case "copilot_plus":
+    case "tool_calling":
+    case "hendrik_plus": // Legacy persisted value
       return ChainType.TOOL_CALLING_CHAIN;
     default:
       throw new Error(`Unknown chain type: ${chain}`);
@@ -314,7 +315,7 @@ export const formatDateTime = (
  * Works across desktop and mobile. Safe to call repeatedly.
  *
  * Examples:
- * - ensureFolderExists("copilot/copilot-conversations")
+ * - ensureFolderExists("hendrik/hendrik-conversations")
  * - ensureFolderExists("some/deep/nested/path")
  *
  * Throws if any segment conflicts with an existing file.
@@ -494,7 +495,7 @@ export interface ChatHistoryEntry {
  * Extract text-only chat history from memory variables.
  * This function pairs messages by index (i, i+1) and returns only string content.
  *
- * Note: For multimodal chains (CopilotPlus, AutonomousAgent), use
+ * Note: For multimodal chains (ToolCalling, AutonomousAgent), use
  * chatHistoryUtils.processRawChatHistory instead to preserve image content.
  *
  * @param memoryVariables Memory variables from LangChain memory
@@ -1172,7 +1173,7 @@ export function getNeedSetKeyProvider(): Provider[] {
 
 export function checkModelApiKey(
   model: CustomModel,
-  settings: Readonly<CopilotSettings>
+  settings: Readonly<HendrikSettings>
 ): {
   hasApiKey: boolean;
   errorNotice?: string;
@@ -1191,7 +1192,7 @@ export function checkModelApiKey(
     return { hasApiKey: true };
   }
 
-  // GitHub Copilot uses OAuth, not API key
+  // GitHub Hendrik uses OAuth, not API key
   if (model.provider === ChatModelProviders.GITHUB_COPILOT) {
     const hasAuth = Boolean(
       model.apiKey || settings.githubCopilotToken || settings.githubCopilotAccessToken

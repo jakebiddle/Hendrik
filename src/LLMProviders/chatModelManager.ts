@@ -8,7 +8,7 @@ import {
 import { getDecryptedKey } from "@/encryptionService";
 import { logError, logInfo } from "@/logger";
 import {
-  CopilotSettings,
+  HendrikSettings,
   getModelKeyFromModel,
   getSettings,
   subscribeToSettingsChange,
@@ -122,7 +122,7 @@ export default class ChatModelManager {
   private getTemperatureForModel(
     modelInfo: ModelInfo,
     customModel: CustomModel,
-    settings: CopilotSettings
+    settings: HendrikSettings
   ): number | undefined {
     // Thinking-enabled models don't accept temperature
     if (modelInfo.isThinkingEnabled) {
@@ -447,14 +447,14 @@ export default class ChatModelManager {
    * Builds configuration for Amazon Bedrock models by merging custom overrides with global defaults.
    * @param customModel - The model definition provided by the user.
    * @param modelName - The resolved Bedrock model identifier to invoke.
-   * @param settings - Current Copilot settings.
+   * @param settings - Current Hendrik settings.
    * @param maxTokens - Maximum completion tokens requested for the invocation.
    * @param temperature - Optional temperature override for the invocation.
    */
   private async buildBedrockConfig(
     customModel: CustomModel,
     modelName: string,
-    settings: CopilotSettings,
+    settings: HendrikSettings,
     maxTokens: number,
     temperature: number | undefined
   ): Promise<BedrockChatModelFields> {
@@ -620,7 +620,7 @@ export default class ChatModelManager {
   /**
    * Helper to validate a model config has valid credentials.
    */
-  private isModelConfigValid(model: CustomModel, settings: CopilotSettings): boolean {
+  private isModelConfigValid(model: CustomModel, settings: HendrikSettings): boolean {
     const modelKey = getModelKeyFromModel(model);
     const modelInfo = ChatModelManager.modelMap[modelKey];
 

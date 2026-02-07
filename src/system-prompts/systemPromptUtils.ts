@@ -1,8 +1,8 @@
 import {
-  COPILOT_SYSTEM_PROMPT_CREATED,
-  COPILOT_SYSTEM_PROMPT_MODIFIED,
-  COPILOT_SYSTEM_PROMPT_LAST_USED,
-  COPILOT_SYSTEM_PROMPT_DEFAULT,
+  HENDRIK_SYSTEM_PROMPT_CREATED,
+  HENDRIK_SYSTEM_PROMPT_MODIFIED,
+  HENDRIK_SYSTEM_PROMPT_LAST_USED,
+  HENDRIK_SYSTEM_PROMPT_DEFAULT,
   EMPTY_SYSTEM_PROMPT,
 } from "@/system-prompts/constants";
 import { UserSystemPrompt } from "@/system-prompts/type";
@@ -124,15 +124,15 @@ export async function parseSystemPromptFile(file: TFile): Promise<UserSystemProm
   const frontmatter = metadata?.frontmatter;
 
   const createdMs = coerceFrontmatterNumber(
-    frontmatter?.[COPILOT_SYSTEM_PROMPT_CREATED],
+    frontmatter?.[HENDRIK_SYSTEM_PROMPT_CREATED],
     EMPTY_SYSTEM_PROMPT.createdMs
   );
   const modifiedMs = coerceFrontmatterNumber(
-    frontmatter?.[COPILOT_SYSTEM_PROMPT_MODIFIED],
+    frontmatter?.[HENDRIK_SYSTEM_PROMPT_MODIFIED],
     EMPTY_SYSTEM_PROMPT.modifiedMs
   );
   const lastUsedMs = coerceFrontmatterNumber(
-    frontmatter?.[COPILOT_SYSTEM_PROMPT_LAST_USED],
+    frontmatter?.[HENDRIK_SYSTEM_PROMPT_LAST_USED],
     EMPTY_SYSTEM_PROMPT.lastUsedMs
   );
 
@@ -186,14 +186,14 @@ export async function ensurePromptFrontmatter(file: TFile, prompt: UserSystemPro
       addPendingFileWrite(file.path);
     }
     await app.fileManager.processFrontMatter(file, (frontmatter) => {
-      if (frontmatter[COPILOT_SYSTEM_PROMPT_CREATED] == null) {
-        frontmatter[COPILOT_SYSTEM_PROMPT_CREATED] = createdMs;
+      if (frontmatter[HENDRIK_SYSTEM_PROMPT_CREATED] == null) {
+        frontmatter[HENDRIK_SYSTEM_PROMPT_CREATED] = createdMs;
       }
-      if (frontmatter[COPILOT_SYSTEM_PROMPT_MODIFIED] == null) {
-        frontmatter[COPILOT_SYSTEM_PROMPT_MODIFIED] = modifiedMs;
+      if (frontmatter[HENDRIK_SYSTEM_PROMPT_MODIFIED] == null) {
+        frontmatter[HENDRIK_SYSTEM_PROMPT_MODIFIED] = modifiedMs;
       }
-      if (frontmatter[COPILOT_SYSTEM_PROMPT_LAST_USED] == null) {
-        frontmatter[COPILOT_SYSTEM_PROMPT_LAST_USED] = lastUsedMs;
+      if (frontmatter[HENDRIK_SYSTEM_PROMPT_LAST_USED] == null) {
+        frontmatter[HENDRIK_SYSTEM_PROMPT_LAST_USED] = lastUsedMs;
       }
     });
   } finally {
@@ -219,7 +219,7 @@ export async function updatePromptLastUsed(title: string): Promise<void> {
       addPendingFileWrite(file.path);
     }
     await app.fileManager.processFrontMatter(file, (frontmatter) => {
-      frontmatter[COPILOT_SYSTEM_PROMPT_LAST_USED] = Date.now();
+      frontmatter[HENDRIK_SYSTEM_PROMPT_LAST_USED] = Date.now();
     });
   } finally {
     if (!alreadyPending) {
@@ -274,9 +274,9 @@ export async function updatePromptDefaultFlag(
     }
     await app.fileManager.processFrontMatter(file, (frontmatter) => {
       if (isDefault) {
-        frontmatter[COPILOT_SYSTEM_PROMPT_DEFAULT] = true;
+        frontmatter[HENDRIK_SYSTEM_PROMPT_DEFAULT] = true;
       } else {
-        delete frontmatter[COPILOT_SYSTEM_PROMPT_DEFAULT];
+        delete frontmatter[HENDRIK_SYSTEM_PROMPT_DEFAULT];
       }
     });
   } finally {

@@ -20,7 +20,7 @@ global.TextDecoder = TextDecoder as any;
 
 // Now we can import our modules
 import { encryptAllKeys, getDecryptedKey, getEncryptedKey } from "@/encryptionService";
-import { type CopilotSettings } from "@/settings/model";
+import { type HendrikSettings } from "@/settings/model";
 import { Platform } from "obsidian";
 import { Buffer } from "buffer";
 
@@ -109,7 +109,7 @@ describe("EncryptionService", () => {
         openAIApiKey: "testApiKey",
         cohereApiKey: "anotherTestApiKey",
         userSystemPrompt: "shouldBeIgnored",
-      } as unknown as CopilotSettings;
+      } as unknown as HendrikSettings;
 
       const newSettings = await encryptAllKeys(settings);
       expect(newSettings.openAIApiKey).toMatch(/^enc_(desk|web)_[A-Za-z0-9+/=]+$/);
@@ -129,7 +129,7 @@ describe("EncryptionService", () => {
         openAIApiKey: "testApiKey",
         cohereApiKey: "anotherTestApiKey",
         userSystemPrompt: "shouldBeIgnored",
-      } as unknown as CopilotSettings);
+      } as unknown as HendrikSettings);
       expect(newSettings.openAIApiKey).toBe("testApiKey");
       expect(newSettings.cohereApiKey).toBe("anotherTestApiKey");
       expect(newSettings.userSystemPrompt).toBe("shouldBeIgnored");

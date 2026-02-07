@@ -1,6 +1,6 @@
-import CopilotView from "@/components/CopilotView";
+import HendrikView from "@/components/HendrikView";
 import { CHAT_VIEWTYPE } from "@/constants";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { getSettings } from "@/settings/model";
 import { logInfo, logError } from "@/logger";
 import { App, Notice, PluginSettingTab } from "obsidian";
@@ -9,17 +9,17 @@ import { createRoot } from "react-dom/client";
 import SettingsMainV2 from "@/settings/v2/SettingsMainV2";
 import { ContainerContext } from "@/settings/v2/components/ContainerContext";
 
-export class CopilotSettingTab extends PluginSettingTab {
-  plugin: CopilotPlugin;
+export class HendrikSettingTab extends PluginSettingTab {
+  plugin: HendrikPlugin;
 
-  constructor(app: App, plugin: CopilotPlugin) {
+  constructor(app: App, plugin: HendrikPlugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
 
   async reloadPlugin() {
     try {
-      const chatView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0]?.view as CopilotView;
+      const chatView = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0]?.view as HendrikView;
 
       // Analyze chat messages for memory if enabled
       if (chatView && getSettings().enableRecentConversations) {

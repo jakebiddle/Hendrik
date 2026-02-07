@@ -1,8 +1,8 @@
 import { CustomCommand } from "@/commands/type";
 
-export const LEGACY_SELECTED_TEXT_PLACEHOLDER = "{copilot-selection}";
+export const LEGACY_SELECTED_TEXT_PLACEHOLDER = "{hendrik-selection}";
 export const COMMAND_NAME_MAX_LENGTH = 50;
-export const QUICK_COMMAND_CODE_BLOCK = "copilotquickcommand";
+export const QUICK_COMMAND_CODE_BLOCK = "hendrikquickcommand";
 export const EMPTY_COMMAND: CustomCommand = {
   title: "",
   content: "",
@@ -14,11 +14,11 @@ export const EMPTY_COMMAND: CustomCommand = {
 };
 
 // Custom command frontmatter property constants
-export const COPILOT_COMMAND_CONTEXT_MENU_ENABLED = "copilot-command-context-menu-enabled";
-export const COPILOT_COMMAND_SLASH_ENABLED = "copilot-command-slash-enabled";
-export const COPILOT_COMMAND_CONTEXT_MENU_ORDER = "copilot-command-context-menu-order";
-export const COPILOT_COMMAND_MODEL_KEY = "copilot-command-model-key";
-export const COPILOT_COMMAND_LAST_USED = "copilot-command-last-used";
+export const HENDRIK_COMMAND_CONTEXT_MENU_ENABLED = "hendrik-command-context-menu-enabled";
+export const HENDRIK_COMMAND_SLASH_ENABLED = "hendrik-command-slash-enabled";
+export const HENDRIK_COMMAND_CONTEXT_MENU_ORDER = "hendrik-command-context-menu-order";
+export const HENDRIK_COMMAND_MODEL_KEY = "hendrik-command-model-key";
+export const HENDRIK_COMMAND_LAST_USED = "hendrik-command-last-used";
 export const DEFAULT_COMMANDS: CustomCommand[] = [
   {
     title: "Fix grammar and spelling",

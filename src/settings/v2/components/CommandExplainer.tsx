@@ -1,5 +1,6 @@
 import React from "react";
-import { MessageSquare, MousePointerClick, Terminal } from "lucide-react";
+import { BookOpen, MessageSquare, MousePointerClick, Terminal } from "lucide-react";
+import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 
 interface ExplainerCardProps {
   icon: React.ReactNode;
@@ -10,12 +11,18 @@ interface ExplainerCardProps {
 
 /** Single explainer card showing one way to use commands */
 const ExplainerCard: React.FC<ExplainerCardProps> = ({ icon, title, description, accentColor }) => (
-  <div className="tw-flex tw-flex-1 tw-flex-col tw-items-center tw-gap-2 tw-rounded-lg tw-border tw-border-border tw-p-4 tw-text-center tw-bg-secondary/30">
+  <div
+    className="tw-flex tw-flex-1 tw-flex-col tw-items-center tw-gap-2 tw-rounded-lg tw-border tw-border-solid tw-p-4 tw-text-center"
+    style={{
+      borderColor: "var(--hendrik-border-soft)",
+      background: `color-mix(in srgb, ${accentColor} 4%, var(--background-primary))`,
+    }}
+  >
     <div
-      className="tw-flex tw-size-10 tw-items-center tw-justify-center tw-rounded-full"
+      className="tw-flex tw-size-9 tw-items-center tw-justify-center tw-rounded-full"
       style={{ backgroundColor: `color-mix(in srgb, ${accentColor} 12%, transparent)` }}
     >
-      <div className="tw-size-5" style={{ color: accentColor }}>
+      <div className="tw-size-4" style={{ color: accentColor }}>
         {icon}
       </div>
     </div>
@@ -30,34 +37,32 @@ const ExplainerCard: React.FC<ExplainerCardProps> = ({ icon, title, description,
  */
 export const CommandExplainer: React.FC = () => {
   return (
-    <div className="tw-space-y-3">
-      <div>
-        <h3 className="tw-text-lg tw-font-semibold">What Are Custom Commands?</h3>
-        <p className="tw-mt-1 tw-text-sm tw-text-muted">
-          Custom commands are preset prompts you can trigger in three ways:
-        </p>
-      </div>
-
-      <div className="tw-grid tw-grid-cols-1 tw-gap-3 sm:tw-grid-cols-3">
+    <SettingsSection
+      icon={<BookOpen className="tw-size-4" />}
+      title="How Commands Work"
+      description="Three ways to trigger your custom prompts"
+      accentColor="var(--color-cyan)"
+    >
+      <div className="tw-grid tw-grid-cols-1 tw-gap-3 tw-pt-2 sm:tw-grid-cols-3">
         <ExplainerCard
-          icon={<MousePointerClick className="tw-size-5" />}
+          icon={<MousePointerClick className="tw-size-4" />}
           title="Right-Click Menu"
           description="Select text in your note, right-click, and pick a command to run it on your selection."
           accentColor="var(--color-blue)"
         />
         <ExplainerCard
-          icon={<MessageSquare className="tw-size-5" />}
+          icon={<MessageSquare className="tw-size-4" />}
           title="Slash Commands"
           description="Type / in the chat input to browse and load a pre-made prompt into your conversation."
           accentColor="var(--color-green)"
         />
         <ExplainerCard
-          icon={<Terminal className="tw-size-5" />}
+          icon={<Terminal className="tw-size-4" />}
           title="Command Palette"
           description="Use Obsidian's command palette (Ctrl/Cmd+P) to trigger any enabled command."
           accentColor="var(--color-purple)"
         />
       </div>
-    </div>
+    </SettingsSection>
   );
 };

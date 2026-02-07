@@ -39,14 +39,14 @@ function formatSimilarityScore(score: number | null | undefined): string {
  */
 function getEmptyStateMessage(useSmartConnectionsSource: boolean, hasIndex: boolean): string {
   if (useSmartConnectionsSource) {
-    return "No related notes found from Smart Connections.";
+    return "No related scrolls uncovered via Smart Connections.";
   }
 
   if (!hasIndex) {
-    return "No index available. Build index to view related notes.";
+    return "The archives await cataloguing. Build the index to discover connections.";
   }
 
-  return "No relevant notes found.";
+  return "No related scrolls uncovered.";
 }
 
 /**
@@ -134,11 +134,11 @@ function RelevantNoteRow({ note, onAddToChat, onNavigateToNote }: RelevantNoteRo
   const similarity = formatSimilarityScore(note.metadata.similarityScore ?? null);
 
   return (
-    <div className="copilot-relevant-note-row tw-flex tw-flex-col tw-gap-1 tw-rounded-md tw-px-2 tw-py-1.5">
+    <div className="hendrik-relevant-note-row tw-flex tw-flex-col tw-gap-1 tw-rounded-md tw-px-2 tw-py-1.5">
       <div className="tw-flex tw-items-center tw-gap-2">
         <button
           type="button"
-          className="copilot-relevant-note-row__title tw-min-w-0 tw-flex-1 tw-truncate tw-text-left tw-text-sm tw-font-medium tw-text-normal"
+          className="hendrik-relevant-note-row__title tw-min-w-0 tw-flex-1 tw-truncate tw-text-left tw-text-sm tw-font-medium tw-text-normal"
           title={note.document.title}
           onClick={(event) => {
             const openInNewLeaf = event.metaKey || event.ctrlKey;
@@ -155,7 +155,7 @@ function RelevantNoteRow({ note, onAddToChat, onNavigateToNote }: RelevantNoteRo
         </button>
 
         {similarity && (
-          <span className="copilot-relevant-note-row__score tw-shrink-0 tw-text-[11px] tw-text-muted">
+          <span className="hendrik-relevant-note-row__score tw-shrink-0 tw-text-[11px] tw-text-muted">
             {similarity}
           </span>
         )}
@@ -175,7 +175,7 @@ function RelevantNoteRow({ note, onAddToChat, onNavigateToNote }: RelevantNoteRo
         </Tooltip>
       </div>
 
-      <div className="copilot-relevant-note-row__path tw-truncate tw-text-xs tw-text-muted">
+      <div className="hendrik-relevant-note-row__path tw-truncate tw-text-xs tw-text-muted">
         {note.document.path}
       </div>
     </div>
@@ -240,15 +240,15 @@ export const RelevantNotes = memo(
     return (
       <div
         className={cn(
-          "copilot-relevant-notes tw-w-full tw-border tw-border-solid tw-border-transparent tw-border-b-border tw-pb-2",
+          "hendrik-relevant-notes tw-w-full tw-border tw-border-solid tw-border-transparent tw-border-b-border tw-pb-2",
           className
         )}
       >
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <div className="copilot-relevant-notes__header tw-flex tw-items-center tw-justify-between tw-gap-2 tw-pb-2 tw-pl-1">
+          <div className="hendrik-relevant-notes__header tw-flex tw-items-center tw-justify-between tw-gap-2 tw-pb-2 tw-pl-1">
             <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-2">
               <span className="tw-font-semibold tw-text-normal">Relevant Notes</span>
-              <span className="copilot-relevant-notes__source tw-shrink-0 tw-text-[10px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-muted">
+              <span className="hendrik-relevant-notes__source tw-shrink-0 tw-text-[10px] tw-font-medium tw-uppercase tw-tracking-wide tw-text-muted">
                 {useSmartConnectionsSource ? "Smart Connections" : "Vault Index"}
               </span>
               <HelpTooltip
@@ -291,7 +291,7 @@ export const RelevantNotes = memo(
           </div>
 
           {relevantNotes.length === 0 && (
-            <div className="copilot-relevant-notes__empty tw-px-1">
+            <div className="hendrik-relevant-notes__empty tw-px-1">
               <span className="tw-text-xs tw-text-muted">
                 {getEmptyStateMessage(useSmartConnectionsSource, hasIndex)}
               </span>
@@ -299,12 +299,12 @@ export const RelevantNotes = memo(
           )}
 
           {!isOpen && relevantNotes.length > 0 && (
-            <div className="copilot-relevant-notes__compact tw-flex tw-flex-wrap tw-gap-1 tw-px-1">
+            <div className="hendrik-relevant-notes__compact tw-flex tw-flex-wrap tw-gap-1 tw-px-1">
               {compactNotes.map((note) => (
                 <button
                   key={note.document.path}
                   type="button"
-                  className="copilot-relevant-notes__chip tw-max-w-40 tw-truncate tw-rounded-full tw-px-2 tw-py-0.5 tw-text-xs"
+                  className="hendrik-relevant-notes__chip tw-max-w-40 tw-truncate tw-rounded-full tw-px-2 tw-py-0.5 tw-text-xs"
                   title={note.document.title}
                   onClick={(event) => {
                     const openInNewLeaf = event.metaKey || event.ctrlKey;
@@ -315,7 +315,7 @@ export const RelevantNotes = memo(
                 </button>
               ))}
               {relevantNotes.length > compactNotes.length && (
-                <span className="copilot-relevant-notes__more tw-text-xs tw-text-muted">
+                <span className="hendrik-relevant-notes__more tw-text-xs tw-text-muted">
                   +{relevantNotes.length - compactNotes.length} more
                 </span>
               )}
@@ -323,7 +323,7 @@ export const RelevantNotes = memo(
           )}
 
           <CollapsibleContent>
-            <div className="copilot-relevant-notes__rows tw-flex tw-max-h-60 tw-flex-col tw-gap-1 tw-overflow-y-auto tw-p-1">
+            <div className="hendrik-relevant-notes__rows tw-flex tw-max-h-60 tw-flex-col tw-gap-1 tw-overflow-y-auto tw-p-1">
               {visibleRows.map((note) => (
                 <RelevantNoteRow
                   note={note}

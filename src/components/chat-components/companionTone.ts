@@ -1,5 +1,5 @@
 import type { ActiveNoteInsight } from "@/components/chat-components/hooks/useActiveNoteInsight";
-import type { CopilotSettings } from "@/settings/model";
+import type { HendrikSettings } from "@/settings/model";
 
 /**
  * Royal-style title options for companion personalization.
@@ -51,7 +51,7 @@ export interface CompanionToneContext {
  * Resolves the user's royal address from configured title and preferred name.
  */
 export function resolveRoyalAddress(
-  settings: Pick<CopilotSettings, "userPreferredName" | "userRoyalTitle">
+  settings: Pick<HendrikSettings, "userPreferredName" | "userRoyalTitle">
 ): string {
   const title = settings.userRoyalTitle?.trim() || "Your Majesty";
   const preferredName = settings.userPreferredName?.trim();

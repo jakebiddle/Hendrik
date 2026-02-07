@@ -46,12 +46,12 @@ export function ArchivistGreeting({
   );
 
   return (
-    <div className="copilot-archivist-presence" data-status={isGenerating ? "thinking" : "ready"}>
-      <div className="copilot-archivist-presence__identity">
-        <div className="copilot-archivist-presence__avatar" aria-hidden="true" />
-        <span className="copilot-archivist-presence__name">Hendrik</span>
-        <span className="copilot-archivist-presence__separator" aria-hidden="true" />
-        <span className="copilot-archivist-presence__line">{presenceLine}</span>
+    <div className="hendrik-archivist-presence" data-status={isGenerating ? "thinking" : "ready"}>
+      <div className="hendrik-archivist-presence__identity">
+        <div className="hendrik-archivist-presence__avatar" aria-hidden="true" />
+        <span className="hendrik-archivist-presence__name">Hendrik</span>
+        <span className="hendrik-archivist-presence__separator" aria-hidden="true" />
+        <span className="hendrik-archivist-presence__line">{presenceLine}</span>
       </div>
     </div>
   );

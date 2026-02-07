@@ -21,19 +21,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="tw-pr-10" // Add padding to prevent text overlap with icons
+        className="tw-px-8" // Left padding for search icon, right for clear button
       />
+      <Search className="tw-pointer-events-none tw-absolute tw-left-2.5 tw-top-1/2 tw-size-3.5 -tw-translate-y-1/2 tw-transform tw-text-faint" />
       {value && (
         <Button
-          variant={"secondary"}
+          variant={"ghost2"}
           onClick={() => onChange("")}
-          className="tw-absolute tw-right-8 tw-top-1/2 tw-size-4 -tw-translate-y-1/2 tw-transform tw-rounded-full tw-p-0 tw-transition-colors"
+          className="tw-absolute tw-right-1.5 tw-top-1/2 tw-size-5 -tw-translate-y-1/2 tw-transform tw-rounded-full tw-p-0 tw-transition-colors"
           aria-label="Clear search"
         >
-          <XCircle className="tw-size-4 tw-text-muted/60 hover:tw-text-accent-hover" />
+          <XCircle className="tw-size-3.5 tw-text-faint hover:tw-text-muted" />
         </Button>
       )}
-      <Search className="tw-absolute tw-right-3 tw-top-1/2 tw-size-4 -tw-translate-y-1/2 tw-transform tw-text-muted" />
     </div>
   );
 };

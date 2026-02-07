@@ -39,7 +39,7 @@ describe("AtMentionTypeahead", () => {
     isOpen: true,
     onClose: jest.fn(),
     onSelect: jest.fn(),
-    isCopilotPlus: false,
+    isToolCallingEnabled: false,
     currentActiveFile: null,
   };
 

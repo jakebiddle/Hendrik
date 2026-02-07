@@ -12,7 +12,7 @@ export interface ToolMetadata {
   isAlwaysEnabled?: boolean; // Tools that are always available (e.g., time tools)
   requiresVault?: boolean; // Tools that need vault access
   customPromptInstructions?: string; // Optional custom instructions for this tool
-  copilotCommands?: string[]; // Optional Copilot slash command aliases (e.g., "@vault")
+  hendrikCommands?: string[]; // Optional Hendrik slash command aliases (e.g., "@vault")
   // Execution control properties
   timeoutMs?: number;
   isBackground?: boolean; // If true, tool execution is not shown to user
@@ -121,15 +121,15 @@ export class ToolRegistry {
   }
 
   /**
-   * Build a map of Copilot command aliases to tool definitions.
+   * Build a map of Hendrik command aliases to tool definitions.
    *
-   * @returns Map keyed by lower-case Copilot command aliases pointing to their tool definitions.
+   * @returns Map keyed by lower-case Hendrik command aliases pointing to their tool definitions.
    */
-  getCopilotCommandMappings(): Map<string, ToolDefinition> {
+  getHendrikCommandMappings(): Map<string, ToolDefinition> {
     const mappings = new Map<string, ToolDefinition>();
 
     for (const definition of this.tools.values()) {
-      const commands = definition.metadata.copilotCommands;
+      const commands = definition.metadata.hendrikCommands;
 
       if (!commands) {
         continue;

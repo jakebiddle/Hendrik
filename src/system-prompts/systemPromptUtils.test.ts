@@ -272,18 +272,18 @@ describe("parseSystemPromptFile", () => {
 
   it("parses a file with frontmatter and content", async () => {
     const rawContent = `---
-copilot-system-prompt-created: 1234567890
-copilot-system-prompt-modified: 1234567891
-copilot-system-prompt-last-used: 1234567892
+hendrik-system-prompt-created: 1234567890
+hendrik-system-prompt-modified: 1234567891
+hendrik-system-prompt-last-used: 1234567892
 ---
 This is the prompt content.`;
 
     (app.vault.read as jest.Mock).mockResolvedValue(rawContent);
     (app.metadataCache.getFileCache as jest.Mock).mockReturnValue({
       frontmatter: {
-        "copilot-system-prompt-created": 1234567890,
-        "copilot-system-prompt-modified": 1234567891,
-        "copilot-system-prompt-last-used": 1234567892,
+        "hendrik-system-prompt-created": 1234567890,
+        "hendrik-system-prompt-modified": 1234567891,
+        "hendrik-system-prompt-last-used": 1234567892,
       },
     });
 
@@ -317,14 +317,14 @@ This is the prompt content.`;
 
   it("uses default values for missing frontmatter fields", async () => {
     const rawContent = `---
-copilot-system-prompt-created: 1234567890
+hendrik-system-prompt-created: 1234567890
 ---
 Content here.`;
 
     (app.vault.read as jest.Mock).mockResolvedValue(rawContent);
     (app.metadataCache.getFileCache as jest.Mock).mockReturnValue({
       frontmatter: {
-        "copilot-system-prompt-created": 1234567890,
+        "hendrik-system-prompt-created": 1234567890,
       },
     });
 
@@ -341,7 +341,7 @@ Content here.`;
 
   it("strips frontmatter from content", async () => {
     const rawContent = `---
-copilot-system-prompt-created: 1234567890
+hendrik-system-prompt-created: 1234567890
 ---
 Line 1
 Line 2`;
@@ -349,7 +349,7 @@ Line 2`;
     (app.vault.read as jest.Mock).mockResolvedValue(rawContent);
     (app.metadataCache.getFileCache as jest.Mock).mockReturnValue({
       frontmatter: {
-        "copilot-system-prompt-created": 1234567890,
+        "hendrik-system-prompt-created": 1234567890,
       },
     });
 
@@ -361,14 +361,14 @@ Line 2`;
 
   it("handles content with --- in the middle", async () => {
     const rawContent = `---
-copilot-system-prompt-created: 1234567890
+hendrik-system-prompt-created: 1234567890
 ---
 Content with --- separator in the middle.`;
 
     (app.vault.read as jest.Mock).mockResolvedValue(rawContent);
     (app.metadataCache.getFileCache as jest.Mock).mockReturnValue({
       frontmatter: {
-        "copilot-system-prompt-created": 1234567890,
+        "hendrik-system-prompt-created": 1234567890,
       },
     });
 

@@ -41,7 +41,7 @@ const formatTime = (seconds: number): string => {
  * Animation sequence (traces sigma shape):
  * 2 → 1 → 0 → 4 → 6 → 7 → 8 → (all dim) → repeat
  */
-const CopilotSpinner: React.FC = () => {
+const HendrikSpinner: React.FC = () => {
   // Sigma pattern dots: [row, col, animation index]
   // Animation traces the sigma: top-right to top-left, down to center, then bottom-left to bottom-right
   const sigmaDots: { row: number; col: number; animIndex: number }[] = [
@@ -63,7 +63,7 @@ const CopilotSpinner: React.FC = () => {
       width={gridSize}
       height={gridSize}
       viewBox={`0 0 ${gridSize} ${gridSize}`}
-      className="copilot-spinner"
+      className="hendrik-spinner"
     >
       {sigmaDots.map((dot, index) => {
         const cx = dot.col * (dotSize + gap) + dotSize / 2;
@@ -76,7 +76,7 @@ const CopilotSpinner: React.FC = () => {
             cy={cy}
             r={dotSize / 2}
             // eslint-disable-next-line tailwindcss/no-custom-classname
-            className={`copilot-spinner-dot copilot-spinner-dot-${dot.animIndex}`}
+            className={`hendrik-spinner-dot hendrik-spinner-dot-${dot.animIndex}`}
           />
         );
       })}
@@ -142,7 +142,7 @@ export const AgentReasoningBlock: React.FC<AgentReasoningBlockProps> = ({
           {/* Spinner or expand chevron */}
           <span className="agent-reasoning-icon">
             {isActive ? (
-              <CopilotSpinner />
+              <HendrikSpinner />
             ) : (
               <ChevronRight
                 className={cn(
@@ -154,7 +154,7 @@ export const AgentReasoningBlock: React.FC<AgentReasoningBlockProps> = ({
           </span>
 
           {/* Title and timer */}
-          <span className="agent-reasoning-title">Thinking</span>
+          <span className="agent-reasoning-title">Deliberating</span>
           <span className="agent-reasoning-timer">{formatTime(elapsedSeconds)}</span>
         </div>
       </CollapsibleTrigger>

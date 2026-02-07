@@ -671,11 +671,11 @@ describe("parseCustomCommandFile", () => {
     // Save and mock global app
     originalApp = global.app;
     mockFrontmatter = {
-      "copilot-command-context-menu-enabled": true,
-      "copilot-command-slash-enabled": false,
-      "copilot-command-context-menu-order": 42,
-      "copilot-command-model-key": "gpt-4",
-      "copilot-command-last-used": 1234567890,
+      "hendrik-command-context-menu-enabled": true,
+      "hendrik-command-slash-enabled": false,
+      "hendrik-command-context-menu-order": 42,
+      "hendrik-command-model-key": "gpt-4",
+      "hendrik-command-last-used": 1234567890,
     };
     mockMetadata = { frontmatter: mockFrontmatter };
     global.app = {
@@ -683,7 +683,7 @@ describe("parseCustomCommandFile", () => {
         read: jest
           .fn()
           .mockResolvedValue(
-            "---\ncopilot-command-context-menu-enabled: true\ncopilot-command-slash-enabled: false\ncopilot-command-context-menu-order: 42\ncopilot-command-model-key: gpt-4\ncopilot-command-last-used: 1234567890\n---\nPrompt content here."
+            "---\nhendrik-command-context-menu-enabled: true\nhendrik-command-slash-enabled: false\nhendrik-command-context-menu-order: 42\nhendrik-command-model-key: gpt-4\nhendrik-command-last-used: 1234567890\n---\nPrompt content here."
           ) as any,
       } as any,
       metadataCache: {

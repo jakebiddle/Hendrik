@@ -1,5 +1,5 @@
 import { logInfo } from "@/logger";
-import { getSettings, CopilotSettings } from "@/settings/model";
+import { getSettings, HendrikSettings } from "@/settings/model";
 import { App } from "obsidian";
 import {
   SmartConnectionsRetriever,
@@ -104,7 +104,7 @@ export class RetrieverFactory {
   static async createRetriever(
     app: App,
     options: RetrieverOptions,
-    settings?: Partial<CopilotSettings>
+    settings?: Partial<HendrikSettings>
   ): Promise<RetrieverSelectionResult> {
     const currentSettings = settings ? { ...getSettings(), ...settings } : getSettings();
 
@@ -179,7 +179,7 @@ export class RetrieverFactory {
    * @returns The type of retriever that would be created
    */
   static getRetrieverType(
-    settings?: Partial<CopilotSettings>
+    settings?: Partial<HendrikSettings>
   ): "smart_connections" | "semantic" | "lexical" {
     const currentSettings = settings ? { ...getSettings(), ...settings } : getSettings();
 

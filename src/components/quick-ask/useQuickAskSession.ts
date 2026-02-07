@@ -19,13 +19,13 @@ import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { findCustomModel } from "@/utils";
 import { logError, logWarn } from "@/logger";
 import type { QuickAskMessage } from "./types";
-import type { CopilotSettings } from "@/settings/model";
+import type { HendrikSettings } from "@/settings/model";
 
 interface UseQuickAskSessionParams {
   selectedText: string;
   selectedModelKey: string;
   includeNoteContext: boolean;
-  settings: CopilotSettings;
+  settings: HendrikSettings;
 }
 
 interface QuickAskSessionApi {

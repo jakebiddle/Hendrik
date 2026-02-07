@@ -10,7 +10,7 @@ import { BUILTIN_EMBEDDING_MODELS, VAULT_VECTOR_STORE_STRATEGIES } from "@/const
 import EmbeddingManager from "@/LLMProviders/embeddingManager";
 import { logError } from "@/logger";
 import {
-  CopilotSettings,
+  HendrikSettings,
   getModelKeyFromModel,
   updateSetting,
   useSettingsValue,
@@ -50,7 +50,7 @@ export const SearchSettings: React.FC = () => {
     originalModel: CustomModel,
     updatedModel: CustomModel
   ) => {
-    const settingField: keyof CopilotSettings = isEmbeddingModel
+    const settingField: keyof HendrikSettings = isEmbeddingModel
       ? "activeEmbeddingModels"
       : "activeModels";
 

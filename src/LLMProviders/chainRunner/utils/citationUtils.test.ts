@@ -97,7 +97,7 @@ More content
       expect(hasExistingCitations(dashHeading)).toBe(true);
 
       const summary =
-        '<details><summary class="copilot-sources__summary">Sources</summary>List</details>';
+        '<details><summary class="hendrik-sources__summary">Sources</summary>List</details>';
       expect(hasExistingCitations(summary)).toBe(true);
     });
 
@@ -232,10 +232,10 @@ More content
 [^2]: [[Document 2]]`;
 
       const result = processInlineCitations(content);
-      expect(result).toContain("copilot-sources__summary");
-      expect(result).toContain('copilot-sources__index">[1]');
-      expect(result).toContain('copilot-sources__text">[[Document 1]]');
-      expect(result).toContain('copilot-sources__text">[[Document 2]]');
+      expect(result).toContain("hendrik-sources__summary");
+      expect(result).toContain('hendrik-sources__index">[1]');
+      expect(result).toContain('hendrik-sources__text">[[Document 1]]');
+      expect(result).toContain('hendrik-sources__text">[[Document 2]]');
     });
 
     it("should handle simple list format", () => {
@@ -246,10 +246,10 @@ More content
 - [[Document 2]]`;
 
       const result = processInlineCitations(content);
-      expect(result).toContain("copilot-sources__summary");
-      expect(result).toContain('copilot-sources__index">[1]');
-      expect(result).toContain('copilot-sources__text">[[Document 1]]');
-      expect(result).toContain('copilot-sources__text">[[Document 2]]');
+      expect(result).toContain("hendrik-sources__summary");
+      expect(result).toContain('hendrik-sources__index">[1]');
+      expect(result).toContain('hendrik-sources__text">[[Document 1]]');
+      expect(result).toContain('hendrik-sources__text">[[Document 2]]');
     });
 
     it("should return unchanged content when no sources section", () => {
@@ -371,16 +371,16 @@ More content
       // [^18] (fourth mention) -> [4] -> should map to [[2024-04-08]]
 
       expect(result).toContain(
-        '<span class="copilot-sources__index">[1]</span><span class="copilot-sources__text">[[2024-03-13]]</span>'
+        '<span class="hendrik-sources__index">[1]</span><span class="hendrik-sources__text">[[2024-03-13]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[2]</span><span class="copilot-sources__text">[[2024-03-18]]</span>'
+        '<span class="hendrik-sources__index">[2]</span><span class="hendrik-sources__text">[[2024-03-18]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[3]</span><span class="copilot-sources__text">[[2024-03-26]]</span>'
+        '<span class="hendrik-sources__index">[3]</span><span class="hendrik-sources__text">[[2024-03-26]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[4]</span><span class="copilot-sources__text">[[2024-04-08]]</span>'
+        '<span class="hendrik-sources__index">[4]</span><span class="hendrik-sources__text">[[2024-04-08]]</span>'
       );
 
       // Verify the citations in text are renumbered correctly
@@ -409,13 +409,13 @@ More content
 
       // Should consolidate the 3 "How to Make Wealth" entries into 1
       expect(result).toContain(
-        '<span class="copilot-sources__index">[1]</span><span class="copilot-sources__text">[[How to Make Wealth]]</span>'
+        '<span class="hendrik-sources__index">[1]</span><span class="hendrik-sources__text">[[How to Make Wealth]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[2]</span><span class="copilot-sources__text">[[Superlinear Returns]]</span>'
+        '<span class="hendrik-sources__index">[2]</span><span class="hendrik-sources__text">[[Superlinear Returns]]</span>'
       );
-      expect(result).not.toContain('copilot-sources__index">[3]');
-      expect(result).not.toContain('copilot-sources__index">[4]');
+      expect(result).not.toContain('hendrik-sources__index">[3]');
+      expect(result).not.toContain('hendrik-sources__index">[4]');
 
       // Verify periods after citations are removed
       expect(result).not.toContain("[1].");
@@ -452,15 +452,15 @@ More content
 
       // After consolidation, should only have 3 unique sources:
       expect(result).toContain(
-        '<span class="copilot-sources__index">[1]</span><span class="copilot-sources__text">[[Document B]]</span>'
+        '<span class="hendrik-sources__index">[1]</span><span class="hendrik-sources__text">[[Document B]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[2]</span><span class="copilot-sources__text">[[Document C]]</span>'
+        '<span class="hendrik-sources__index">[2]</span><span class="hendrik-sources__text">[[Document C]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[3]</span><span class="copilot-sources__text">[[Document A]]</span>'
+        '<span class="hendrik-sources__index">[3]</span><span class="hendrik-sources__text">[[Document A]]</span>'
       );
-      expect(result).not.toContain('copilot-sources__index">[4]');
+      expect(result).not.toContain('hendrik-sources__index">[4]');
 
       // Verify citations in text point to correct consolidated sources
       expect(result).toContain("references [1] and also [2]"); // [^14]->[1], [^17]->[2]
@@ -486,10 +486,10 @@ More content
       // [^8] (second mention) -> [2] -> [[How to Do Great Work]]
 
       expect(result).toContain(
-        '<span class="copilot-sources__index">[1]</span><span class="copilot-sources__text">[[Superlinear Returns]]</span>'
+        '<span class="hendrik-sources__index">[1]</span><span class="hendrik-sources__text">[[Superlinear Returns]]</span>'
       );
       expect(result).toContain(
-        '<span class="copilot-sources__index">[2]</span><span class="copilot-sources__text">[[How to Do Great Work]]</span>'
+        '<span class="hendrik-sources__index">[2]</span><span class="hendrik-sources__text">[[How to Do Great Work]]</span>'
       );
 
       // CRITICAL: Both citations in text must be converted (not partial like [4][^8])

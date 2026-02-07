@@ -115,7 +115,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [currentModelKey, setCurrentModelKey] = useModelKey();
   const [currentChain] = useChainType();
   // All features ungated (Plus system removed)
-  const isCopilotPlus = true;
+  const isToolCallingEnabled = true;
   const [isProjectLoading] = useProjectLoading();
   const settings = useSettingsValue();
   const [currentActiveNote, setCurrentActiveNote] = useState<TFile | null>(() => {
@@ -234,7 +234,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const webTabsFromEditor = getWebTabsFromEditorSnapshot();
     const allWebTabs = mergeWebTabContexts([...contextWebTabs, ...webTabsFromEditor]);
 
-    if (!isCopilotPlus) {
+    if (!isToolCallingEnabled) {
       // Non-Plus chains: only webTabs needs explicit passing
       // - contextNotes: Chat.tsx has state, closure can access
       // - contextFolders: {folderPath} in text gets expanded by processPrompt()
@@ -301,7 +301,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   // Handle when tools are removed from pills (when pills are deleted in editor)
   const handleToolPillsRemoved = (removedTools: string[]) => {
-    if (!isCopilotPlus || autonomousAgentToggle) return;
+    if (!isToolCallingEnabled || autonomousAgentToggle) return;
 
     // Update tool button states based on removed pills
     removedTools.forEach((tool) => {
@@ -322,7 +322,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   // Sync tool button states with tool pills
   useEffect(() => {
-    if (!isCopilotPlus || autonomousAgentToggle) return;
+    if (!isToolCallingEnabled || autonomousAgentToggle) return;
 
     // Update button states based on current tool pills
     const hasVault = toolsFromPills.includes("@vault");
@@ -332,7 +332,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     setVaultToggle(hasVault);
     setWebToggle(hasWeb);
     setComposerToggle(hasComposer);
-  }, [toolsFromPills, isCopilotPlus, autonomousAgentToggle]);
+  }, [toolsFromPills, isToolCallingEnabled, autonomousAgentToggle]);
 
   // Handle when context notes are removed from the context menu
   // This should remove all corresponding pills from the editor
@@ -653,29 +653,29 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   // Handle tool button toggle-off events - remove corresponding pills
   const handleVaultToggleOff = useCallback(() => {
-    if (lexicalEditorRef.current && isCopilotPlus) {
+    if (lexicalEditorRef.current && isToolCallingEnabled) {
       lexicalEditorRef.current.update(() => {
         $removePillsByToolName("@vault");
       });
     }
-  }, [isCopilotPlus]);
+  }, [isToolCallingEnabled]);
 
   const handleWebToggleOff = useCallback(() => {
-    if (lexicalEditorRef.current && isCopilotPlus) {
+    if (lexicalEditorRef.current && isToolCallingEnabled) {
       lexicalEditorRef.current.update(() => {
         $removePillsByToolName("@websearch");
         $removePillsByToolName("@web");
       });
     }
-  }, [isCopilotPlus]);
+  }, [isToolCallingEnabled]);
 
   const handleComposerToggleOff = useCallback(() => {
-    if (lexicalEditorRef.current && isCopilotPlus) {
+    if (lexicalEditorRef.current && isToolCallingEnabled) {
       lexicalEditorRef.current.update(() => {
         $removePillsByToolName("@composer");
       });
     }
-  }, [isCopilotPlus]);
+  }, [isToolCallingEnabled]);
 
   // Active note pill sync callbacks
   const handleActiveNoteAdded = useCallback(() => {
@@ -698,15 +698,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   // Handle tag selection from typeahead - auto-enable vault search
   const handleTagSelected = useCallback(() => {
-    if (isCopilotPlus && !autonomousAgentToggle && !vaultToggle) {
+    if (isToolCallingEnabled && !autonomousAgentToggle && !vaultToggle) {
       setVaultToggle(true);
       new Notice("Vault search enabled for tag query");
     }
-  }, [isCopilotPlus, autonomousAgentToggle, vaultToggle]);
+  }, [isToolCallingEnabled, autonomousAgentToggle, vaultToggle]);
 
   return (
     <div
-      className="copilot-chat-input tw-flex tw-w-full tw-flex-col tw-gap-1 tw-rounded-2xl tw-border tw-border-solid tw-border-border tw-px-2 tw-pb-1.5 tw-pt-2 tw-@container/chat-input"
+      className="hendrik-chat-input tw-flex tw-w-full tw-flex-col tw-gap-1 tw-rounded-2xl tw-border tw-border-solid tw-border-border tw-px-2 tw-pb-1.5 tw-pt-2 tw-@container/chat-input"
       ref={containerRef}
     >
       {/* Hide context controls in edit mode - editing only changes text, not context */}
@@ -766,10 +766,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
           onNotesRemoved={handleNotePillsRemoved}
           onActiveNoteAdded={handleActiveNoteAdded}
           onActiveNoteRemoved={handleActiveNoteRemoved}
-          onURLsChange={isCopilotPlus ? setUrlsFromPills : undefined}
-          onURLsRemoved={isCopilotPlus ? handleURLPillsRemoved : undefined}
-          onToolsChange={isCopilotPlus ? setToolsFromPills : undefined}
-          onToolsRemoved={isCopilotPlus ? handleToolPillsRemoved : undefined}
+          onURLsChange={isToolCallingEnabled ? setUrlsFromPills : undefined}
+          onURLsRemoved={isToolCallingEnabled ? handleURLPillsRemoved : undefined}
+          onToolsChange={isToolCallingEnabled ? setToolsFromPills : undefined}
+          onToolsRemoved={isToolCallingEnabled ? handleToolPillsRemoved : undefined}
           onFoldersChange={setFoldersFromPills}
           onFoldersRemoved={handleFolderPillsRemoved}
           onWebTabsChange={setWebTabsFromPills}
@@ -780,7 +780,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           onTagSelected={handleTagSelected}
           placeholder={"Ask, search, or draft - @ to add context - / for custom prompts"}
           disabled={isProjectLoading}
-          isCopilotPlus={isCopilotPlus}
+          isToolCallingEnabled={isToolCallingEnabled}
           currentActiveFile={currentActiveNote}
           currentChain={currentChain}
         />
@@ -868,7 +868,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
               <Button
                 variant="ghost2"
                 size="fit"
-                className="tw-text-muted"
+                className="tw-text-muted hover:tw-text-accent"
                 onClick={() => onSendMessage()}
               >
                 <CornerDownLeft className="!tw-size-3" />

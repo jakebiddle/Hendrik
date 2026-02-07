@@ -19,9 +19,9 @@ import {
 import { CustomCommandChatModal } from "@/commands/CustomCommandChatModal";
 import { ApplyCustomCommandModal } from "@/components/modals/ApplyCustomCommandModal";
 import { YoutubeTranscriptModal } from "@/components/modals/YoutubeTranscriptModal";
-import CopilotPlugin from "@/main";
+import HendrikPlugin from "@/main";
 import { getAllQAMarkdownContent } from "@/search/searchUtils";
-import { CopilotSettings } from "@/settings/model";
+import { HendrikSettings } from "@/settings/model";
 import { NoteSelectedTextContext, WebSelectedTextContext } from "@/types/message";
 import { ensureFolderExists, isSourceModeOn } from "@/utils";
 import { Editor, MarkdownView, Notice, TFile } from "obsidian";
@@ -32,7 +32,7 @@ import { setSelectedTextContexts } from "@/aiParams";
 /**
  * Add a command to the plugin.
  */
-export function addCommand(plugin: CopilotPlugin, id: CommandId, callback: () => void) {
+export function addCommand(plugin: HendrikPlugin, id: CommandId, callback: () => void) {
   plugin.addCommand({
     id,
     name: COMMAND_NAMES[id],
@@ -44,7 +44,7 @@ export function addCommand(plugin: CopilotPlugin, id: CommandId, callback: () =>
  * Add an editor command to the plugin.
  */
 function addEditorCommand(
-  plugin: CopilotPlugin,
+  plugin: HendrikPlugin,
   id: CommandId,
   callback: (editor: Editor) => void
 ) {
@@ -59,7 +59,7 @@ function addEditorCommand(
  * Add a check command to the plugin.
  */
 export function addCheckCommand(
-  plugin: CopilotPlugin,
+  plugin: HendrikPlugin,
   id: CommandId,
   callback: (checking: boolean) => boolean | void
 ) {
@@ -71,9 +71,9 @@ export function addCheckCommand(
 }
 
 export function registerCommands(
-  plugin: CopilotPlugin,
-  prev: CopilotSettings | undefined,
-  next: CopilotSettings
+  plugin: HendrikPlugin,
+  prev: HendrikSettings | undefined,
+  next: HendrikSettings
 ) {
   addEditorCommand(plugin, COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION, async (editor: Editor) => {
     const selectedText = await editor.getSelection();
@@ -97,11 +97,11 @@ export function registerCommands(
     }
   });
 
-  addCommand(plugin, COMMAND_IDS.TOGGLE_COPILOT_CHAT_WINDOW, () => {
+  addCommand(plugin, COMMAND_IDS.TOGGLE_HENDRIK_CHAT_WINDOW, () => {
     plugin.toggleView();
   });
 
-  addCommand(plugin, COMMAND_IDS.OPEN_COPILOT_CHAT_WINDOW, () => {
+  addCommand(plugin, COMMAND_IDS.OPEN_HENDRIK_CHAT_WINDOW, () => {
     plugin.activateView();
   });
 
@@ -171,18 +171,18 @@ export function registerCommands(
     return true;
   });
 
-  addCommand(plugin, COMMAND_IDS.CLEAR_LOCAL_COPILOT_INDEX, async () => {
+  addCommand(plugin, COMMAND_IDS.CLEAR_LOCAL_HENDRIK_INDEX, async () => {
     try {
       const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
       await VectorStoreManager.getInstance().clearIndex();
-      new Notice("Cleared local Copilot semantic index.");
+      new Notice("Cleared local Hendrik semantic index.");
     } catch (err) {
       logError("Error clearing semantic index:", err);
       new Notice("Failed to clear semantic index.");
     }
   });
 
-  addCommand(plugin, COMMAND_IDS.GARBAGE_COLLECT_COPILOT_INDEX, async () => {
+  addCommand(plugin, COMMAND_IDS.GARBAGE_COLLECT_HENDRIK_INDEX, async () => {
     try {
       const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
       const removedCount = await VectorStoreManager.getInstance().garbageCollectVectorStore();
@@ -195,7 +195,7 @@ export function registerCommands(
 
   // Removed legacy build-only command; use refresh and force reindex commands instead
 
-  addCommand(plugin, COMMAND_IDS.INDEX_VAULT_TO_COPILOT_INDEX, async () => {
+  addCommand(plugin, COMMAND_IDS.INDEX_VAULT_TO_HENDRIK_INDEX, async () => {
     try {
       const { getSettings } = await import("@/settings/model");
       const settings = getSettings();
@@ -215,7 +215,7 @@ export function registerCommands(
     }
   });
 
-  addCommand(plugin, COMMAND_IDS.FORCE_REINDEX_VAULT_TO_COPILOT_INDEX, async () => {
+  addCommand(plugin, COMMAND_IDS.FORCE_REINDEX_VAULT_TO_HENDRIK_INDEX, async () => {
     try {
       const { getSettings } = await import("@/settings/model");
       const settings = getSettings();
@@ -235,8 +235,8 @@ export function registerCommands(
     }
   });
 
-  addCommand(plugin, COMMAND_IDS.LOAD_COPILOT_CHAT_CONVERSATION, () => {
-    plugin.loadCopilotChatHistory();
+  addCommand(plugin, COMMAND_IDS.LOAD_HENDRIK_CHAT_CONVERSATION, () => {
+    plugin.loadHendrikChatHistory();
   });
 
   addCommand(plugin, COMMAND_IDS.LIST_INDEXED_FILES, async () => {
@@ -272,7 +272,7 @@ export function registerCommands(
 
       // Create content for the file
       const content = [
-        "# Copilot Files Status",
+        "# Hendrik Files Status",
         `- Indexed files: ${indexedFiles.size}`,
         `- Unindexed files: ${unindexedFiles.size}`,
         `- Empty files: ${emptyFiles.size}`,
@@ -308,8 +308,8 @@ export function registerCommands(
       ].join("\n");
 
       // Create or update the file in the vault
-      const fileName = `Copilot-Indexed-Files-${new Date().toLocaleDateString().replace(/\//g, "-")}.md`;
-      const folderPath = "copilot";
+      const fileName = `Hendrik-Indexed-Files-${new Date().toLocaleDateString().replace(/\//g, "-")}.md`;
+      const folderPath = "hendrik";
       const filePath = `${folderPath}/${fileName}`;
 
       // Ensure destination folder exists (supports mobile and nested)
@@ -334,7 +334,7 @@ export function registerCommands(
     }
   });
 
-  addCommand(plugin, COMMAND_IDS.INSPECT_COPILOT_INDEX_BY_NOTE_PATHS, async () => {
+  addCommand(plugin, COMMAND_IDS.INSPECT_HENDRIK_INDEX_BY_NOTE_PATHS, async () => {
     try {
       const activeFile = plugin.app.workspace.getActiveFile();
       if (!activeFile) {
@@ -381,8 +381,8 @@ export function registerCommands(
       ].join("\n");
 
       // Create the debug file
-      const fileName = `Copilot-Embedding-Debug-${activeFile.basename.replace(/[\\/:*?"<>|]/g, "_")}.md`;
-      const folderPath = "copilot";
+      const fileName = `Hendrik-Embedding-Debug-${activeFile.basename.replace(/[\\/:*?"<>|]/g, "_")}.md`;
+      const folderPath = "hendrik";
       const filePath = `${folderPath}/${fileName}`;
 
       await ensureFolderExists(folderPath);
@@ -406,7 +406,7 @@ export function registerCommands(
   });
 
   // Add clear Hendrik cache command
-  addCommand(plugin, COMMAND_IDS.CLEAR_COPILOT_CACHE, async () => {
+  addCommand(plugin, COMMAND_IDS.CLEAR_HENDRIK_CACHE, async () => {
     try {
       await plugin.fileParserManager.clearPDFCache();
 

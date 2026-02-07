@@ -4,7 +4,7 @@
 
 import type { EditorView } from "@codemirror/view";
 import type { Editor } from "obsidian";
-import type CopilotPlugin from "@/main";
+import type HendrikPlugin from "@/main";
 import type { ReplaceGuard } from "@/editor/replaceGuard";
 import type { ResizeDirection } from "@/hooks/use-resizable";
 
@@ -30,7 +30,7 @@ export interface QuickAskMessage {
  * Props for the QuickAskPanel component.
  */
 export interface QuickAskPanelProps {
-  plugin: CopilotPlugin;
+  plugin: HendrikPlugin;
   editor: Editor;
   view: EditorView;
   /** Selected text captured when panel opened (content snapshot) */
@@ -55,7 +55,7 @@ export interface QuickAskWidgetPayload {
   /** Optional fallback anchor position (typically selection anchor) */
   fallbackPos?: number | null;
   options: {
-    plugin: CopilotPlugin;
+    plugin: HendrikPlugin;
     editor: Editor;
     view: EditorView;
     selectedText: string;

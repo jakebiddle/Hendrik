@@ -41,7 +41,7 @@ export const ChatButtons: React.FC<ChatButtonsProps> = ({
   return (
     <div
       className={cn("tw-flex tw-gap-1", {
-        "group-hover:opacity-100 opacity-0": !Platform.isMobile,
+        "group-hover:tw-opacity-100 tw-opacity-0": !Platform.isMobile,
       })}
     >
       {message.sender === USER_SENDER ? (
