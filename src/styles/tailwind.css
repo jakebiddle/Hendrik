@@ -1054,7 +1054,7 @@ body.is-mobile
 .hendrik-ribbon-icon::after {
   content: "";
   position: absolute;
-  inset: -2px;
+  inset: -8px;
   background-color: var(--icon-color, var(--text-muted));
   -webkit-mask-image: var(--hendrik-icon-url);
   mask-image: var(--hendrik-icon-url);
@@ -1273,8 +1273,8 @@ body.is-mobile
 }
 
 .hendrik-archivist-presence__avatar {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   border-radius: 999px;
   background-color: var(--hendrik-icon-backdrop);
@@ -1395,8 +1395,8 @@ body.is-mobile
 
 .hendrik-chat-empty__avatar {
   display: block;
-  width: 42px;
-  height: 42px;
+  width: 144px;
+  height: 144px;
   border-radius: 999px;
   background-color: var(--hendrik-icon-backdrop);
   background-image: none;
@@ -1491,8 +1491,8 @@ body.is-mobile
 }
 
 .hendrik-chat-message-row__avatar {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   margin-top: 4px;
   border-radius: 999px;
@@ -1888,8 +1888,8 @@ body.is-mobile
 }
 
 .hendrik-archivist-presence__avatar {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-color: color-mix(in srgb, var(--background-modifier-border) 55%, transparent);
   box-shadow: none;
   animation: none;
@@ -2956,9 +2956,9 @@ body.is-mobile div[data-radix-popper-content-wrapper] {
 
 /* Avatar: larger centered hero element */
 .hendrik-chat-empty__avatar {
-  width: 52px;
-  height: 52px;
-  margin-bottom: 24px;
+  width: 144px;
+  height: 144px;
+  margin-bottom: 30px;
   border: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
   box-shadow: 0 4px 20px rgba(15, 15, 15, 0.06);
   border-radius: 999px;
@@ -2981,11 +2981,6 @@ body.is-mobile div[data-radix-popper-content-wrapper] {
   -webkit-mask-size: var(--hendrik-icon-size);
   mask-size: var(--hendrik-icon-size);
   pointer-events: none;
-}
-
-/* Disable blink animation on empty state avatar */
-.hendrik-chat-empty__avatar::after {
-  display: none;
 }
 
 /* Project empty state icon — color set inline via project appearance */
@@ -3107,8 +3102,8 @@ body.is-mobile div[data-radix-popper-content-wrapper] {
   }
 
   .hendrik-chat-empty__avatar {
-    width: 44px;
-    height: 44px;
+    width: 56px;
+    height: 56px;
     margin-bottom: 20px;
   }
 }

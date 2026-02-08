@@ -161,12 +161,6 @@ export default class HendrikPlugin extends Plugin {
 
     this.initActiveLeafChangeHandler();
 
-    const ribbonIcon = this.addRibbonIcon("message-square", "Open Hendrik Chat", () => {
-      this.activateView();
-    });
-    ribbonIcon.addClass("hendrik-ribbon-icon");
-    ribbonIcon.empty();
-
     // Set the plugin icon URL as a CSS variable so CSS can reference plugin assets
     if (this.manifest.dir) {
       const iconPath = `${this.manifest.dir}/images/HendrikAI.svg`;
