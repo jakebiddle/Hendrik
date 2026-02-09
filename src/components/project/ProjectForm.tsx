@@ -1,3 +1,4 @@
+/* eslint-disable tailwindcss/no-custom-classname */
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 import { CustomModel, ProjectConfig, getCurrentProject } from "@/aiParams";
 import { ContextManageModal } from "@/components/modals/project/context-manage-modal";
@@ -38,6 +39,7 @@ import {
 import { Loader2, Sparkles } from "lucide-react";
 import { Notice } from "obsidian";
 import React, { useMemo, useState } from "react";
+import { CHRONICLE_MODE_NONE, getChronicleModesMeta } from "@/system-prompts/chronicleModes";
 
 interface ProjectFormProps {
   initialProject?: ProjectConfig;
@@ -132,6 +134,7 @@ export function ProjectForm({ initialProject, onSave, onCancel }: ProjectFormPro
       },
       created: initialProject?.created ?? Date.now(),
       UsageTimestamps: initialProject?.UsageTimestamps ?? Date.now(),
+      chronicleMode: initialProject?.chronicleMode,
     };
   });
 
@@ -342,8 +345,8 @@ export function ProjectForm({ initialProject, onSave, onCancel }: ProjectFormPro
   };
 
   return (
-    <div className="tw-flex tw-flex-col tw-gap-2 tw-p-4">
-      <div className="tw-mb-2 tw-text-xl tw-font-bold tw-text-normal">
+    <div className="hendrik-project-form tw-flex tw-flex-col tw-gap-2 tw-p-4">
+      <div className="hendrik-project-form__title tw-mb-2 tw-text-xl tw-font-bold tw-text-normal">
         {initialProject ? "Edit Project" : "New Project"}
       </div>
 
@@ -387,7 +390,36 @@ export function ProjectForm({ initialProject, onSave, onCancel }: ProjectFormPro
           />
         </FormField>
 
-        <div className="tw-space-y-4">
+        <FormField
+          label="Chronicle Mode"
+          description="Override the global Chronicle Mode for this project. Leave as 'Use Global Default' to inherit."
+        >
+          <select
+            className="tw-w-full tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-primary tw-px-3 tw-py-2 tw-text-sm tw-text-normal"
+            value={formData.chronicleMode ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              handleInputChange("chronicleMode", val || "");
+            }}
+          >
+            <option value="">Use Global Default</option>
+            <option value={CHRONICLE_MODE_NONE}>None (disabled)</option>
+            {getChronicleModesMeta().map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          {formData.chronicleMode && formData.chronicleMode !== CHRONICLE_MODE_NONE && (
+            <div className="tw-mt-1.5 tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-primary-alt tw-px-3 tw-py-2">
+              <p className="tw-m-0 tw-text-xs tw-italic tw-text-muted">
+                {getChronicleModesMeta().find((m) => m.id === formData.chronicleMode)?.flavorText}
+              </p>
+            </div>
+          )}
+        </FormField>
+
+        <div className="hendrik-project-form__section tw-space-y-4">
           <div className="tw-text-base tw-font-medium">Appearance</div>
           <div className="tw-grid tw-grid-cols-1 tw-gap-4 md:tw-grid-cols-2">
             <FormField label="Icon">
@@ -505,7 +537,7 @@ export function ProjectForm({ initialProject, onSave, onCancel }: ProjectFormPro
           </div>
         </FormField>
 
-        <div className="tw-space-y-4">
+        <div className="hendrik-project-form__section tw-space-y-4">
           <div className="tw-text-base tw-font-medium">Model Configuration</div>
           <div className="tw-grid tw-grid-cols-1 tw-gap-4">
             <FormField label="Temperature">
@@ -531,7 +563,7 @@ export function ProjectForm({ initialProject, onSave, onCancel }: ProjectFormPro
           </div>
         </div>
 
-        <div className="tw-space-y-4">
+        <div className="hendrik-project-form__section tw-space-y-4">
           <div className="tw-text-base tw-font-medium">Context Sources</div>
           <FormField
             label={
@@ -659,7 +691,7 @@ export function ProjectForm({ initialProject, onSave, onCancel }: ProjectFormPro
         </FormField>
       </div>
 
-      <div className="tw-mt-4 tw-flex tw-items-center tw-justify-end tw-gap-2">
+      <div className="hendrik-project-form__actions tw-mt-4 tw-flex tw-items-center tw-justify-end tw-gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>

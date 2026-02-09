@@ -141,6 +141,16 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
   }
 
   /**
+   * Agent loops require tighter local-search payloads so repeated tool calls do
+   * not exhaust the context window mid-reasoning.
+   *
+   * @returns Context allocation ratio for local-search payloads in agent mode.
+   */
+  protected getLocalSearchContextBudgetRatio(): number {
+    return 0.12;
+  }
+
+  /**
    * Start the reasoning timer and initialize reasoning state.
    * Timer runs independently and always includes accumulated content.
    * Also monitors abort signal to show interrupted message immediately.

@@ -1,3 +1,4 @@
+/* eslint-disable tailwindcss/no-custom-classname */
 import React, { useMemo, useState } from "react";
 import { ArrowUpRight, Check, Edit2, MessageCircle, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -189,14 +190,18 @@ export function ChatHistoryPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="tw-w-80 tw-p-0" align="end" side="bottom">
-        <div className="tw-flex tw-max-h-[400px] tw-flex-col">
-          <div className="tw-shrink-0 tw-border-b tw-p-1">
+      <PopoverContent
+        className="hendrik-chat-history-popover tw-w-96 tw-p-0"
+        align="end"
+        side="bottom"
+      >
+        <div className="hendrik-chat-history-popover__frame tw-flex tw-max-h-[460px] tw-flex-col">
+          <div className="hendrik-chat-history-popover__search tw-shrink-0 tw-border-b tw-p-1">
             <SearchBar value={searchQuery} onChange={setSearchQuery} />
           </div>
 
           <ScrollArea className="tw-min-h-[150px] tw-flex-1 tw-overflow-y-auto">
-            <div className="tw-p-2">
+            <div className="hendrik-chat-history-popover__groups tw-p-2">
               {groupedHistory.length === 0 ? (
                 <div className="tw-py-8 tw-text-center tw-text-muted">
                   {searchQuery ? "No matching chat history found." : "No chat history"}
@@ -205,7 +210,7 @@ export function ChatHistoryPopover({
                 groupedHistory.map((group) => (
                   <div
                     key={group.key}
-                    className="tw-mb-3 tw-border-x-[0px] tw-border-b tw-border-t-[0px] tw-border-border tw-pb-2"
+                    className="hendrik-chat-history-popover__group tw-mb-3 tw-border-x-[0px] tw-border-b tw-border-t-[0px] tw-border-border tw-pb-2"
                     style={{ borderBottomStyle: "solid" }}
                   >
                     <div className="tw-mb-2 tw-px-2 tw-text-xs tw-font-medium tw-tracking-wider tw-text-muted">

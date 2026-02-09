@@ -1,12 +1,65 @@
 import { getBacklinkedNotes, getLinkedNotes } from "@/noteUtils";
 import { DBOperations } from "@/search/dbOperations";
+import { selectEmbeddingsForSimilaritySearch } from "@/search/relevantNotesSearchUtils";
 import { getSettings } from "@/settings/model";
+import { logInfo } from "@/logger";
 import { InternalTypedDocument, Orama, Result } from "@orama/orama";
 import { App, TFile } from "obsidian";
 
 const MAX_K = 20;
+const EMBEDDING_SEARCH_BATCH_SIZE = 4;
 const ORIGINAL_WEIGHT = 0.7;
 const LINKS_WEIGHT = 0.3;
+
+/**
+ * Yields to the event loop so long similarity jobs do not monopolize the UI thread.
+ * @returns Promise that resolves on the next task tick.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, 0);
+  });
+}
+
+/**
+ * Runs vector similarity searches in small batches to keep UI responsive.
+ * @param db - The Orama database.
+ * @param embeddings - Selected embeddings to query against.
+ * @returns Flattened vector hits from all embedding searches.
+ */
+async function searchByEmbeddings({
+  db,
+  embeddings,
+}: {
+  db: Orama<any>;
+  embeddings: number[][];
+}): Promise<Result<InternalTypedDocument<any>>[]> {
+  const allHits: Result<InternalTypedDocument<any>>[] = [];
+
+  for (
+    let startIndex = 0;
+    startIndex < embeddings.length;
+    startIndex += EMBEDDING_SEARCH_BATCH_SIZE
+  ) {
+    const batchEmbeddings = embeddings.slice(startIndex, startIndex + EMBEDDING_SEARCH_BATCH_SIZE);
+    const batchHits = await Promise.all(
+      batchEmbeddings.map((embedding) =>
+        DBOperations.getDocsByEmbedding(db, embedding, {
+          limit: MAX_K,
+          similarity: 0, // No hard threshold - use top-K ranking
+        })
+      )
+    );
+
+    allHits.push(...batchHits.flat());
+
+    if (startIndex + EMBEDDING_SEARCH_BATCH_SIZE < embeddings.length) {
+      await yieldToEventLoop();
+    }
+  }
+
+  return allHits;
+}
 
 /**
  * Gets the embeddings for the given note path.
@@ -19,7 +72,7 @@ async function getNoteEmbeddings(notePath: string, db: Orama<any>): Promise<numb
   const hits = await DBOperations.getDocsByPath(db, notePath);
   if (!hits) {
     if (debug) {
-      console.log("No hits found for note:", notePath);
+      logInfo("No hits found for note:", notePath);
     }
     return [];
   }
@@ -28,7 +81,7 @@ async function getNoteEmbeddings(notePath: string, db: Orama<any>): Promise<numb
   for (const hit of hits) {
     if (!hit?.document?.embedding) {
       if (debug) {
-        console.log("No embedding found for note:", notePath);
+        logInfo("No embedding found for note:", notePath);
       }
       continue;
     }
@@ -79,24 +132,19 @@ async function calculateSimilarityScore({
   const currentNoteEmbeddings = await getNoteEmbeddings(filePath, db);
   if (currentNoteEmbeddings.length === 0) {
     if (debug) {
-      console.log("No embeddings found for note:", filePath);
+      logInfo("No embeddings found for note:", filePath);
     }
     return new Map();
   }
 
-  // Search with EACH chunk embedding separately (no averaging)
-  // Use Promise.all() to parallelize searches for better performance
-  const searchPromises = currentNoteEmbeddings.map((embedding) =>
-    DBOperations.getDocsByEmbedding(db, embedding, {
-      limit: MAX_K,
-      similarity: 0, // No hard threshold - use top-K ranking
-    })
-  );
+  const selectedEmbeddings = selectEmbeddingsForSimilaritySearch(currentNoteEmbeddings);
+  if (debug && selectedEmbeddings.length < currentNoteEmbeddings.length) {
+    logInfo(
+      `Relevant notes: sampling ${selectedEmbeddings.length}/${currentNoteEmbeddings.length} embeddings for ${filePath}`
+    );
+  }
 
-  const searchResults = await Promise.all(searchPromises);
-
-  // Flatten all hits from all chunk searches
-  const allHits = searchResults.flat();
+  const allHits = await searchByEmbeddings({ db, embeddings: selectedEmbeddings });
 
   // Aggregate by taking max score per note path
   const aggregatedHits = getHighestScoreHits(allHits, filePath);

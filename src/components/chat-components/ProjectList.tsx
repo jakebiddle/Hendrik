@@ -1,4 +1,10 @@
 import { ProjectConfig, setCurrentProject } from "@/aiParams";
+import {
+  resolveEmptyStateSubtitle,
+  resolveEmptyStateTitle,
+  resolveRoyalAddress,
+} from "@/components/chat-components/companionTone";
+import { useActiveNoteInsight } from "@/components/chat-components/hooks/useActiveNoteInsight";
 import { ProjectLandingPage } from "@/components/chat-components/ProjectLandingPage";
 import { ProjectForm } from "@/components/project/ProjectForm";
 import {
@@ -8,7 +14,6 @@ import {
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { Button } from "@/components/ui/button";
 import { useChatInput } from "@/context/ChatInputContext";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -22,19 +27,7 @@ import { cn } from "@/lib/utils";
 import { logError } from "@/logger";
 import { updateSetting, useSettingsValue } from "@/settings/model";
 import { RecentUsageManager, sortByStrategy } from "@/utils/recentUsageManager";
-import {
-  ChevronDown,
-  ChevronUp,
-  Edit2,
-  FolderOpen,
-  LibraryBig,
-  MessageSquare,
-  Plus,
-  Search,
-  Settings2,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Edit2, LibraryBig, Plus, Search, Trash2, X } from "lucide-react";
 import { App, Notice } from "obsidian";
 import React, { memo, useEffect, useMemo, useState } from "react";
 import { filterProjects } from "@/utils/projectUtils";
@@ -206,14 +199,14 @@ export const ProjectList = memo(
   ({
     className,
     projects,
-    defaultOpen = false,
+    defaultOpen: _defaultOpen = false,
     app,
     plugin,
     onProjectAdded,
     onEditProject,
-    hasMessages = false,
+    hasMessages: _hasMessages = false,
     showChatUI,
-    onClose,
+    onClose: _onClose,
     onProjectClose,
     onLoadChat,
     backSignal = 0,
@@ -236,10 +229,10 @@ export const ProjectList = memo(
     onCanGoBackChange?: (canGoBack: boolean) => void;
     onViewingProjectChange?: (project: ProjectConfig | null) => void;
   }): React.ReactElement => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
     const [showChatInput, setShowChatInput] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectConfig | null>(null);
     const [viewingProject, setViewingProject] = useState<ProjectConfig | null>(null);
+    const [isProjectHubExpanded, setIsProjectHubExpanded] = useState(true);
     const [projectFormState, setProjectFormState] = useState<{
       mode: "create" | "edit";
       originProject?: ProjectConfig;
@@ -247,6 +240,37 @@ export const ProjectList = memo(
     const [searchQuery, setSearchQuery] = useState("");
     const chatInput = useChatInput();
     const settings = useSettingsValue();
+    const activeNote = useActiveNoteInsight();
+
+    const projectHubTitle = useMemo(() => {
+      const royalAddress = resolveRoyalAddress({
+        userPreferredName: settings.userPreferredName,
+        userRoyalTitle: settings.userRoyalTitle,
+      });
+
+      return resolveEmptyStateTitle({
+        activeNote,
+        royalAddress,
+        hasMessages: false,
+        isGenerating: false,
+        lastUserMessage: null,
+      });
+    }, [activeNote, settings.userPreferredName, settings.userRoyalTitle]);
+
+    const projectHubSubtitle = useMemo(() => {
+      const royalAddress = resolveRoyalAddress({
+        userPreferredName: settings.userPreferredName,
+        userRoyalTitle: settings.userRoyalTitle,
+      });
+
+      return resolveEmptyStateSubtitle({
+        activeNote,
+        royalAddress,
+        hasMessages: false,
+        isGenerating: false,
+        lastUserMessage: null,
+      });
+    }, [activeNote, settings.userPreferredName, settings.userRoyalTitle]);
 
     // Get the project usage manager for subscription
     const projectUsageTimestampsManager =
@@ -254,13 +278,6 @@ export const ProjectList = memo(
         | RecentUsageManager<string>
         | undefined;
     const projectUsageRevision = useRecentUsageManagerRevision(projectUsageTimestampsManager);
-
-    // Auto collapse when messages appear
-    useEffect(() => {
-      if (hasMessages) {
-        setIsOpen(false);
-      }
-    }, [hasMessages]);
 
     /**
      * Report whether there is a meaningful "back" target for project mode header controls.
@@ -290,7 +307,6 @@ export const ProjectList = memo(
         if (selectedProject) {
           setViewingProject(selectedProject);
           setShowChatInput(false);
-          setIsOpen(false);
           showChatUI(false);
         } else {
           enableOrDisableProject(false);
@@ -301,7 +317,6 @@ export const ProjectList = memo(
 
       if (viewingProject) {
         setViewingProject(null);
-        setIsOpen(true);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate external signal effect
     }, [backSignal]);
@@ -402,7 +417,6 @@ export const ProjectList = memo(
         setSelectedProject(null);
         setViewingProject(null);
         setShowChatInput(false);
-        setIsOpen(true);
         showChatUI(false);
         setCurrentProject(null);
         return;
@@ -413,7 +427,6 @@ export const ProjectList = memo(
         }
         setSelectedProject(project);
         setShowChatInput(true);
-        setIsOpen(false);
       }
     };
 
@@ -421,7 +434,6 @@ export const ProjectList = memo(
       setSelectedProject(p);
       setViewingProject(null);
       setShowChatInput(true);
-      setIsOpen(false);
       showChatUI(true);
       setCurrentProject(p);
 
@@ -435,7 +447,6 @@ export const ProjectList = memo(
      */
     const handleViewProject = (p: ProjectConfig) => {
       setViewingProject(p);
-      setIsOpen(false);
     };
 
     /**
@@ -468,8 +479,8 @@ export const ProjectList = memo(
         )}
       >
         {projectFormState && (
-          <div className="tw-absolute tw-inset-0 tw-z-modal tw-overflow-y-auto tw-bg-overlay/50 tw-p-2 tw-backdrop-blur-sm">
-            <div className="tw-mx-auto tw-my-2 tw-w-full tw-max-w-2xl tw-rounded-xl tw-border tw-border-solid tw-border-border tw-bg-primary tw-shadow-lg">
+          <div className="hendrik-project-form-overlay tw-absolute tw-inset-0 tw-z-modal tw-overflow-y-auto tw-bg-overlay/50 tw-p-2 tw-backdrop-blur-sm">
+            <div className="hendrik-project-form-shell tw-mx-auto tw-my-2 tw-w-full tw-max-w-2xl tw-rounded-xl tw-border tw-border-solid tw-border-border tw-bg-primary tw-shadow-lg">
               <ProjectForm
                 initialProject={projectFormState.originProject}
                 onSave={handleProjectFormSave}
@@ -478,8 +489,8 @@ export const ProjectList = memo(
             </div>
           </div>
         )}
-        <div className="tw-overflow-y-auto tw-overflow-x-hidden">
-          <div className="tw-flex tw-min-w-0 tw-flex-col">
+        <div className="tw-flex tw-flex-1 tw-flex-col tw-overflow-y-auto tw-overflow-x-hidden">
+          <div className="tw-flex tw-min-h-full tw-min-w-0 tw-flex-col">
             {viewingProject ? (
               <ProjectLandingPage
                 project={viewingProject}
@@ -489,7 +500,7 @@ export const ProjectList = memo(
               />
             ) : showChatInput && selectedProject ? (
               <div
-                className="tw-flex tw-items-center tw-justify-between tw-rounded-lg tw-px-3 tw-py-2"
+                className="hendrik-project-active-bar tw-flex tw-items-center tw-justify-between tw-rounded-lg tw-px-3 tw-py-2"
                 style={{
                   background: "var(--background-secondary)",
                   borderBottom: "1px solid var(--background-modifier-border)",
@@ -563,17 +574,26 @@ export const ProjectList = memo(
                 </div>
               </div>
             ) : (
-              <div className="hendrik-project-list-shell tw-p-3">
-                <Collapsible
-                  open={isOpen}
-                  onOpenChange={setIsOpen}
-                  className="hendrik-project-list-card tw-overflow-hidden tw-rounded-xl tw-shadow-sm tw-transition-all tw-duration-200 tw-ease-in-out"
-                >
-                  <div className="hendrik-project-list-card__header tw-flex tw-items-center tw-justify-between tw-px-3 tw-py-2">
-                    <div className="tw-flex tw-flex-1 tw-items-center tw-gap-2">
-                      <span className="tw-text-sm tw-font-medium tw-text-normal">Projects</span>
+              <div className="hendrik-project-mode-shell tw-flex tw-min-w-0 tw-flex-1 tw-flex-col">
+                <div className="hendrik-project-mode-shell__hero tw-flex tw-flex-col tw-items-center tw-justify-center tw-text-center">
+                  <div
+                    className="hendrik-project-mode-shell__avatar hendrik-chat-empty__avatar"
+                    aria-hidden="true"
+                  />
+                  <h2 className="hendrik-project-mode-shell__title hendrik-chat-empty__title">
+                    {projectHubTitle}
+                  </h2>
+                  <p className="hendrik-project-mode-shell__subtitle hendrik-chat-empty__subtitle">
+                    {projectHubSubtitle}
+                  </p>
+                </div>
+
+                <div className="hendrik-project-hub tw-flex tw-min-h-0 tw-flex-col">
+                  <div className="hendrik-project-hub__header tw-flex tw-items-center tw-justify-between tw-gap-2 tw-px-3 tw-py-2.5">
+                    <div className="tw-flex tw-min-w-0 tw-items-center tw-gap-2">
+                      <span className="tw-text-sm tw-font-semibold tw-text-normal">Projects</span>
                       <HelpTooltip
-                        content="Manage your projects with different contexts and configurations."
+                        content="Manage project-specific context, model, and conversation history."
                         contentClassName="tw-w-64"
                         buttonClassName="tw-size-3.5 tw-text-faint"
                       />
@@ -588,40 +608,45 @@ export const ProjectList = memo(
                         <TooltipContent side="bottom">New Project</TooltipContent>
                       </Tooltip>
                       {projects.length > 0 && (
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost2" size="icon">
-                            {isOpen ? (
-                              <ChevronUp className="tw-size-4" />
-                            ) : (
-                              <ChevronDown className="tw-size-4" />
-                            )}
-                          </Button>
-                        </CollapsibleTrigger>
+                        <Button
+                          variant="ghost2"
+                          size="icon"
+                          onClick={() => setIsProjectHubExpanded((prev) => !prev)}
+                          aria-label={
+                            isProjectHubExpanded ? "Collapse projects" : "Expand projects"
+                          }
+                        >
+                          {isProjectHubExpanded ? (
+                            <ChevronUp className="tw-size-4" />
+                          ) : (
+                            <ChevronDown className="tw-size-4" />
+                          )}
+                        </Button>
                       )}
                     </div>
                   </div>
-                  <CollapsibleContent className="hendrik-project-list-card__content tw-transition-all tw-duration-200 tw-ease-in-out">
-                    <div className="hendrik-project-list-card__body tw-relative tw-space-y-2 tw-p-3">
-                      {projects.length > 3 && (
-                        <SearchBar
-                          value={searchQuery}
-                          onChange={setSearchQuery}
-                          placeholder="Search projects..."
-                        />
-                      )}
+
+                  {isProjectHubExpanded && projects.length > 3 && (
+                    <div className="hendrik-project-hub__search">
+                      <SearchBar
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder="Search projects..."
+                      />
+                    </div>
+                  )}
+
+                  {isProjectHubExpanded && (
+                    <div className="hendrik-project-hub__content tw-min-h-0 tw-flex-1 tw-overflow-y-auto tw-overflow-x-hidden">
                       {projects.length === 0 ? (
-                        <div
-                          className="tw-flex tw-flex-col tw-items-center tw-gap-2 tw-rounded-lg tw-border tw-border-dashed tw-px-4 tw-py-5 tw-text-center"
-                          style={{ borderColor: "var(--background-modifier-border)" }}
-                        >
+                        <div className="hendrik-project-hub__empty tw-flex tw-flex-col tw-items-center tw-gap-2 tw-rounded-lg tw-px-4 tw-py-6 tw-text-center">
                           <LibraryBig className="tw-size-9 tw-text-faint/40" />
                           <div className="tw-space-y-1">
                             <p className="tw-m-0 tw-text-sm tw-font-medium tw-text-muted">
                               No projects yet
                             </p>
                             <p className="tw-m-0 tw-text-sm tw-text-faint">
-                              Create a project to group context, instructions, and model into a
-                              focused workspace.
+                              Create a project to isolate context, model settings, and chat history.
                             </p>
                           </div>
                           <Button
@@ -631,93 +656,32 @@ export const ProjectList = memo(
                             onClick={handleAddProject}
                           >
                             <Plus className="tw-size-3.5" />
-                            New Project
+                            Create Project
                           </Button>
                         </div>
                       ) : (
-                        <div className="tw-max-h-[320px] tw-overflow-y-auto tw-overflow-x-hidden">
-                          <div className="tw-flex tw-flex-col tw-gap-0.5">
-                            {filteredProjects.map((project) => (
-                              <ProjectItem
-                                key={project.name}
-                                app={app}
-                                project={project}
-                                loadContext={handleViewProject}
-                                onEdit={handleEditProject}
-                                onDelete={handleDeleteProject}
-                              />
-                            ))}
-                          </div>
-                          {searchQuery.trim() && filteredProjects.length === 0 && (
-                            <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-py-6 tw-text-faint">
-                              <Search className="tw-mb-2 tw-size-6 tw-text-faint/40" />
-                              <p className="tw-m-0 tw-text-sm">No matching projects</p>
-                            </div>
-                          )}
-                          {/* Contextual tip when project list is short */}
-                          {!searchQuery.trim() && filteredProjects.length <= 2 && (
-                            <div
-                              className="tw-mt-2 tw-flex tw-items-start tw-gap-2.5 tw-rounded-lg tw-p-2.5"
-                              style={{ background: "var(--background-secondary-alt)" }}
-                            >
-                              <Plus className="tw-mt-0.5 tw-size-3.5 tw-shrink-0 tw-text-faint" />
-                              <div className="tw-space-y-0.5">
-                                <p className="tw-m-0 tw-text-xs tw-text-muted">
-                                  Each project gets its own context, model, and conversation
-                                  history.
-                                </p>
-                                <button
-                                  type="button"
-                                  className="tw-cursor-pointer tw-border-none tw-bg-transparent tw-p-0 tw-text-xs tw-font-medium tw-text-accent hover:tw-underline"
-                                  onClick={handleAddProject}
-                                >
-                                  Create another project
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                        <div className="hendrik-project-hub__list tw-flex tw-flex-col tw-gap-1.5">
+                          {filteredProjects.map((project) => (
+                            <ProjectItem
+                              key={project.name}
+                              app={app}
+                              project={project}
+                              loadContext={handleViewProject}
+                              onEdit={handleEditProject}
+                              onDelete={handleDeleteProject}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {searchQuery.trim() && filteredProjects.length === 0 && (
+                        <div className="tw-flex tw-flex-col tw-items-center tw-justify-center tw-py-8 tw-text-faint">
+                          <Search className="tw-mb-2 tw-size-6 tw-text-faint/40" />
+                          <p className="tw-m-0 tw-text-sm">No matching projects</p>
                         </div>
                       )}
                     </div>
-                  </CollapsibleContent>
-                </Collapsible>
-
-                {/* Feature overview — fills empty space below project list */}
-                <div className="tw-mt-4 tw-space-y-3 tw-px-1">
-                  {[
-                    {
-                      icon: FolderOpen,
-                      label: "Scoped Context",
-                      desc: "Each project uses only the notes, URLs, and videos you assign.",
-                    },
-                    {
-                      icon: Settings2,
-                      label: "Dedicated Model",
-                      desc: "Pick a model and temperature tuned to each project's needs.",
-                    },
-                    {
-                      icon: MessageSquare,
-                      label: "Isolated History",
-                      desc: "Conversations stay separate — no cross-project bleed.",
-                    },
-                  ].map((feature) => (
-                    <div key={feature.label} className="tw-flex tw-items-start tw-gap-2.5">
-                      <div
-                        className="tw-mt-0.5 tw-flex tw-size-7 tw-shrink-0 tw-items-center tw-justify-center tw-rounded-md"
-                        style={{ background: "var(--background-secondary-alt)" }}
-                      >
-                        <feature.icon className="tw-size-3.5 tw-text-muted" />
-                      </div>
-                      <div>
-                        <p className="tw-m-0 tw-text-sm tw-font-medium tw-text-normal">
-                          {feature.label}
-                        </p>
-                        <p className="tw-m-0 tw-text-xs tw-leading-relaxed tw-text-faint">
-                          {feature.desc}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}

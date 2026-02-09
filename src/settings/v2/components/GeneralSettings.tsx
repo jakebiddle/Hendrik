@@ -9,7 +9,8 @@ import { updateSetting, useSettingsValue } from "@/settings/model";
 import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 import { formatDateTime } from "@/utils";
 import { isSortStrategy } from "@/utils/recentUsageManager";
-import { Loader2, MessageSquare, Monitor, User } from "lucide-react";
+import { CHRONICLE_MODE_NONE, getChronicleModesMeta } from "@/system-prompts/chronicleModes";
+import { Loader2, MessageSquare, Monitor, Scroll, User } from "lucide-react";
 import { Notice } from "obsidian";
 import React, { useState } from "react";
 
@@ -68,8 +69,15 @@ export const GeneralSettings: React.FC = () => {
       <SettingsSection
         icon={<Monitor className="tw-size-4" />}
         title="Interface"
-        description="Controls how Hendrik appears and behaves in your workspace"
+        description="Configure chat interface behavior."
         accentColor="var(--color-blue)"
+        searchTerms={[
+          "Send Shortcut",
+          "Auto-Add Active Content to Context",
+          "Auto-Add Selection to Context",
+          "Images in Markdown",
+          "Relevant Notes",
+        ]}
       >
         <SettingItem
           type="select"
@@ -144,8 +152,16 @@ export const GeneralSettings: React.FC = () => {
       <SettingsSection
         icon={<User className="tw-size-4" />}
         title="Personalization"
-        description="How Hendrik addresses and interacts with you"
+        description="Configure response style and personalization options."
         accentColor="var(--color-purple)"
+        searchTerms={[
+          "Preferred Name",
+          "Royal Title",
+          "Tone",
+          "Response Length",
+          "Expertise Level",
+          "Preferred Language",
+        ]}
       >
         <SettingItem
           type="text"
@@ -215,12 +231,74 @@ export const GeneralSettings: React.FC = () => {
         />
       </SettingsSection>
 
+      {/* Chronicle Mode Section */}
+      <SettingsSection
+        icon={<Scroll className="tw-size-4" />}
+        title="Chronicle Mode"
+        description="Set a default chronicle prompt mode."
+        accentColor="var(--color-yellow)"
+        searchTerms={[
+          "Default Chronicle Mode",
+          ...getChronicleModesMeta().map((mode) => mode.name),
+        ]}
+      >
+        <SettingItem
+          type="select"
+          title="Default Chronicle Mode"
+          description={
+            <div className="tw-flex tw-items-center tw-gap-1.5">
+              <span className="tw-leading-none">
+                Applies the selected chronicle mode to new chats. Project settings can override it.
+              </span>
+              <HelpTooltip
+                content={
+                  <div className="tw-flex tw-max-w-96 tw-flex-col tw-gap-2 tw-py-4">
+                    <div className="tw-text-sm tw-font-medium tw-text-accent">
+                      What is Chronicle Mode?
+                    </div>
+                    <div className="tw-text-xs tw-text-muted">
+                      Chronicle mode sets a predefined system prompt profile for structured writing.
+                      It replaces the default custom prompt behavior for that chat.
+                    </div>
+                  </div>
+                }
+              />
+            </div>
+          }
+          value={settings.chronicleMode}
+          onChange={(value) => updateSetting("chronicleMode", value)}
+          options={[
+            { label: "None", value: CHRONICLE_MODE_NONE },
+            ...getChronicleModesMeta().map((m) => ({
+              label: m.name,
+              value: m.id,
+            })),
+          ]}
+        />
+        {settings.chronicleMode && settings.chronicleMode !== CHRONICLE_MODE_NONE && (
+          <div className="tw-rounded-lg tw-border tw-border-solid tw-border-border tw-bg-primary-alt tw-px-3 tw-py-2">
+            <p className="tw-m-0 tw-text-xs tw-italic tw-text-muted">
+              {getChronicleModesMeta().find((m) => m.id === settings.chronicleMode)?.flavorText}
+            </p>
+          </div>
+        )}
+      </SettingsSection>
+
       {/* Conversations Section */}
       <SettingsSection
         icon={<MessageSquare className="tw-size-4" />}
         title="Conversations"
-        description="Saving, naming, and sorting your chat conversations"
+        description="Configure chat save behavior, naming, and sorting."
         accentColor="var(--color-green)"
+        searchTerms={[
+          "Autosave Chat",
+          "Generate AI Chat Title on Save",
+          "Default Conversation Folder Name",
+          "Default Conversation Tag",
+          "Conversation Filename Template",
+          "Chat History Sort Strategy",
+          "Project List Sort Strategy",
+        ]}
       >
         <SettingItem
           type="switch"

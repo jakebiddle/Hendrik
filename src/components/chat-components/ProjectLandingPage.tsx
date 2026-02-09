@@ -1,3 +1,4 @@
+/* eslint-disable tailwindcss/no-custom-classname */
 import { ProjectConfig } from "@/aiParams";
 import { ChatHistoryItem } from "@/components/chat-components/ChatHistoryPopover";
 import {
@@ -134,9 +135,9 @@ const ProjectLandingPage = memo(
     }, [onNewChat]);
 
     return (
-      <div className="tw-flex tw-flex-1 tw-flex-col tw-overflow-y-auto tw-overflow-x-hidden tw-p-3">
+      <div className="hendrik-project-landing tw-flex tw-flex-1 tw-flex-col tw-overflow-y-auto tw-overflow-x-hidden tw-p-3">
         <div
-          className="tw-rounded-xl tw-p-4"
+          className="hendrik-project-landing__hero tw-rounded-xl tw-p-4"
           style={{
             background: `linear-gradient(155deg, color-mix(in srgb, ${appearance.color} 18%, transparent), color-mix(in srgb, var(--background-primary) 94%, #f8f4ed 6%) 55%)`,
             border: `1px solid color-mix(in srgb, ${appearance.color} 20%, var(--hendrik-border-soft))`,
@@ -201,7 +202,7 @@ const ProjectLandingPage = memo(
 
         {totalSources > 0 && (
           <div
-            className="tw-mt-3 tw-rounded-lg tw-p-3"
+            className="hendrik-project-landing__sources tw-mt-3 tw-rounded-lg tw-p-3"
             style={{ border: "1px solid var(--hendrik-border-soft)" }}
           >
             <div className="tw-mb-2 tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">
@@ -254,7 +255,7 @@ const ProjectLandingPage = memo(
           </div>
         )}
 
-        <div className="tw-mt-3">
+        <div className="hendrik-project-landing__new-chat tw-mt-3">
           <Button
             variant="default"
             size="sm"
@@ -271,7 +272,7 @@ const ProjectLandingPage = memo(
         </div>
 
         <div
-          className="tw-mt-3 tw-flex-1 tw-rounded-lg tw-p-3"
+          className="hendrik-project-landing__recent tw-mt-3 tw-flex-1 tw-rounded-lg tw-p-3"
           style={{ border: "1px solid var(--hendrik-border-soft)" }}
         >
           <span className="tw-mb-2 tw-block tw-text-[10px] tw-font-semibold tw-uppercase tw-tracking-[0.08em] tw-text-faint">

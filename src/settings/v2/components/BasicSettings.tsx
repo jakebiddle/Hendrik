@@ -120,7 +120,7 @@ export const BasicSettings: React.FC = () => {
             >
               <Button
                 onClick={() => {
-                  new ApiKeyDialog(app, () => setSelectedTab("model")).open();
+                  new ApiKeyDialog(app, () => setSelectedTab("ai")).open();
                 }}
                 variant="secondary"
                 className="tw-flex tw-w-full tw-items-center tw-justify-center tw-gap-2 sm:tw-w-auto sm:tw-justify-start"

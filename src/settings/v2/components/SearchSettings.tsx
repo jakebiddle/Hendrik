@@ -21,6 +21,7 @@ import { ModelTable } from "@/settings/v2/components/ModelTable";
 import { PatternListEditor } from "@/settings/v2/components/PatternListEditor";
 import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 import { SmartConnectionsStatus } from "@/settings/v2/components/SmartConnectionsStatus";
+import { useSettingsSearch } from "@/settings/v2/search/SettingsSearchContext";
 import { omit } from "@/utils";
 import { Cpu, FolderTree, Gauge, HardDrive, Scan, SlidersHorizontal } from "lucide-react";
 import { Notice } from "obsidian";
@@ -28,6 +29,7 @@ import { Notice } from "obsidian";
 export const SearchSettings: React.FC = () => {
   const settings = useSettingsValue();
   const [showAddEmbeddingDialog, setShowAddEmbeddingDialog] = useState(false);
+  const { normalizedQuery } = useSettingsSearch();
 
   const handleSetDefaultEmbeddingModel = async (modelKey: string) => {
     if (modelKey === settings.embeddingModelKey) return;
@@ -115,8 +117,14 @@ export const SearchSettings: React.FC = () => {
       <SettingsSection
         icon={<Scan className="tw-size-4" />}
         title="Search Provider"
-        description="Choose how Hendrik searches your vault for relevant notes"
+        description="Choose how Hendrik retrieves source notes."
         accentColor="var(--color-blue)"
+        searchTerms={[
+          "Use Smart Connections",
+          "Enable Semantic Search",
+          "Enable Inline Citations",
+          "Smart Connections",
+        ]}
       >
         <SettingItem
           type="switch"
@@ -165,8 +173,14 @@ export const SearchSettings: React.FC = () => {
         <SettingsSection
           icon={<Cpu className="tw-size-4" />}
           title="Embedding Configuration"
-          description="Manage embedding models and indexing strategy"
+          description="Configure embedding models and indexing behavior."
           accentColor="var(--color-orange)"
+          searchTerms={[
+            "Embedding Models",
+            "Embedding Model",
+            "Auto-Index Strategy",
+            ...settings.activeEmbeddingModels.map((model) => model.name),
+          ]}
         >
           <ModelTable
             models={settings.activeEmbeddingModels}
@@ -178,6 +192,7 @@ export const SearchSettings: React.FC = () => {
             onReorderModels={(newModels) => updateSetting("activeEmbeddingModels", newModels)}
             onRefresh={handleRefreshEmbeddingModels}
             title="Embedding Models"
+            filterQuery={normalizedQuery}
           />
 
           <ModelAddDialog
@@ -268,8 +283,9 @@ export const SearchSettings: React.FC = () => {
       <SettingsSection
         icon={<SlidersHorizontal className="tw-size-4" />}
         title="Search Tuning"
-        description="Fine-tune search result quality and relevance"
+        description="Adjust retrieval ranking behavior."
         accentColor="var(--color-purple)"
+        searchTerms={["Max Sources", "Enable Folder and Graph Boosts"]}
       >
         <SettingItem
           type="slider"
@@ -298,10 +314,16 @@ export const SearchSettings: React.FC = () => {
         <SettingsSection
           icon={<Gauge className="tw-size-4" />}
           title="Performance"
-          description="Rate limiting and resource allocation for indexing"
+          description="Control indexing throughput and resource limits."
           accentColor="var(--color-yellow)"
           collapsible
           defaultOpen={false}
+          searchTerms={[
+            "Requests per Minute",
+            "Embedding Batch Size",
+            "Number of Partitions",
+            "Lexical Search RAM Limit",
+          ]}
         >
           <SettingItem
             type="slider"
@@ -361,8 +383,9 @@ export const SearchSettings: React.FC = () => {
       <SettingsSection
         icon={<FolderTree className="tw-size-4" />}
         title="Scope"
-        description="Control which files are included or excluded from indexing"
+        description="Define inclusion and exclusion patterns for indexing."
         accentColor="var(--color-green)"
+        searchTerms={["Exclusions", "Inclusions", settings.qaExclusions, settings.qaInclusions]}
       >
         <SettingItem
           type="custom"
@@ -372,6 +395,7 @@ export const SearchSettings: React.FC = () => {
           <PatternListEditor
             value={settings.qaExclusions}
             onChange={(value) => updateSetting("qaExclusions", value)}
+            filterQuery={normalizedQuery}
           />
         </SettingItem>
 
@@ -383,6 +407,7 @@ export const SearchSettings: React.FC = () => {
           <PatternListEditor
             value={settings.qaInclusions}
             onChange={(value) => updateSetting("qaInclusions", value)}
+            filterQuery={normalizedQuery}
           />
         </SettingItem>
       </SettingsSection>
@@ -392,10 +417,16 @@ export const SearchSettings: React.FC = () => {
         <SettingsSection
           icon={<HardDrive className="tw-size-4" />}
           title="Storage"
-          description="Control where and how the search index is stored"
+          description="Configure search index storage options."
           accentColor="var(--color-base-50)"
           collapsible
           defaultOpen={false}
+          searchTerms={[
+            "Enable Obsidian Sync for Hendrik index",
+            "Disable index loading on mobile",
+            "sync",
+            "mobile",
+          ]}
         >
           <SettingItem
             type="switch"

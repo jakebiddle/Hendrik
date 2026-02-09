@@ -1,4 +1,5 @@
 import { PromptContextEnvelope } from "@/context/PromptContextTypes";
+import { ChronicleQuestion } from "@/types/chronicleQuestion";
 import { TFile } from "obsidian";
 
 /**
@@ -163,6 +164,9 @@ export interface ChatMessage {
 
   /** Response metadata from LLM (for AI messages) */
   responseMetadata?: ResponseMetadata;
+
+  /** Interactive chronicle questions embedded in AI responses (persisted with answers) */
+  chronicleQuestions?: ChronicleQuestion[];
 }
 
 /**
@@ -215,4 +219,7 @@ export interface StoredMessage {
   sources?: { title: string; path: string; score: number; explanation?: any }[];
   content?: any[];
   responseMetadata?: ResponseMetadata;
+
+  /** Interactive chronicle questions embedded in AI responses (persisted with answers) */
+  chronicleQuestions?: ChronicleQuestion[];
 }

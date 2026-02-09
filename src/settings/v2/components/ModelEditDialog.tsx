@@ -287,6 +287,7 @@ export class ModelEditModal extends Modal {
 
   onOpen() {
     const { contentEl, modalEl } = this;
+    modalEl.addClass("hendrik-settings-modal-shell");
     // It occupies only 80% of the height, leaving a clickable blank area to prevent the close icon from malfunctioning.
     if (Platform.isMobile) {
       modalEl.style.height = "80%";
@@ -317,5 +318,6 @@ export class ModelEditModal extends Modal {
 
   onClose() {
     this.root.unmount();
+    this.modalEl.removeClass("hendrik-settings-modal-shell");
   }
 }

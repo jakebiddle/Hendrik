@@ -28,6 +28,16 @@ import {
   type ToolCallRootRecord,
 } from "@/components/chat-components/toolCallRootManager";
 import { AgentReasoningBlock } from "@/components/chat-components/AgentReasoningBlock";
+import {
+  cleanupMessageChronicleQuestionRoots,
+  cleanupStaleChronicleQuestionRoots,
+  ensureChronicleQuestionRoot,
+  getMessageChronicleQuestionRoots,
+  removeChronicleQuestionRoot,
+  renderChronicleQuestionCard,
+  type ChronicleQuestionRootRecord,
+} from "@/components/chat-components/chronicleQuestionRootManager";
+import { parseChronicleQuestions } from "@/components/chat-components/chronicleQuestionParser";
 import { USER_SENDER } from "@/constants";
 import { cn } from "@/lib/utils";
 import { parseToolCallMarkers } from "@/LLMProviders/chainRunner/utils/toolCallParser";
@@ -180,6 +190,7 @@ interface ChatSingleMessageProps {
   onRegenerate?: () => void;
   onEdit?: (newMessage: string) => void;
   onDelete: () => void;
+  onChronicleAnswer?: (questionId: string, answer: string | string[]) => void;
   staggerDelayMs?: number;
 }
 
@@ -190,6 +201,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   onRegenerate,
   onEdit,
   onDelete,
+  onChronicleAnswer,
   staggerDelayMs,
 }) => {
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -221,6 +233,15 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   const errorRootsRef = useRef<Map<string, ToolCallRootRecord>>(
     getMessageErrorBlockRoots(messageId.current)
   );
+
+  // Store chronicle question roots for inline interactive cards
+  const chronicleRootsRef = useRef<Map<string, ChronicleQuestionRootRecord>>(
+    getMessageChronicleQuestionRoots(messageId.current)
+  );
+
+  // Stable reference to onChronicleAnswer to avoid stale closures in mounted React roots
+  const onChronicleAnswerRef = useRef(onChronicleAnswer);
+  onChronicleAnswerRef.current = onChronicleAnswer;
 
   // Get the global collapsible state map for this message
   // This persists across component lifecycles (streaming -> final message)
@@ -572,9 +593,10 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
       const parsedMessage = parseToolCallMarkers(processedMessage, messageId.current);
 
       if (!isUnmountingRef.current) {
-        // Track existing tool call and error block IDs
+        // Track existing tool call, error block, and chronicle question IDs
         const existingToolCallIds = new Set<string>();
         const existingErrorIds = new Set<string>();
+        const existingChronicleQuestionIds = new Set<string>();
 
         const existingToolCalls = contentRef.current.querySelectorAll('[id^="tool-call-"]');
         existingToolCalls.forEach((el) => {
@@ -588,29 +610,111 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
           existingErrorIds.add(id);
         });
 
-        // Clear only text content divs, preserve tool call and error block containers
+        const existingChronicleQuestions = contentRef.current.querySelectorAll(
+          '[id^="chronicle-question-"]'
+        );
+        existingChronicleQuestions.forEach((el) => {
+          const qId = el.getAttribute("data-question-id");
+          if (qId) existingChronicleQuestionIds.add(qId);
+        });
+
+        // Clear only text content divs, preserve tool call, error, and chronicle question containers
         const textDivs = contentRef.current.querySelectorAll(".message-segment");
         textDivs.forEach((div) => div.remove());
+
+        // Track all chronicle question IDs rendered this pass
+        const currentChronicleQuestionIds = new Set<string>();
 
         // Process segments and only update what's needed
         let currentIndex = 0;
         parsedMessage.segments.forEach((segment) => {
           if (segment.type === "text" && segment.content.trim()) {
-            // Find where to insert this text segment
-            const insertBefore = contentRef.current!.children[currentIndex];
+            // Sub-parse text for chronicle question blocks
+            const chronicleParsed = parseChronicleQuestions(
+              segment.content,
+              messageId.current,
+              message.chronicleQuestions,
+              isStreaming
+            );
 
-            const textDiv = document.createElement("div");
-            textDiv.className = "message-segment markdown-rendered";
-
-            if (insertBefore) {
-              contentRef.current!.insertBefore(textDiv, insertBefore);
+            if (!chronicleParsed.hasQuestions) {
+              // No chronicle questions — render as before
+              const insertBefore = contentRef.current!.children[currentIndex];
+              const textDiv = document.createElement("div");
+              textDiv.className = "message-segment markdown-rendered";
+              if (insertBefore) {
+                contentRef.current!.insertBefore(textDiv, insertBefore);
+              } else {
+                contentRef.current!.appendChild(textDiv);
+              }
+              MarkdownRenderer.renderMarkdown(segment.content, textDiv, "", componentRef.current!);
+              normalizeFootnoteRendering(textDiv);
+              currentIndex++;
             } else {
-              contentRef.current!.appendChild(textDiv);
-            }
+              // Interleave text sub-segments with chronicle question containers
+              chronicleParsed.segments.forEach((subSegment) => {
+                if (subSegment.type === "text" && subSegment.content.trim()) {
+                  const insertBefore = contentRef.current!.children[currentIndex];
+                  const textDiv = document.createElement("div");
+                  textDiv.className = "message-segment markdown-rendered";
+                  if (insertBefore) {
+                    contentRef.current!.insertBefore(textDiv, insertBefore);
+                  } else {
+                    contentRef.current!.appendChild(textDiv);
+                  }
+                  MarkdownRenderer.renderMarkdown(
+                    subSegment.content,
+                    textDiv,
+                    "",
+                    componentRef.current!
+                  );
+                  normalizeFootnoteRendering(textDiv);
+                  currentIndex++;
+                } else if (subSegment.type === "chronicleQuestion") {
+                  const questionId = subSegment.question.id;
+                  currentChronicleQuestionIds.add(questionId);
 
-            MarkdownRenderer.renderMarkdown(segment.content, textDiv, "", componentRef.current!);
-            normalizeFootnoteRendering(textDiv);
-            currentIndex++;
+                  const containerId = `chronicle-question-${messageId.current}-${questionId}`;
+                  let container = document.getElementById(containerId);
+
+                  if (!container) {
+                    const insertBefore = contentRef.current!.children[currentIndex];
+                    const qDiv = document.createElement("div");
+                    qDiv.className = "chronicle-question-container";
+                    qDiv.id = containerId;
+                    qDiv.setAttribute("data-question-id", questionId);
+
+                    if (insertBefore) {
+                      contentRef.current!.insertBefore(qDiv, insertBefore);
+                    } else {
+                      contentRef.current!.appendChild(qDiv);
+                    }
+                    container = qDiv;
+                  }
+
+                  const rootRecord = ensureChronicleQuestionRoot(
+                    messageId.current,
+                    chronicleRootsRef.current,
+                    questionId,
+                    container as HTMLElement,
+                    "chronicle render"
+                  );
+
+                  if (!isUnmountingRef.current && !rootRecord.isUnmounting) {
+                    renderChronicleQuestionCard(
+                      rootRecord,
+                      subSegment.question,
+                      isStreaming,
+                      (qId: string, answer: string | string[]) => {
+                        onChronicleAnswerRef.current?.(qId, answer);
+                      }
+                    );
+                  }
+
+                  currentIndex++;
+                }
+              });
+            }
           } else if (segment.type === "toolCall" && segment.toolCall) {
             const toolCallId = segment.toolCall.id;
             let container = document.getElementById(`tool-call-${toolCallId}`);
@@ -718,6 +822,24 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
             }
           }
         });
+
+        // Clean up any chronicle questions that no longer exist
+        existingChronicleQuestionIds.forEach((qId) => {
+          if (!currentChronicleQuestionIds.has(qId)) {
+            const element = document.getElementById(
+              `chronicle-question-${messageId.current}-${qId}`
+            );
+            if (element) {
+              removeChronicleQuestionRoot(
+                messageId.current,
+                chronicleRootsRef.current,
+                qId,
+                "chronicle question removal"
+              );
+              element.remove();
+            }
+          }
+        });
       }
     }
 
@@ -733,11 +855,13 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
     const currentMessageId = messageId.current;
     const messageRootsSnapshot = rootsRef.current;
     const errorRootsSnapshot = errorRootsRef.current;
+    const chronicleRootsSnapshot = chronicleRootsRef.current;
 
     // Clean up old message roots to prevent memory leaks (older than 1 hour)
     const cleanupOldRoots = () => {
       cleanupStaleToolCallRoots();
       cleanupStaleErrorBlockRoots();
+      cleanupStaleChronicleQuestionRoots();
     };
 
     // Run cleanup on mount
@@ -765,6 +889,11 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
         if (currentMessageId.startsWith("temp-")) {
           cleanupMessageToolCallRoots(currentMessageId, messageRootsSnapshot, "component cleanup");
           cleanupMessageErrorBlockRoots(currentMessageId, errorRootsSnapshot, "component cleanup");
+          cleanupMessageChronicleQuestionRoots(
+            currentMessageId,
+            chronicleRootsSnapshot,
+            "component cleanup"
+          );
         }
       }, 0);
     };
@@ -892,7 +1021,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
       <div
         className={cn(
-          "hendrik-chat-message-card tw-group tw-flex tw-max-w-[92%] tw-flex-col tw-gap-2 tw-rounded-xl tw-px-3 tw-py-2",
+          "hendrik-chat-message-card tw-group tw-flex tw-max-w-[92%] tw-flex-col tw-gap-2 tw-rounded-xl tw-px-2.5 tw-py-2",
           isUserMessage
             ? "hendrik-chat-message-card--user"
             : "hendrik-chat-message-card--assistant",

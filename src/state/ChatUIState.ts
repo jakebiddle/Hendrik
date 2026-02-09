@@ -2,6 +2,7 @@ import { ChainType } from "@/chainFactory";
 import { logInfo } from "@/logger";
 import { ChatManager } from "@/core/ChatManager";
 import { ChatMessage, MessageContext } from "@/types/message";
+import { ChronicleQuestion } from "@/types/chronicleQuestion";
 import { TFile } from "obsidian";
 
 /**
@@ -131,6 +132,20 @@ export class ChatUIState {
    */
   async deleteMessage(messageId: string): Promise<boolean> {
     const success = await this.chatManager.deleteMessage(messageId);
+    if (success) {
+      this.notifyListeners();
+    }
+    return success;
+  }
+
+  /**
+   * Update chronicle questions on a message
+   */
+  async updateMessageChronicleQuestions(
+    messageId: string,
+    questions: ChronicleQuestion[]
+  ): Promise<boolean> {
+    const success = await this.chatManager.updateMessageChronicleQuestions(messageId, questions);
     if (success) {
       this.notifyListeners();
     }

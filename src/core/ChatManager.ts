@@ -8,6 +8,7 @@ import { ChainType } from "@/chainFactory";
 import { getCurrentProject, type ProjectConfig } from "@/aiParams";
 import { logInfo, logWarn } from "@/logger";
 import { ChatMessage, MessageContext, WebTabContext } from "@/types/message";
+import { ChronicleQuestion } from "@/types/chronicleQuestion";
 import { processPrompt, type ProcessedPromptResult } from "@/commands/customCommandUtils";
 import { FileParserManager } from "@/tools/FileParserManager";
 import ChainManager from "@/LLMProviders/chainManager";
@@ -31,6 +32,22 @@ const MIN_RESERVED_COMPLETION_TOKENS = 512;
 const MIN_RESERVED_HEADROOM_TOKENS = 1024;
 
 /**
+ * Returns a high-resolution timestamp when available.
+ */
+function getPerfNowMs(): number {
+  return typeof globalThis.performance?.now === "function"
+    ? globalThis.performance.now()
+    : Date.now();
+}
+
+/**
+ * Formats elapsed milliseconds since `startMs`.
+ */
+function formatElapsedMs(startMs: number): string {
+  return `${(getPerfNowMs() - startMs).toFixed(1)}ms`;
+}
+
+/**
  * ChatManager - Central business logic coordinator
  *
  * This is the main business logic hub that coordinates all chat operations.
@@ -42,6 +59,7 @@ export class ChatManager {
   private projectMessageRepos: Map<string, MessageRepository> = new Map();
   private defaultProjectKey = "defaultProjectKey";
   private lastKnownProjectId: string | null = null;
+  private isMemorySyncRequired = false;
   private persistenceManager: ChatPersistenceManager;
   private onMessageCreatedCallback?: (messageId: string) => void;
 
@@ -91,6 +109,20 @@ export class ChatManager {
     );
 
     return currentRepo;
+  }
+
+  /**
+   * Ensure chat memory is synchronized when a lazy refresh is pending.
+   */
+  private async ensureMemorySynced(): Promise<void> {
+    if (!this.isMemorySyncRequired) {
+      return;
+    }
+
+    const ensureSyncStartMs = getPerfNowMs();
+    logInfo("[Perf][ChatManager] ensureMemorySynced start");
+    await this.updateChainMemory();
+    logInfo(`[Perf][ChatManager] ensureMemorySynced done (${formatElapsedMs(ensureSyncStartMs)})`);
   }
 
   /**
@@ -575,6 +607,7 @@ export class ChatManager {
   ): Promise<string> {
     try {
       logInfo(`[ChatManager] Sending message: "${displayText}"`);
+      await this.ensureMemorySynced();
 
       // Get active note
       const activeNote = this.plugin.app.workspace.getActiveFile();
@@ -804,6 +837,17 @@ export class ChatManager {
   }
 
   /**
+   * Update chronicle questions on a message
+   */
+  async updateMessageChronicleQuestions(
+    messageId: string,
+    questions: ChronicleQuestion[]
+  ): Promise<boolean> {
+    const currentRepo = this.getCurrentMessageRepo();
+    return currentRepo.updateChronicleQuestions(messageId, questions);
+  }
+
+  /**
    * Add a message
    */
   addMessage(message: ChatMessage): string {
@@ -820,6 +864,7 @@ export class ChatManager {
     currentRepo.clear();
     // Clear chain memory directly
     this.chainManager.memoryManager.clearChatMemory();
+    this.isMemorySyncRequired = false;
     logInfo(`[ChatManager] Cleared all messages`);
   }
 
@@ -876,6 +921,7 @@ export class ChatManager {
       const currentRepo = this.getCurrentMessageRepo();
       const llmMessages = currentRepo.getLLMMessages();
       await updateChatMemory(llmMessages, this.chainManager.memoryManager);
+      this.isMemorySyncRequired = false;
       logInfo(`[ChatManager] Updated chain memory with ${llmMessages.length} messages`);
     } catch (error) {
       logInfo(`[ChatManager] Error updating chain memory:`, error);
@@ -922,19 +968,27 @@ export class ChatManager {
    * This ensures the UI gets the correct messages when switching projects
    */
   async handleProjectSwitch(): Promise<void> {
+    const projectSwitchStartMs = getPerfNowMs();
     const currentProjectId = this.plugin.projectManager.getCurrentProjectId();
     logInfo(`[ChatManager] Handling project switch to: ${currentProjectId}`);
+    logInfo(
+      `[Perf][ChatManager] handleProjectSwitch start (project=${currentProjectId ?? "default"})`
+    );
 
     // Force detection of project change
     this.lastKnownProjectId = null; // Reset to force change detection
-    const currentRepo = this.getCurrentMessageRepo();
+    const getRepoStartMs = getPerfNowMs();
+    this.getCurrentMessageRepo();
+    logInfo(`[Perf][ChatManager] getCurrentMessageRepo (${formatElapsedMs(getRepoStartMs)})`);
 
-    // Sync chain memory with the current project's messages
-    await this.updateChainMemory();
+    // Defer chain-memory synchronization to the next operation that needs it.
+    // This keeps Project <-> Agent mode switching responsive.
+    this.isMemorySyncRequired = true;
 
     logInfo(
-      `[ChatManager] Project switch complete. Messages: ${currentRepo.getDisplayMessages().length}`
+      `[Perf][ChatManager] handleProjectSwitch done (${formatElapsedMs(projectSwitchStartMs)})`
     );
+    logInfo("[ChatManager] Project switch complete.");
   }
 
   /**

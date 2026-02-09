@@ -1039,12 +1039,31 @@ body.is-mobile
   position: fixed;
   right: 24px;
   bottom: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
+  /* Shell is sized to the launcher — panel is absolutely positioned from it. */
+  width: 54px;
+  height: 54px;
   pointer-events: auto;
   z-index: 10001;
+}
+
+/* ── Panel anchor direction variants ────────────────────────── */
+/* Default: panel absolutely positioned from the launcher shell.
+   Actual position/origin is set via inline styles in React. */
+.hendrik-floating-panel {
+  position: absolute;
+}
+
+/* Flip the enter/exit translateY when panel is below */
+.hendrik-floating-shell[data-panel-v="below"] .hendrik-floating-panel {
+  transform: translateY(-40px) scale(0.4);
+}
+.hendrik-floating-shell[data-panel-v="below"] .hendrik-floating-panel--open {
+  transform: translateY(0) scale(1);
+  animation-name: hendrik-panel-enter-below;
+}
+.hendrik-floating-shell[data-panel-v="below"] .hendrik-floating-panel--closing {
+  transform: translateY(-40px) scale(0.4);
+  animation-name: hendrik-panel-exit-below;
 }
 
 .hendrik-ribbon-icon {
@@ -1086,9 +1105,16 @@ body.is-mobile
   position: relative;
   overflow: hidden;
   z-index: 3;
+  cursor: grab;
+  touch-action: none;
   transition:
     transform 0.18s ease,
     box-shadow 0.18s ease;
+}
+
+.hendrik-floating-launcher--dragging {
+  cursor: grabbing !important;
+  transition: none;
 }
 
 .hendrik-floating-launcher::after {
@@ -1157,7 +1183,7 @@ body.is-mobile
   opacity: 0;
   transform: translateY(40px) scale(0.4);
   transform-origin: bottom right;
-  width: min(500px, 94vw);
+  width: min(460px, 94vw);
   height: min(820px, 88vh);
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
@@ -1844,7 +1870,7 @@ body.is-mobile
 }
 
 .hendrik-chat-header {
-  padding: 8px 10px;
+  padding: 8px 8px;
   background: color-mix(in srgb, var(--hendrik-surface-1) 98%, transparent);
 }
 
@@ -1863,12 +1889,12 @@ body.is-mobile
 }
 
 .hendrik-chat-body {
-  padding: 8px;
+  padding: 6px;
   gap: 8px;
 }
 
 .hendrik-chat-composer {
-  padding: 6px 8px 10px;
+  padding: 6px 6px 10px;
   background: color-mix(in srgb, var(--hendrik-surface-0) 99%, transparent);
 }
 
@@ -2187,10 +2213,57 @@ body.is-mobile
   }
 }
 
+/* Flipped animations for panel-below (near top of viewport) */
+@keyframes hendrik-panel-enter-below {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hendrik-panel-exit-below {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.4);
+  }
+}
+
 @keyframes hendrik-stagger {
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Tab switch entrance animations ─────────────────────────── */
+
+@keyframes hendrik-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hendrik-hub-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -3143,6 +3216,47 @@ body.is-mobile div[data-radix-popper-content-wrapper] {
   animation-delay: 0.1s;
 }
 
+/* ── Tab panel entrance animations ──────────────────────────── */
+
+/* Agent tab content fades in when mounted */
+.hendrik-chat-empty,
+.hendrik-chat-stream {
+  animation: hendrik-tab-enter 0.22s ease-out both;
+}
+
+/* Project mode shell entrance */
+.hendrik-project-mode-shell {
+  animation: hendrik-tab-enter 0.22s ease-out both;
+}
+
+/* Project hub card rises with a stagger delay */
+.hendrik-project-mode-shell .hendrik-project-hub {
+  animation: hendrik-hub-rise 0.28s ease-out 0.08s both;
+}
+
+/* Project list items stagger in */
+.hendrik-project-list-item {
+  animation: hendrik-tab-enter 0.2s ease-out both;
+}
+.hendrik-project-list-item:nth-child(1) {
+  animation-delay: 0.06s;
+}
+.hendrik-project-list-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.hendrik-project-list-item:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.hendrik-project-list-item:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.hendrik-project-list-item:nth-child(5) {
+  animation-delay: 0.22s;
+}
+.hendrik-project-list-item:nth-child(n + 6) {
+  animation-delay: 0.24s;
+}
+
 /* ── Metrics pill responsive ─────────────────────────────────── */
 
 @media screen and (max-width: 768px) {
@@ -3427,4 +3541,1115 @@ body.is-mobile div[data-radix-popper-content-wrapper] {
     var(--background-modifier-border)
   );
   background: color-mix(in srgb, var(--background-primary) 96%, var(--hendrik-project-accent) 4%);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hendrik Redesign v2 — Ribbon + Parchment adaptive shell
+   Non-destructive final override block.
+   ═══════════════════════════════════════════════════════════════ */
+
+.hendrik-chat-main {
+  background: color-mix(in srgb, var(--background-primary) 94%, #f6efe3 6%);
+  border-left: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+}
+
+.hendrik-mode-ribbon {
+  width: 64px;
+  flex-shrink: 0;
+  border-right: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--background-primary) 95%, #f8f2e7 5%),
+    color-mix(in srgb, var(--background-primary) 92%, #f3ead9 8%)
+  );
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding: 8px 4px;
+}
+
+.hendrik-mode-ribbon__inner {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 45%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 92%, #f8f1e4 8%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 6px;
+}
+
+.hendrik-mode-ribbon__cap {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.hendrik-mode-ribbon__buttons {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+}
+
+.hendrik-mode-ribbon__button {
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  position: relative;
+  overflow: hidden;
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+/* Animated background pill — lives on every button, only visible when active */
+.hendrik-mode-ribbon__button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--interactive-accent) 18%, transparent),
+    color-mix(in srgb, var(--background-primary) 84%, #f4ead8 16%)
+  );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--interactive-accent) 40%, var(--background-modifier-border));
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hendrik-mode-ribbon__button--active::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Keep button content above the pill */
+.hendrik-mode-ribbon__button-icon,
+.hendrik-mode-ribbon__button-label {
+  position: relative;
+  z-index: 1;
+}
+
+.hendrik-mode-ribbon__button:hover {
+  color: var(--text-normal);
+  background: color-mix(in srgb, var(--background-primary) 75%, var(--interactive-accent) 25%);
+}
+
+.hendrik-mode-ribbon__button--active {
+  color: var(--text-normal);
+  background: transparent;
+  box-shadow: none;
+}
+
+.hendrik-mode-ribbon__button--active:hover {
+  background: transparent;
+}
+
+.hendrik-mode-ribbon__button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hendrik-mode-ribbon__button-label {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 550;
+}
+
+.hendrik-chat-root {
+  --hendrik-font-ui: "Space Grotesk", "DM Sans", "Avenir Next", "Helvetica Neue", sans-serif;
+  --hendrik-surface-0: color-mix(in srgb, var(--background-primary) 94%, #f9f3e9 6%);
+  --hendrik-surface-1: color-mix(in srgb, var(--background-primary) 90%, #f4ebdc 10%);
+  --hendrik-surface-2: color-mix(in srgb, var(--background-primary) 84%, #f2e5d2 16%);
+  --hendrik-border-soft: color-mix(in srgb, var(--background-modifier-border) 62%, transparent);
+  --hendrik-border-strong: color-mix(in srgb, var(--background-modifier-border) 84%, transparent);
+  font-family: var(--hendrik-font-ui);
+}
+
+.hendrik-chat-surface {
+  background: radial-gradient(
+      115% 145% at -12% -18%,
+      color-mix(in srgb, var(--interactive-accent) 11%, transparent),
+      transparent 62%
+    ),
+    var(--hendrik-surface-0);
+}
+
+.hendrik-chat-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hendrik-border-soft);
+  background: color-mix(in srgb, var(--hendrik-surface-1) 97%, transparent);
+}
+
+.hendrik-chat-controls {
+  min-height: 34px;
+  gap: 6px;
+}
+
+.hendrik-chat-controls__right button,
+.hendrik-chat-controls__left button {
+  border-radius: 9px;
+}
+
+.hendrik-chat-controls__metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 44%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, transparent);
+  font-size: 11px;
+}
+
+.hendrik-chat-controls__project-row {
+  margin-top: 5px;
+  padding-top: 5px;
+}
+
+.hendrik-chat-body {
+  padding: 0;
+  gap: 0;
+}
+
+.hendrik-chat-composer {
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--hendrik-border-soft);
+  background: color-mix(in srgb, var(--hendrik-surface-0) 96%, transparent);
+}
+
+.hendrik-chat-input {
+  border-radius: 16px;
+  border: 1px solid var(--hendrik-border-strong);
+  background: color-mix(in srgb, var(--background-primary) 93%, #f9f2e5 7%);
+  box-shadow:
+    0 10px 26px rgba(16, 12, 8, 0.08),
+    inset 0 1px 0 color-mix(in srgb, var(--background-primary) 60%, white 40%);
+}
+
+.hendrik-chat-empty__center {
+  padding: 34px 24px 24px;
+}
+
+.hendrik-chat-empty__title {
+  font-size: 23px;
+}
+
+.hendrik-chat-empty__subtitle {
+  max-width: 44ch;
+}
+
+.hendrik-chat-message-row {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.hendrik-chat-message-card {
+  border: 1px solid var(--hendrik-border-soft);
+  box-shadow: 0 3px 12px rgba(12, 12, 12, 0.05);
+}
+
+.hendrik-chat-message-card--assistant {
+  background: color-mix(in srgb, var(--background-primary) 96%, #f6ecdd 4%);
+}
+
+.hendrik-chat-message-card--user {
+  background: color-mix(in srgb, var(--background-primary) 92%, var(--interactive-accent) 8%);
+}
+
+.hendrik-chat-history-popover {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, #f6ecde 4%);
+  box-shadow: 0 18px 42px rgba(9, 9, 9, 0.18);
+}
+
+.hendrik-chat-history-popover__frame {
+  max-height: 460px;
+}
+
+.hendrik-chat-history-popover__group {
+  border-color: color-mix(in srgb, var(--background-modifier-border) 56%, transparent);
+}
+
+.hendrik-settings-sheet {
+  background: color-mix(in srgb, var(--background-primary) 96%, #f6ebdd 4%);
+  box-shadow: -12px 0 36px rgba(8, 8, 8, 0.2);
+}
+
+.hendrik-settings-sheet__frame {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--background-primary) 98%, #fcf7ee 2%),
+    color-mix(in srgb, var(--background-primary) 96%, #f6ebdd 4%)
+  );
+}
+
+.hendrik-project-list-shell {
+  padding: 12px;
+}
+
+.hendrik-project-list-card {
+  border-radius: 14px;
+  border: 1px solid var(--hendrik-border-soft);
+  background: color-mix(in srgb, var(--background-primary) 95%, #f8efe2 5%);
+  box-shadow: 0 10px 24px rgba(9, 9, 9, 0.08);
+}
+
+.hendrik-project-list-card__header {
+  background: color-mix(in srgb, var(--background-primary) 90%, #f3e8d8 10%);
+}
+
+.hendrik-project-list-item {
+  border-radius: 11px;
+}
+
+.hendrik-project-list-item:hover {
+  background: color-mix(in srgb, var(--background-primary) 86%, #efe0c8 14%);
+}
+
+.hendrik-project-active-bar {
+  border: 1px solid var(--hendrik-border-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--background-primary) 65%, white 35%);
+}
+
+.hendrik-project-landing__hero,
+.hendrik-project-landing__sources,
+.hendrik-project-landing__recent {
+  box-shadow: 0 8px 20px rgba(9, 9, 9, 0.07);
+}
+
+.hendrik-project-form-overlay {
+  background: color-mix(in srgb, var(--background-primary) 40%, black 60%);
+}
+
+.hendrik-project-form-shell {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, #f6ecdc 4%);
+  box-shadow: 0 22px 44px rgba(8, 8, 8, 0.22);
+}
+
+.hendrik-project-form__title {
+  letter-spacing: 0.01em;
+}
+
+.hendrik-project-form__section {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 36%, transparent);
+  border-radius: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--background-primary) 98%, #fff8ee 2%);
+}
+
+.hendrik-project-form__actions {
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 42%, transparent);
+  padding-top: 10px;
+}
+
+.hendrik-context-manage-modal-shell {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.hendrik-context-manage-modal-shell .modal-content {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 62%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 95%, #f5ebdc 5%);
+}
+
+.hendrik-context-manage-modal-shell .modal-content h2,
+.hendrik-context-manage-modal-shell .modal-content h3 {
+  letter-spacing: 0.01em;
+}
+
+.hendrik-confirm-modal-shell .modal-content,
+.hendrik-sources-modal-shell .modal-content,
+.hendrik-searchable-modal-shell .modal-content {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 66%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, #f8efe1 4%);
+  box-shadow: 0 20px 44px rgba(9, 9, 9, 0.2);
+}
+
+.hendrik-confirm-modal {
+  padding: 4px 2px;
+}
+
+.hendrik-confirm-modal__content {
+  color: var(--text-normal);
+  line-height: 1.5;
+}
+
+.hendrik-sources-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hendrik-sources-modal__header {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.hendrik-sources-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(55vh, 520px);
+  overflow-y: auto;
+}
+
+.hendrik-sources-modal__item {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 50%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--background-primary) 98%, #fdf8f0 2%);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hendrik-sources-modal__item-main,
+.hendrik-sources-modal__item-toggle {
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-normal);
+  padding: 0;
+}
+
+.hendrik-sources-modal__item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hendrik-sources-modal__item-title {
+  color: var(--text-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.hendrik-sources-modal__item-score {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.hendrik-sources-modal__item-toggle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.hendrik-sources-modal__item-details {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hendrik-searchable-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px;
+}
+
+.hendrik-searchable-modal__input {
+  border-radius: 10px;
+}
+
+.hendrik-searchable-modal__list {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 2px;
+}
+
+.hendrik-searchable-modal__empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 16px 8px;
+}
+
+.hendrik-searchable-modal__option {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--background-primary) 96%, #f6ecdd 4%);
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-normal);
+}
+
+.hendrik-searchable-modal__option:hover,
+.hendrik-searchable-modal__option--active {
+  border-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 40%,
+    var(--background-modifier-border)
+  );
+  background: color-mix(in srgb, var(--background-primary) 86%, var(--interactive-accent) 14%);
+}
+
+.hendrik-searchable-modal__option-label {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.hendrik-searchable-modal__option-description {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.hendrik-floating-panel {
+  width: min(560px, 96vw);
+  height: min(860px, 92vh);
+  border-radius: 18px;
+}
+
+@media screen and (max-width: 768px) {
+  .hendrik-mode-ribbon {
+    width: 52px;
+    padding: 6px 4px;
+  }
+
+  .hendrik-mode-ribbon__cap {
+    display: none;
+  }
+
+  .hendrik-mode-ribbon__inner {
+    padding: 8px 4px;
+  }
+
+  .hendrik-mode-ribbon__button {
+    padding: 8px 4px;
+  }
+
+  .hendrik-mode-ribbon__button-label {
+    display: none;
+  }
+
+  .hendrik-chat-header {
+    padding: 7px 8px;
+  }
+
+  .hendrik-chat-composer {
+    padding: 8px 8px 10px;
+  }
+
+  .hendrik-floating-shell {
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .hendrik-floating-panel {
+    width: min(98vw, 560px);
+    height: min(88vh, 860px);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hendrik Redesign v2.1 — usability corrections + project refresh
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Keep ribbon vertical and orient mode labels vertically. */
+.hendrik-mode-ribbon__cap {
+  display: none !important;
+}
+
+.hendrik-mode-ribbon__inner {
+  padding: 8px 4px;
+  gap: 8px;
+}
+
+.hendrik-mode-ribbon__buttons {
+  height: 100%;
+  gap: 8px;
+}
+
+.hendrik-mode-ribbon__button {
+  min-height: 118px;
+  padding: 8px 4px;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hendrik-mode-ribbon__button-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 650;
+}
+
+/* Keep settings in an anchored menu over chat instead of sidebar sheet behavior. */
+.hendrik-settings-menu {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, #f6ebdd 4%);
+  box-shadow: 0 18px 44px rgba(8, 8, 8, 0.24);
+}
+
+.hendrik-settings-menu__frame {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--background-primary) 98%, #fcf7ee 2%),
+    color-mix(in srgb, var(--background-primary) 96%, #f6ebdd 4%)
+  );
+}
+
+/* Prevent avatar distortion when the footer helper panel grows. */
+.hendrik-chat-empty__avatar {
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
+  width: min(148px, 30vw);
+  height: auto;
+  min-width: 88px;
+  min-height: 88px;
+}
+
+/* Allow click-through to underlying Obsidian UI when floating chat is closed. */
+.hendrik-floating-shell {
+  pointer-events: none;
+}
+
+.hendrik-floating-shell[data-open="false"] .hendrik-floating-panel {
+  display: none;
+}
+
+.hendrik-floating-launcher {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.hendrik-floating-launcher--dragging {
+  cursor: grabbing;
+}
+
+.hendrik-floating-panel--open,
+.hendrik-floating-panel--open .hendrik-floating-panel__content {
+  pointer-events: auto;
+}
+
+/* Project mode visual refresh */
+.hendrik-project-hub {
+  border: 1px solid var(--hendrik-border-soft);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--background-primary) 95%, #f8efe2 5%);
+  box-shadow: 0 12px 26px rgba(9, 9, 9, 0.08);
+}
+
+/* Settings redesign: native Obsidian setting language with scoped styling. */
+.hendrik-plugin-settings .hendrik-settings-hero {
+  border-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 18%,
+    var(--background-modifier-border)
+  );
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--interactive-accent) 14%, transparent),
+    color-mix(in srgb, var(--background-primary) 96%, transparent) 55%
+  );
+}
+
+.hendrik-plugin-settings .hendrik-settings-hero a,
+.hendrik-plugin-settings .hendrik-settings-hero button {
+  border-color: var(--background-modifier-border);
+}
+
+.hendrik-plugin-settings .hendrik-settings-nav {
+  border-right: 1px solid var(--background-modifier-border);
+  padding-right: 10px;
+}
+
+.hendrik-plugin-settings .hendrik-settings-tab-button {
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.hendrik-plugin-settings .hendrik-settings-tab-button:hover {
+  background: var(--background-modifier-hover);
+}
+
+.hendrik-plugin-settings .hendrik-settings-tab-button.is-active {
+  background: var(--interactive-accent);
+}
+
+.hendrik-plugin-settings .hendrik-settings-mobile-pill {
+  border-color: var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.hendrik-plugin-settings .hendrik-settings-mobile-pill.is-active {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+}
+
+.hendrik-plugin-settings .setting-item {
+  align-items: flex-start;
+}
+
+.hendrik-plugin-settings .setting-item-info {
+  padding-right: 12px;
+}
+
+.hendrik-plugin-settings .setting-item-name {
+  color: var(--text-normal);
+}
+
+.hendrik-plugin-settings .setting-item-description {
+  color: var(--text-muted);
+}
+
+.hendrik-plugin-settings .hendrik-settings-search-row {
+  margin-bottom: 6px;
+}
+
+.hendrik-plugin-settings .hendrik-settings-search-row .setting-item-control {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hendrik-plugin-settings .setting-item-control code {
+  font-size: 0.86em;
+}
+
+.hendrik-plugin-settings .hendrik-settings-section__items > .setting-item:last-child {
+  border-bottom: 0;
+}
+
+.hendrik-settings-modal-shell .modal-content,
+.hendrik-settings-dialog {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.hendrik-settings-modal-shell .modal-title,
+.hendrik-settings-modal-shell h2 {
+  color: var(--text-normal);
+}
+
+.hendrik-settings-modal-shell .modal-content .setting-item {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.hendrik-settings-modal-shell .modal-content .setting-item:last-child {
+  border-bottom: 0;
+}
+
+.hendrik-project-hub__header {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 48%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 90%, #f3e8d8 10%);
+}
+
+.hendrik-project-hub__search {
+  padding: 0 2px;
+}
+
+.hendrik-project-hub__content {
+  padding: 0 2px 2px;
+}
+
+.hendrik-project-hub__list {
+  padding-right: 2px;
+}
+
+.hendrik-project-hub__empty {
+  border: 1px dashed color-mix(in srgb, var(--background-modifier-border) 62%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 97%, #fcf6ea 3%);
+}
+
+.hendrik-project-hub__hint {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 42%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 92%, #f4ead8 8%);
+}
+
+.hendrik-project-list-item {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 46%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 97%, #faf4e8 3%);
+}
+
+.hendrik-project-list-item:hover {
+  background: color-mix(in srgb, var(--background-primary) 90%, #efe0c8 10%);
+  border-color: color-mix(in srgb, var(--background-modifier-border) 78%, transparent);
+  transform: translateY(-1px);
+}
+
+.hendrik-project-active-bar {
+  margin: 10px 10px 0;
+  border-radius: 12px;
+  border: 1px solid var(--hendrik-border-soft);
+  background: color-mix(in srgb, var(--background-primary) 95%, #f7ecdc 5%);
+}
+
+.hendrik-project-landing {
+  padding: 12px;
+}
+
+.hendrik-project-landing__hero {
+  border-radius: 14px;
+  box-shadow: 0 12px 26px rgba(10, 10, 10, 0.08);
+}
+
+.hendrik-project-landing__sources,
+.hendrik-project-landing__recent {
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--background-primary) 97%, #faf4e9 3%);
+}
+
+@media screen and (max-width: 768px) {
+  .hendrik-mode-ribbon {
+    width: 56px;
+    padding: 6px 3px;
+  }
+
+  .hendrik-mode-ribbon__button {
+    min-height: 94px;
+  }
+
+  .hendrik-mode-ribbon__button-icon {
+    display: none;
+  }
+
+  .hendrik-mode-ribbon__button-label {
+    display: inline;
+    font-size: 9px;
+  }
+
+  .hendrik-chat-empty__avatar {
+    min-width: 72px;
+    min-height: 72px;
+    width: min(110px, 30vw);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hendrik Redesign v2.2 — project-mode polish from latest mockups
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Keep project header controls visually anchored near the top edge. */
+.hendrik-chat-header {
+  padding: 5px 8px 6px;
+}
+
+.hendrik-chat-controls {
+  min-height: 30px;
+}
+
+.hendrik-chat-controls__project-row {
+  margin-top: 1px;
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.hendrik-chat-controls__project-row-label {
+  font-size: 10px;
+  letter-spacing: 0.11em;
+}
+
+.hendrik-chat-controls__project-row-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Project mode landing/list shell */
+.hendrik-project-mode-shell {
+  padding-top: 8px;
+}
+
+.hendrik-project-mode-shell__hero {
+  padding-bottom: 8px;
+}
+
+.hendrik-project-mode-shell__avatar {
+  width: 138px;
+  height: 138px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 54%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, #f7efe3 4%);
+  box-shadow: 0 8px 20px rgba(12, 12, 12, 0.12);
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.hendrik-project-mode-shell__avatar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--hendrik-icon-ink);
+  -webkit-mask-image: var(--hendrik-icon-url);
+  mask-image: var(--hendrik-icon-url);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center 44%;
+  mask-position: center 44%;
+  -webkit-mask-size: 150%;
+  mask-size: 150%;
+  pointer-events: none;
+}
+
+.hendrik-project-mode-shell__title {
+  max-width: 30ch;
+  font-size: 16px;
+  line-height: 1.25;
+  color: var(--text-normal);
+  font-weight: 650;
+}
+
+.hendrik-project-hub {
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  overflow: hidden;
+}
+
+.hendrik-project-hub__header {
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  border-radius: 0;
+}
+
+.hendrik-project-hub__content {
+  padding: 8px;
+}
+
+.hendrik-project-hub__list {
+  gap: 8px;
+}
+
+.hendrik-project-hub__collapsed {
+  border-top: 1px solid color-mix(in srgb, var(--background-modifier-border) 42%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 96%, #faf3e8 4%);
+}
+
+.hendrik-project-list-item {
+  border-radius: 14px;
+}
+
+.hendrik-project-active-bar {
+  margin: 4px 8px 0;
+}
+
+.hendrik-project-landing {
+  padding-top: 6px;
+}
+
+@media screen and (max-width: 768px) {
+  .hendrik-chat-header {
+    padding: 4px 6px 6px;
+  }
+
+  .hendrik-project-mode-shell__avatar {
+    width: 96px;
+    height: 96px;
+  }
+
+  .hendrik-project-mode-shell__title {
+    font-size: 14px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Hendrik Redesign v2.3 — project list page alignment
+   ═══════════════════════════════════════════════════════════════ */
+
+.hendrik-project-mode-shell {
+  gap: 0;
+  padding: 0 12px 12px;
+}
+
+.hendrik-project-mode-shell__hero {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 28px 32px;
+  gap: 0;
+}
+
+.hendrik-project-mode-shell__avatar {
+  width: min(148px, 30vw);
+  height: auto;
+  min-width: 88px;
+  min-height: 88px;
+  margin-bottom: 30px;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
+  border-radius: 999px;
+  background-color: var(--hendrik-icon-backdrop);
+  box-shadow: 0 4px 20px rgba(15, 15, 15, 0.06);
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
+}
+
+.hendrik-project-mode-shell__avatar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--hendrik-icon-ink);
+  -webkit-mask-image: var(--hendrik-icon-url);
+  mask-image: var(--hendrik-icon-url);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: var(--hendrik-icon-position);
+  mask-position: var(--hendrik-icon-position);
+  -webkit-mask-size: var(--hendrik-icon-size);
+  mask-size: var(--hendrik-icon-size);
+  pointer-events: none;
+}
+
+.hendrik-project-mode-shell__title {
+  max-width: 28ch;
+  margin: 0 0 10px;
+  font-size: 23px;
+  line-height: 1.25;
+  letter-spacing: normal;
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+.hendrik-project-mode-shell__subtitle {
+  max-width: 44ch;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.hendrik-project-hub {
+  width: min(100%, 920px);
+  margin: 0 auto;
+  flex-shrink: 0;
+  max-height: min(38vh, 380px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 46%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--background-primary) 96%, #f8efdf 4%);
+  box-shadow: 0 12px 28px rgba(8, 8, 8, 0.14);
+  overflow: hidden;
+}
+
+.hendrik-project-hub__header {
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 38%, transparent);
+  background: color-mix(in srgb, var(--background-secondary) 94%, #f2e7d3 6%);
+}
+
+.hendrik-project-hub__search {
+  padding: 8px 10px 0;
+}
+
+.hendrik-project-hub__content {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px 10px;
+}
+
+.hendrik-project-hub__list {
+  gap: 9px;
+}
+
+.hendrik-project-hub__empty {
+  min-height: 240px;
+  justify-content: center;
+}
+
+.hendrik-project-list-item {
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 42%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--background-primary) 96%, #f8efdf 4%);
+}
+
+.hendrik-project-list-item:hover {
+  border-color: color-mix(in srgb, var(--background-modifier-border) 72%, transparent);
+  background: color-mix(in srgb, var(--background-primary) 90%, #efdec4 10%);
+}
+
+@media screen and (max-width: 768px) {
+  .hendrik-project-mode-shell {
+    gap: 0;
+    padding: 0 8px 10px;
+  }
+
+  .hendrik-project-mode-shell__hero {
+    padding: 24px 20px 20px;
+  }
+
+  .hendrik-project-mode-shell__avatar {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 20px;
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .hendrik-project-mode-shell__title {
+    max-width: 24ch;
+    margin: 0 0 8px;
+    font-size: 19px;
+  }
+
+  .hendrik-project-mode-shell__subtitle {
+    max-width: 36ch;
+    font-size: 12px;
+  }
+
+  .hendrik-project-hub {
+    max-height: none;
+  }
+
+  .hendrik-project-hub__content {
+    padding: 8px;
+  }
+}
+
+/* Final bubble radius safeguard across Obsidian themes. */
+.hendrik-chat-message-card {
+  border-radius: clamp(10px, var(--radius-xl, 16px), 14px);
 }

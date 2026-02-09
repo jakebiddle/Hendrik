@@ -227,7 +227,10 @@ export default class HendrikPlugin extends Plugin {
     // Initialize web selection watcher (Desktop only)
     this.initWebSelectionWatcher();
 
-    this.mountFloatingChat();
+    // Floating chat is desktop only; mobile uses sidebar
+    if (!Platform.isMobile) {
+      this.mountFloatingChat();
+    }
   }
 
   async onunload() {

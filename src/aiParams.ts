@@ -86,6 +86,8 @@ export interface ProjectConfig {
   };
   created: number;
   UsageTimestamps: number;
+  /** Optional chronicle mode override for this project ("none", "narrator", etc.). Undefined = use global default. */
+  chronicleMode?: string;
 }
 
 export interface ModelConfig {

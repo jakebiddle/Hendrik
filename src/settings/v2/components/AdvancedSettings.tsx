@@ -16,8 +16,14 @@ export const AdvancedSettings: React.FC = () => {
       <SettingsSection
         icon={<Brain className="tw-size-4" />}
         title="Memory"
-        description="Hendrik's conversation memory and recall settings"
+        description="Configure conversation memory retention."
         accentColor="var(--color-purple)"
+        searchTerms={[
+          "Memory Folder Name",
+          "Enable Recent Conversations",
+          "Max Recent Conversations",
+          "Enable Saved Memory",
+        ]}
       >
         <SettingItem
           type="text"
@@ -60,10 +66,11 @@ export const AdvancedSettings: React.FC = () => {
       <SettingsSection
         icon={<Globe className="tw-size-4" />}
         title="Proxy & Network"
-        description="Custom proxy URLs for API requests"
+        description="Configure optional proxy endpoints."
         accentColor="var(--color-blue)"
         collapsible
         defaultOpen={false}
+        searchTerms={["OpenAI Proxy Base URL", "OpenAI Embedding Proxy Base URL"]}
       >
         <SettingItem
           type="text"
@@ -88,8 +95,9 @@ export const AdvancedSettings: React.FC = () => {
       <SettingsSection
         icon={<Shield className="tw-size-4" />}
         title="Security"
-        description="Encryption and data protection"
+        description="Configure encryption for stored credentials."
         accentColor="var(--color-orange)"
+        searchTerms={["Enable Encryption", "encryption"]}
       >
         <SettingItem
           type="switch"
@@ -106,8 +114,9 @@ export const AdvancedSettings: React.FC = () => {
       <SettingsSection
         icon={<Bug className="tw-size-4" />}
         title="Debugging"
-        description="Diagnostic tools for troubleshooting"
+        description="Configure logging and diagnostic output."
         accentColor="var(--color-red)"
+        searchTerms={["Debug Mode", "Create Log File", "log"]}
       >
         <SettingItem
           type="switch"

@@ -3,22 +3,27 @@ import { App, Modal } from "obsidian";
 import React from "react";
 import { createRoot, Root } from "react-dom/client";
 
+interface ConfirmModalContentProps {
+  content: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmButtonText: string;
+  cancelButtonText: string;
+}
+
+/**
+ * Shared confirm modal content with redesigned chat UI styling.
+ */
 function ConfirmModalContent({
   content,
   onConfirm,
   onCancel,
   confirmButtonText,
   cancelButtonText,
-}: {
-  content: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  confirmButtonText: string;
-  cancelButtonText: string;
-}) {
+}: ConfirmModalContentProps): React.ReactElement {
   return (
-    <div className="tw-flex tw-flex-col tw-gap-5">
-      <div className="tw-whitespace-pre-wrap">{content}</div>
+    <div className="hendrik-confirm-modal tw-flex tw-flex-col tw-gap-5">
+      <div className="hendrik-confirm-modal__content tw-whitespace-pre-wrap">{content}</div>
       <div className="tw-flex tw-justify-end tw-gap-2">
         {cancelButtonText && (
           <Button variant="secondary" onClick={onCancel}>
@@ -36,7 +41,7 @@ function ConfirmModalContent({
 }
 
 export class ConfirmModal extends Modal {
-  private root: Root;
+  private root: Root | null = null;
 
   constructor(
     app: App,
@@ -44,7 +49,8 @@ export class ConfirmModal extends Modal {
     private content: string,
     title: string,
     private confirmButtonText: string = "Continue",
-    private cancelButtonText: string = "Cancel"
+    private cancelButtonText: string = "Cancel",
+    private styleVariant: "default" | "settings" = "default"
   ) {
     super(app);
     // https://docs.obsidian.md/Reference/TypeScript+API/Modal/setTitle
@@ -52,16 +58,16 @@ export class ConfirmModal extends Modal {
     this.setTitle(title);
   }
 
-  onOpen() {
-    const { contentEl } = this;
+  onOpen(): void {
+    const { contentEl, modalEl } = this;
     this.root = createRoot(contentEl);
+    modalEl.addClass("hendrik-confirm-modal-shell");
+    if (this.styleVariant === "settings") {
+      modalEl.addClass("hendrik-settings-modal-shell");
+    }
 
     const handleConfirm = () => {
       this.onConfirm();
-      this.close();
-    };
-
-    const handleCancel = () => {
       this.close();
     };
 
@@ -69,14 +75,19 @@ export class ConfirmModal extends Modal {
       <ConfirmModalContent
         content={this.content}
         onConfirm={handleConfirm}
-        onCancel={handleCancel}
+        onCancel={() => this.close()}
         confirmButtonText={this.confirmButtonText}
         cancelButtonText={this.cancelButtonText}
       />
     );
   }
 
-  onClose() {
-    this.root.unmount();
+  onClose(): void {
+    if (this.root) {
+      this.root.unmount();
+      this.root = null;
+    }
+    this.modalEl.removeClass("hendrik-confirm-modal-shell");
+    this.modalEl.removeClass("hendrik-settings-modal-shell");
   }
 }

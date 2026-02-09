@@ -846,6 +846,7 @@ export const DEFAULT_SETTINGS: HendrikSettings = {
   autoCompactSummaryTokens: 2000,
   defaultMaxContextTokens: 128000,
   showContextPressureIndicator: true,
+  chronicleMode: "none",
 };
 
 export const EVENT_NAMES = {

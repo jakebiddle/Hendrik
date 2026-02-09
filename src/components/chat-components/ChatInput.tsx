@@ -706,7 +706,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div
-      className="hendrik-chat-input tw-flex tw-w-full tw-flex-col tw-gap-1 tw-rounded-2xl tw-border tw-border-solid tw-border-border tw-px-2 tw-pb-1.5 tw-pt-2 tw-@container/chat-input"
+      className="hendrik-chat-input tw-flex tw-w-full tw-flex-col tw-gap-1 tw-rounded-2xl tw-border tw-border-solid tw-border-border tw-px-1.5 tw-pb-1.5 tw-pt-2 tw-@container/chat-input"
       ref={containerRef}
     >
       {/* Hide context controls in edit mode - editing only changes text, not context */}

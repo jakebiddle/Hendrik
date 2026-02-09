@@ -25,9 +25,28 @@ import { App, Notice, TFile } from "obsidian";
 import ChainManager from "./chainManager";
 import { ProjectLoadTracker } from "./projectLoadTracker";
 
+/**
+ * Returns a high-resolution timestamp when available.
+ */
+function getPerfNowMs(): number {
+  return typeof globalThis.performance?.now === "function"
+    ? globalThis.performance.now()
+    : Date.now();
+}
+
+/**
+ * Formats elapsed milliseconds since `startMs`.
+ */
+function formatElapsedMs(startMs: number): string {
+  return `${(getPerfNowMs() - startMs).toFixed(1)}ms`;
+}
+
 export default class ProjectManager {
   public static instance: ProjectManager;
   private currentProjectId: string | null;
+  private lastKnownChainType: ChainType;
+  private pendingChainRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private modeSwitchSequence = 0;
   private app: App;
   private plugin: HendrikPlugin;
   private readonly chainMangerInstance: ChainManager;
@@ -40,6 +59,7 @@ export default class ProjectManager {
     this.app = app;
     this.plugin = plugin;
     this.currentProjectId = null;
+    this.lastKnownChainType = getChainType();
     this.chainMangerInstance = new ChainManager(app);
     this.projectContextCache = ProjectContextCache.getInstance();
     this.fileParserManager = new FileParserManager(this.app.vault, true, null);
@@ -51,8 +71,23 @@ export default class ProjectManager {
     });
 
     subscribeToChainTypeChange(async () => {
+      const nextChainType = getChainType();
+      const previousChainType = this.lastKnownChainType;
+      this.lastKnownChainType = nextChainType;
+      const modeSwitchTraceId = `mode-switch-${++this.modeSwitchSequence}`;
+      const chainTypeChangeStartMs = getPerfNowMs();
+
+      logInfo(
+        `[Perf][${modeSwitchTraceId}] Chain type changed ${previousChainType} -> ${nextChainType}`
+      );
+
       // When switching from other modes to project mode, no need to update the chain.
-      if (isProjectMode()) {
+      if (nextChainType === ChainType.PROJECT_CHAIN || isProjectMode()) {
+        logInfo(
+          `[Perf][${modeSwitchTraceId}] Skipping chain refresh in project mode (${formatElapsedMs(
+            chainTypeChangeStartMs
+          )})`
+        );
         return;
       }
       const settings = getSettings();
@@ -60,10 +95,16 @@ export default class ProjectManager {
         settings.enableSemanticSearchV3 &&
         !settings.useSmartConnections &&
         settings.indexVaultToVectorStore === VAULT_VECTOR_STORE_STRATEGY.ON_MODE_SWITCH &&
-        getChainType() === ChainType.TOOL_CALLING_CHAIN;
-      await this.getCurrentChainManager().createChainWithNewModel({
-        refreshIndex: shouldAutoIndex,
-      });
+        nextChainType === ChainType.TOOL_CALLING_CHAIN &&
+        previousChainType !== ChainType.PROJECT_CHAIN;
+
+      this.scheduleChainRefresh(
+        nextChainType,
+        shouldAutoIndex,
+        previousChainType,
+        modeSwitchTraceId,
+        chainTypeChangeStartMs
+      );
     });
 
     // Subscribe to Project changes
@@ -134,6 +175,70 @@ export default class ProjectManager {
   }
 
   /**
+   * Rebuild chain/model configuration for the target chain type.
+   *
+   * When leaving project mode, defer execution one tick so the UI can render
+   * the mode switch immediately before any heavier chain/model setup work starts.
+   */
+  private scheduleChainRefresh(
+    targetChainType: ChainType,
+    shouldAutoIndex: boolean,
+    previousChainType: ChainType,
+    modeSwitchTraceId: string,
+    chainTypeChangeStartMs: number
+  ): void {
+    const runRefresh = async () => {
+      const refreshStartMs = getPerfNowMs();
+
+      // Skip stale scheduled runs if the user changed mode again.
+      if (getChainType() !== targetChainType) {
+        logInfo(
+          `[Perf][${modeSwitchTraceId}] Skipped stale chain refresh for ${targetChainType} (${formatElapsedMs(
+            chainTypeChangeStartMs
+          )})`
+        );
+        return;
+      }
+
+      logInfo(
+        `[Perf][${modeSwitchTraceId}] Chain refresh start (target=${targetChainType}, autoIndex=${shouldAutoIndex})`
+      );
+      await this.getCurrentChainManager().createChainWithNewModel({
+        refreshIndex: shouldAutoIndex,
+      });
+      logInfo(
+        `[Perf][${modeSwitchTraceId}] Chain refresh done (refresh=${formatElapsedMs(
+          refreshStartMs
+        )}, total=${formatElapsedMs(chainTypeChangeStartMs)})`
+      );
+    };
+
+    // Fast UX path for Project -> Agent transitions.
+    if (previousChainType === ChainType.PROJECT_CHAIN) {
+      const queueStartMs = getPerfNowMs();
+      if (this.pendingChainRefreshTimer) {
+        clearTimeout(this.pendingChainRefreshTimer);
+      }
+
+      logInfo(
+        `[Perf][${modeSwitchTraceId}] Deferring chain refresh to next tick for Project -> Agent switch`
+      );
+      this.pendingChainRefreshTimer = setTimeout(() => {
+        this.pendingChainRefreshTimer = null;
+        logInfo(
+          `[Perf][${modeSwitchTraceId}] Deferred refresh tick fired after ${formatElapsedMs(
+            queueStartMs
+          )}`
+        );
+        void runRefresh();
+      }, 0);
+      return;
+    }
+
+    void runRefresh();
+  }
+
+  /**
    * Touch the project's usage timestamp in settings with throttled persistence.
    * Memory is always updated immediately (for UI sorting), but settings writes are throttled.
    */
@@ -177,7 +282,26 @@ export default class ProjectManager {
   }
 
   public async switchProject(project: ProjectConfig | null): Promise<void> {
+    const switchStartMs = getPerfNowMs();
+    const targetLabel = project?.id ?? "default";
+    logInfo(`[Perf][ProjectSwitch] Start -> ${targetLabel}`);
+
     try {
+      // Fast path for leaving project mode:
+      // avoid loading-state churn and forced full-view rerenders that can stall tab switching.
+      if (!project) {
+        const loadNextProjectMessageStartMs = getPerfNowMs();
+        this.currentProjectId = null;
+        await this.loadNextProjectMessage();
+        logInfo(
+          `[Perf][ProjectSwitch] loadNextProjectMessage (default): ${formatElapsedMs(
+            loadNextProjectMessageStartMs
+          )}`
+        );
+        logInfo(`[Perf][ProjectSwitch] Total -> ${targetLabel}: ${formatElapsedMs(switchStartMs)}`);
+        return;
+      }
+
       // Clear all project context loading states
       this.loadTracker.clearAllLoadStates();
       setProjectLoading(true);
@@ -185,35 +309,56 @@ export default class ProjectManager {
 
       // 1. save current project message. 2. load next project message
 
-      // switch default project
-      if (!project) {
-        await this.saveCurrentProjectMessage();
-        this.currentProjectId = null; // ensure set currentProjectId
-
-        await this.loadNextProjectMessage();
-        this.refreshChatView();
-        return;
-      }
-
       // else
       const projectId = project.id;
       if (this.currentProjectId === projectId) {
+        logInfo(
+          `[Perf][ProjectSwitch] No-op (already on project ${projectId}) after ${formatElapsedMs(
+            switchStartMs
+          )}`
+        );
         return;
       }
 
+      const saveCurrentProjectMessageStartMs = getPerfNowMs();
       await this.saveCurrentProjectMessage();
+      logInfo(
+        `[Perf][ProjectSwitch] saveCurrentProjectMessage: ${formatElapsedMs(
+          saveCurrentProjectMessageStartMs
+        )}`
+      );
+
       this.currentProjectId = projectId; // ensure set currentProjectId
 
       // Use sequential operations to ensure loading state is maintained
       // through the entire process
+      const loadNextProjectMessageStartMs = getPerfNowMs();
       await this.loadNextProjectMessage();
+      logInfo(
+        `[Perf][ProjectSwitch] loadNextProjectMessage: ${formatElapsedMs(
+          loadNextProjectMessageStartMs
+        )}`
+      );
+
+      const chainRefreshStartMs = getPerfNowMs();
       await this.getCurrentChainManager().createChainWithNewModel();
+      logInfo(
+        `[Perf][ProjectSwitch] createChainWithNewModel: ${formatElapsedMs(chainRefreshStartMs)}`
+      );
+
       // Update FileParserManager with the current project
       this.fileParserManager = new FileParserManager(this.app.vault, true, project);
+
+      const loadProjectContextStartMs = getPerfNowMs();
       await this.loadProjectContext(project);
+      logInfo(
+        `[Perf][ProjectSwitch] loadProjectContext: ${formatElapsedMs(loadProjectContextStartMs)}`
+      );
 
       // fresh chat view
+      const refreshChatViewStartMs = getPerfNowMs();
       this.refreshChatView();
+      logInfo(`[Perf][ProjectSwitch] refreshChatView: ${formatElapsedMs(refreshChatViewStartMs)}`);
 
       // Touch "recently used" timestamp only after a successful switch.
       this.touchProjectUsageTimestamps(project);
@@ -223,7 +368,10 @@ export default class ProjectManager {
       logError(`Failed to switch project: ${error}`);
       throw error;
     } finally {
-      setProjectLoading(false);
+      if (project) {
+        setProjectLoading(false);
+      }
+      logInfo(`[Perf][ProjectSwitch] Total -> ${targetLabel}: ${formatElapsedMs(switchStartMs)}`);
     }
   }
 

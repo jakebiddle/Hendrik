@@ -14,6 +14,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onChange,
   placeholder = "Search...",
 }) => {
+  const hasValue = value.length > 0;
+
   return (
     <div className="tw-relative">
       <Input
@@ -21,14 +23,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="tw-px-8" // Left padding for search icon, right for clear button
+        className={hasValue ? "!tw-px-8" : "!tw-pl-8 !tw-pr-3"}
       />
       <Search className="tw-pointer-events-none tw-absolute tw-left-2.5 tw-top-1/2 tw-size-3.5 -tw-translate-y-1/2 tw-transform tw-text-faint" />
-      {value && (
+      {hasValue && (
         <Button
-          variant={"ghost2"}
+          type="button"
+          variant="ghost2"
+          size="icon"
           onClick={() => onChange("")}
-          className="tw-absolute tw-right-1.5 tw-top-1/2 tw-size-5 -tw-translate-y-1/2 tw-transform tw-rounded-full tw-p-0 tw-transition-colors"
+          className="tw-absolute tw-right-1.5 tw-top-1/2 !tw-size-5 -tw-translate-y-1/2 tw-transform tw-rounded-full !tw-p-0 tw-transition-colors"
           aria-label="Clear search"
         >
           <XCircle className="tw-size-3.5 tw-text-faint hover:tw-text-muted" />

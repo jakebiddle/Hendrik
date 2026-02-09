@@ -21,6 +21,7 @@ import { ModelTable } from "@/settings/v2/components/ModelTable";
 import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 import { StatusIndicator } from "@/settings/v2/components/StatusIndicator";
 import { ToolSettingsSection } from "@/settings/v2/components/ToolSettingsSection";
+import { useSettingsSearch } from "@/settings/v2/search/SettingsSearchContext";
 import { checkModelApiKey, omit } from "@/utils";
 import { getApiKeyForProvider } from "@/utils/modelUtils";
 import { getNeedSetKeyProvider } from "@/utils";
@@ -43,6 +44,7 @@ export const AISettings: React.FC = () => {
   const { setSelectedTab } = useTab();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const prompts = useSystemPrompts();
+  const { normalizedQuery } = useSettingsSearch();
 
   // API key status calculation
   const providers = getNeedSetKeyProvider().map((p) => p as SettingKeyProviders);
@@ -153,8 +155,9 @@ export const AISettings: React.FC = () => {
       <SettingsSection
         icon={<Key className="tw-size-4" />}
         title="API Keys & Providers"
-        description="Configure your AI provider API keys"
+        description="Configure provider credentials and service access."
         accentColor="var(--color-orange)"
+        searchTerms={["API Keys", "providers", "credentials", "Set Keys"]}
         badge={
           <StatusIndicator
             status={configuredCount > 0 ? "active" : "inactive"}
@@ -201,8 +204,14 @@ export const AISettings: React.FC = () => {
       <SettingsSection
         icon={<MessageCircle className="tw-size-4" />}
         title="Chat Models"
-        description="Manage your chat models and default selection"
+        description="Manage chat models and default model selection."
         accentColor="var(--color-blue)"
+        searchTerms={[
+          "Chat Models",
+          "Default Chat Model",
+          "Default Mode",
+          ...settings.activeModels.map((model) => model.name),
+        ]}
       >
         <ModelTable
           models={settings.activeModels}
@@ -214,6 +223,7 @@ export const AISettings: React.FC = () => {
           onReorderModels={(newModels) => handleModelReorder(newModels)}
           onRefresh={handleRefreshChatModels}
           title="Chat Models"
+          filterQuery={normalizedQuery}
         />
 
         <ModelAddDialog
@@ -303,10 +313,18 @@ export const AISettings: React.FC = () => {
       <SettingsSection
         icon={<Layers className="tw-size-4" />}
         title="Context Management"
-        description="Control how conversation context is managed and compacted"
+        description="Configure conversation context window and compaction behavior."
         accentColor="var(--color-cyan)"
         collapsible
         defaultOpen={false}
+        searchTerms={[
+          "Enable auto-compaction",
+          "Conversation turns in context",
+          "Auto-compact threshold",
+          "Compaction summary length",
+          "Default context window",
+          "Context pressure indicator",
+        ]}
       >
         <SettingItem
           type="switch"
@@ -370,8 +388,13 @@ export const AISettings: React.FC = () => {
       <SettingsSection
         icon={<FileText className="tw-size-4" />}
         title="System Prompts"
-        description="Customize the system prompt sent with every message"
+        description="Configure default system prompt behavior."
         accentColor="var(--color-purple)"
+        searchTerms={[
+          "Default System Prompt",
+          "System Prompts Folder Name",
+          ...prompts.map((p) => p.title),
+        ]}
       >
         <SettingItem
           type="custom"
@@ -439,12 +462,13 @@ export const AISettings: React.FC = () => {
       <SettingsSection
         icon={<Bot className="tw-size-4" />}
         title="Agent & Tools"
-        description="Configure autonomous agent behavior and available tools"
+        description="Configure autonomous agent limits and tool access."
         accentColor="var(--color-green)"
         collapsible
         defaultOpen={false}
+        searchTerms={["Max Iterations", "Agent Accessible Tools", "tool", "autonomous agent"]}
       >
-        <ToolSettingsSection />
+        <ToolSettingsSection filterQuery={normalizedQuery} />
       </SettingsSection>
     </div>
   );

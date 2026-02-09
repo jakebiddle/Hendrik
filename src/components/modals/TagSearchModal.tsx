@@ -1,35 +1,50 @@
 import { getTagsFromNote } from "@/utils";
-import { App, FuzzySuggestModal } from "obsidian";
+import { App } from "obsidian";
+import { BaseSearchableModal } from "@/components/modals/BaseSearchableModal";
 
-export class TagSearchModal extends FuzzySuggestModal<string> {
+/**
+ * Searchable modal for selecting a vault tag.
+ */
+export class TagSearchModal extends BaseSearchableModal<string> {
   constructor(
     app: App,
     private onChooseTag: (tag: string) => void
   ) {
     super(app);
+    // https://docs.obsidian.md/Reference/TypeScript+API/Modal/setTitle
+    // @ts-ignore
+    this.setTitle("Select Tag");
   }
 
-  getItems(): string[] {
-    // Get all Markdown files in the vault.
-    const files = app.vault.getMarkdownFiles();
+  protected getItems(): string[] {
+    const files = this.app.vault.getMarkdownFiles();
     const tagSet = new Set<string>();
 
-    // Loop through each file and extract tags.
     for (const file of files) {
-      // Retrieve the metadata cache for the file.
       const tags = getTagsFromNote(file);
       tags.forEach((tag) => tagSet.add(tag));
     }
 
-    // Convert the set to an array.
-    return Array.from(tagSet);
+    return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
   }
 
-  getItemText(tag: string): string {
+  protected getItemKey(tag: string): string {
     return tag;
   }
 
-  onChooseItem(tag: string, evt: MouseEvent | KeyboardEvent) {
+  protected getItemLabel(tag: string): string {
+    return tag;
+  }
+
+  protected getSearchPlaceholder(): string {
+    return "Search tags...";
+  }
+
+  protected getEmptyMessage(): string {
+    return "No tags found.";
+  }
+
+  protected onChooseItem(tag: string): void {
     this.onChooseTag(tag);
   }
 }

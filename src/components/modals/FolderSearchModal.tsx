@@ -1,24 +1,29 @@
-import { App, FuzzySuggestModal } from "obsidian";
 import { extractAppIgnoreSettings } from "@/search/searchUtils";
+import { App } from "obsidian";
+import { BaseSearchableModal } from "@/components/modals/BaseSearchableModal";
 
-export class FolderSearchModal extends FuzzySuggestModal<string> {
+/**
+ * Searchable modal for selecting a vault folder.
+ */
+export class FolderSearchModal extends BaseSearchableModal<string> {
   constructor(
     app: App,
     private onChooseFolder: (folder: string) => void
   ) {
     super(app);
+    // https://docs.obsidian.md/Reference/TypeScript+API/Modal/setTitle
+    // @ts-ignore
+    this.setTitle("Select Folder");
   }
 
-  getItems(): string[] {
+  protected getItems(): string[] {
     const folderSet = new Set<string>();
     const ignoredFolders = extractAppIgnoreSettings(this.app);
 
-    // Get all files in vault
     this.app.vault.getAllLoadedFiles().forEach((file) => {
       if (file.parent?.path && file.parent.path !== "/") {
-        // Check if the folder or any of its parent folders are ignored
         const shouldInclude = !ignoredFolders.some(
-          (ignored) => file.parent!.path === ignored || file.parent!.path.startsWith(ignored + "/")
+          (ignored) => file.parent!.path === ignored || file.parent!.path.startsWith(`${ignored}/`)
         );
 
         if (shouldInclude) {
@@ -26,14 +31,27 @@ export class FolderSearchModal extends FuzzySuggestModal<string> {
         }
       }
     });
-    return Array.from(folderSet);
+
+    return Array.from(folderSet).sort((a, b) => a.localeCompare(b));
   }
 
-  getItemText(tag: string): string {
-    return tag;
+  protected getItemKey(folder: string): string {
+    return folder;
   }
 
-  onChooseItem(folder: string, evt: MouseEvent | KeyboardEvent) {
+  protected getItemLabel(folder: string): string {
+    return folder;
+  }
+
+  protected getSearchPlaceholder(): string {
+    return "Search folders...";
+  }
+
+  protected getEmptyMessage(): string {
+    return "No folders found.";
+  }
+
+  protected onChooseItem(folder: string): void {
     this.onChooseFolder(folder);
   }
 }

@@ -509,7 +509,7 @@ export const ModelAddDialog: React.FC<ModelAddDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="tw-max-h-[80vh] tw-overflow-y-auto sm:tw-max-w-[425px]"
+        className="hendrik-settings-dialog tw-max-h-[80vh] tw-overflow-y-auto sm:tw-max-w-[425px]"
         container={modalContainer}
         ref={(el) => setDialogElement(el)}
       >

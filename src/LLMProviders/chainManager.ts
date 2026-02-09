@@ -32,6 +32,22 @@ import MemoryManager from "./memoryManager";
 import PromptManager from "./promptManager";
 import { UserMemoryManager } from "@/memory/UserMemoryManager";
 
+/**
+ * Returns a high-resolution timestamp when available.
+ */
+function getPerfNowMs(): number {
+  return typeof globalThis.performance?.now === "function"
+    ? globalThis.performance.now()
+    : Date.now();
+}
+
+/**
+ * Formats elapsed milliseconds since `startMs`.
+ */
+function formatElapsedMs(startMs: number): string {
+  return `${(getPerfNowMs() - startMs).toFixed(1)}ms`;
+}
+
 export default class ChainManager {
   // TODO: These chains are deprecated since we now use direct chat model calls in chain runners
   // Consider removing after verifying no dependencies remain
@@ -117,11 +133,23 @@ export default class ChainManager {
     options: SetChainOptions = {},
     neededReInitChatMode: boolean = true
   ): Promise<void> {
+    const createChainStartMs = getPerfNowMs();
     let newModelKey: string | undefined;
     const chainType = getChainType();
     const currentProject = getCurrentProject();
 
+    logInfo(
+      `[Perf][Chain] createChainWithNewModel start (chainType=${chainType}, reinit=${neededReInitChatMode}, refreshIndex=${Boolean(
+        options.refreshIndex
+      )})`
+    );
+
     if (chainType === ChainType.PROJECT_CHAIN && !currentProject) {
+      logInfo(
+        `[Perf][Chain] createChainWithNewModel skipped (project chain without current project, ${formatElapsedMs(
+          createChainStartMs
+        )})`
+      );
       return;
     }
 
@@ -165,19 +193,33 @@ export default class ChainManager {
           ...customModel,
           ...currentProject?.modelConfigs,
         };
+        const setChatModelStartMs = getPerfNowMs();
         await this.chatModelManager.setChatModel(mergedModel);
+        logInfo(
+          `[Perf][Chain] setChatModel done (${formatElapsedMs(setChatModelStartMs)}, modelKey=${newModelKey})`
+        );
         this.pendingModelError = null;
       }
 
       // Must update the chatModel for chain because ChainFactory always
       // retrieves the old chain without the chatModel change if it exists!
       // Create a new chain with the new chatModel
+      const setChainDispatchStartMs = getPerfNowMs();
       this.setChain(chainType, options);
+      logInfo(
+        `[Perf][Chain] setChain dispatched (${formatElapsedMs(
+          setChainDispatchStartMs
+        )}, chainType=${chainType})`
+      );
       logInfo(`Setting model to ${newModelKey}`);
     } catch (error) {
       this.pendingModelError = error instanceof Error ? error : new Error(String(error));
       logError(`createChainWithNewModel failed: ${error}`);
       logInfo(`modelKey: ${newModelKey || getModelKey()}`);
+    } finally {
+      logInfo(
+        `[Perf][Chain] createChainWithNewModel total: ${formatElapsedMs(createChainStartMs)}`
+      );
     }
   }
 
@@ -190,96 +232,108 @@ export default class ChainManager {
     }
 
     this.validateChainType(chainType);
+    const setChainStartMs = getPerfNowMs();
+    logInfo(
+      `[Perf][Chain] setChain start (chainType=${chainType}, refreshIndex=${Boolean(
+        options.refreshIndex
+      )})`
+    );
 
-    // Get chatModel, memory, prompt, and embeddingAPI from respective managers
-    const chatModel = this.chatModelManager.getChatModel();
-    const memory = this.memoryManager.getMemory();
-    const chatPrompt = this.promptManager.getChatPrompt();
+    try {
+      // Get chatModel, memory, prompt, and embeddingAPI from respective managers
+      const chatModel = this.chatModelManager.getChatModel();
+      const memory = this.memoryManager.getMemory();
+      const chatPrompt = this.promptManager.getChatPrompt();
 
-    switch (chainType) {
-      case ChainType.LLM_CHAIN: {
-        // TODO: LLMChainRunner now handles this directly without chains
-        this.chain = ChainFactory.createNewLLMChain({
-          llm: chatModel,
-          memory: memory,
-          prompt: options.prompt || chatPrompt,
-          abortController: options.abortController,
-        }) as RunnableSequence;
-
-        setChainType(ChainType.LLM_CHAIN);
-        break;
-      }
-
-      case ChainType.VAULT_QA_CHAIN: {
-        // TODO: VaultQAChainRunner now handles this directly without chains
-        await this.initializeQAChain(options);
-
-        // Create retriever based on semantic search setting
-        const settings = getSettings();
-        const retriever = settings.enableSemanticSearchV3
-          ? new (await import("@/search/hybridRetriever")).HybridRetriever({
-              minSimilarityScore: 0.01,
-              maxK: settings.maxSourceChunks,
-              salientTerms: [],
-            })
-          : new (await import("@/search/v3/TieredLexicalRetriever")).TieredLexicalRetriever(app, {
-              minSimilarityScore: 0.01,
-              maxK: settings.maxSourceChunks,
-              salientTerms: [],
-              timeRange: undefined,
-              textWeight: undefined,
-              returnAll: false,
-            });
-
-        // Create new conversational retrieval chain
-        this.retrievalChain = ChainFactory.createConversationalRetrievalChain(
-          {
+      switch (chainType) {
+        case ChainType.LLM_CHAIN: {
+          // TODO: LLMChainRunner now handles this directly without chains
+          this.chain = ChainFactory.createNewLLMChain({
             llm: chatModel,
-            retriever: retriever,
-            systemMessage: getSystemPrompt(),
-          },
-          this.storeRetrieverDocuments.bind(this),
-          getSettings().debug
-        );
+            memory: memory,
+            prompt: options.prompt || chatPrompt,
+            abortController: options.abortController,
+          }) as RunnableSequence;
 
-        setChainType(ChainType.VAULT_QA_CHAIN);
-        if (getSettings().debug) {
-          console.log("New Vault QA chain with hybrid retriever created for entire vault");
-          console.log("Set chain:", ChainType.VAULT_QA_CHAIN);
+          setChainType(ChainType.LLM_CHAIN);
+          break;
         }
-        break;
+
+        case ChainType.VAULT_QA_CHAIN: {
+          // TODO: VaultQAChainRunner now handles this directly without chains
+          await this.initializeQAChain(options);
+
+          // Create retriever based on semantic search setting
+          const settings = getSettings();
+          const retriever = settings.enableSemanticSearchV3
+            ? new (await import("@/search/hybridRetriever")).HybridRetriever({
+                minSimilarityScore: 0.01,
+                maxK: settings.maxSourceChunks,
+                salientTerms: [],
+              })
+            : new (await import("@/search/v3/TieredLexicalRetriever")).TieredLexicalRetriever(app, {
+                minSimilarityScore: 0.01,
+                maxK: settings.maxSourceChunks,
+                salientTerms: [],
+                timeRange: undefined,
+                textWeight: undefined,
+                returnAll: false,
+              });
+
+          // Create new conversational retrieval chain
+          this.retrievalChain = ChainFactory.createConversationalRetrievalChain(
+            {
+              llm: chatModel,
+              retriever: retriever,
+              systemMessage: getSystemPrompt(),
+            },
+            this.storeRetrieverDocuments.bind(this),
+            getSettings().debug
+          );
+
+          setChainType(ChainType.VAULT_QA_CHAIN);
+          if (getSettings().debug) {
+            console.log("New Vault QA chain with hybrid retriever created for entire vault");
+            console.log("Set chain:", ChainType.VAULT_QA_CHAIN);
+          }
+          break;
+        }
+
+        case ChainType.TOOL_CALLING_CHAIN: {
+          // For initial load of the plugin
+          await this.initializeQAChain(options);
+          this.chain = ChainFactory.createNewLLMChain({
+            llm: chatModel,
+            memory: memory,
+            prompt: options.prompt || chatPrompt,
+            abortController: options.abortController,
+          }) as RunnableSequence;
+
+          setChainType(ChainType.TOOL_CALLING_CHAIN);
+          break;
+        }
+
+        case ChainType.PROJECT_CHAIN: {
+          // For initial load of the plugin
+          await this.initializeQAChain(options);
+          this.chain = ChainFactory.createNewLLMChain({
+            llm: chatModel,
+            memory: memory,
+            prompt: options.prompt || chatPrompt,
+            abortController: options.abortController,
+          }) as RunnableSequence;
+          setChainType(ChainType.PROJECT_CHAIN);
+          break;
+        }
+
+        default:
+          this.validateChainType(chainType);
+          break;
       }
-
-      case ChainType.TOOL_CALLING_CHAIN: {
-        // For initial load of the plugin
-        await this.initializeQAChain(options);
-        this.chain = ChainFactory.createNewLLMChain({
-          llm: chatModel,
-          memory: memory,
-          prompt: options.prompt || chatPrompt,
-          abortController: options.abortController,
-        }) as RunnableSequence;
-
-        setChainType(ChainType.TOOL_CALLING_CHAIN);
-        break;
-      }
-
-      case ChainType.PROJECT_CHAIN: {
-        // For initial load of the plugin
-        await this.initializeQAChain(options);
-        this.chain = ChainFactory.createNewLLMChain({
-          llm: chatModel,
-          memory: memory,
-          prompt: options.prompt || chatPrompt,
-          abortController: options.abortController,
-        }) as RunnableSequence;
-        setChainType(ChainType.PROJECT_CHAIN);
-        break;
-      }
-
-      default:
-        this.validateChainType(chainType);
-        break;
+    } finally {
+      logInfo(
+        `[Perf][Chain] setChain done (${formatElapsedMs(setChainStartMs)}, chainType=${chainType})`
+      );
     }
   }
 

@@ -50,6 +50,45 @@ import { SettingItem } from "@/components/ui/setting-item";
 import { CommandExplainer } from "@/settings/v2/components/CommandExplainer";
 import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 import { Notice } from "obsidian";
+import { useSettingsSearch } from "@/settings/v2/search/SettingsSearchContext";
+
+/**
+ * Filters commands by title/content and availability labels.
+ *
+ * @param commands - Command list.
+ * @param query - Normalized lowercase query.
+ * @returns Filtered command list.
+ */
+export function filterCommandsByQuery(commands: CustomCommand[], query: string): CustomCommand[] {
+  if (!query) {
+    return commands;
+  }
+
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  return commands.filter((command) => {
+    const searchText = [
+      command.title,
+      command.content,
+      command.showInContextMenu ? "context menu" : "",
+      command.showInSlashMenu ? "slash command" : "",
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return tokens.every((token) => searchText.includes(token));
+  });
+}
+
+/**
+ * Determines whether command row reordering should be enabled.
+ *
+ * @param hasQuery - Whether search filtering is active.
+ * @returns True when reordering is enabled.
+ */
+export function isCommandReorderEnabled(hasQuery: boolean): boolean {
+  return !hasQuery;
+}
 
 const MobileCommandCard: React.FC<{
   command: CustomCommand;
@@ -58,7 +97,8 @@ const MobileCommandCard: React.FC<{
   onRemove: (command: CustomCommand) => void;
   onCopy: (command: CustomCommand) => void;
   containerRef: React.RefObject<HTMLDivElement>;
-}> = ({ command, commands, onUpdate, onRemove, onCopy, containerRef }) => {
+  isReorderEnabled: boolean;
+}> = ({ command, commands, onUpdate, onRemove, onCopy, containerRef, isReorderEnabled }) => {
   const handleEdit = (cmd: CustomCommand) => {
     const modal = new CustomCommandSettingsModal(app, commands, cmd, async (updatedCommand) => {
       await onUpdate(updatedCommand, cmd.title);
@@ -87,7 +127,8 @@ const MobileCommandCard: React.FC<{
           `Are you sure you want to delete the command "${cmd.title}"? This will permanently remove the command file and cannot be undone.`,
           "Delete Command",
           "Delete",
-          "Cancel"
+          "Cancel",
+          "settings"
         ).open();
       },
       variant: "destructive",
@@ -153,7 +194,7 @@ const MobileCommandCard: React.FC<{
       id={command.title}
       item={command}
       title={command.title}
-      isDraggable
+      isDraggable={isReorderEnabled}
       isExpandable
       expandedContent={expandedContent}
       primaryAction={{
@@ -173,9 +214,11 @@ const SortableTableRow: React.FC<{
   onUpdate: (newCommand: CustomCommand, prevCommandTitle: string) => void;
   onRemove: (command: CustomCommand) => void;
   onCopy: (command: CustomCommand) => void;
-}> = ({ command, commands, onUpdate, onRemove, onCopy }) => {
+  isReorderEnabled: boolean;
+}> = ({ command, commands, onUpdate, onRemove, onCopy, isReorderEnabled }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: command.title,
+    disabled: !isReorderEnabled,
   });
 
   const style = {
@@ -198,13 +241,15 @@ const SortableTableRow: React.FC<{
       )}
     >
       <TableCell className="tw-w-10">
-        <div
-          {...attributes}
-          {...listeners}
-          className="tw-flex tw-cursor-grab tw-items-center tw-justify-center"
-        >
-          <GripVertical className="tw-size-4" />
-        </div>
+        {isReorderEnabled && (
+          <div
+            {...attributes}
+            {...listeners}
+            className="tw-flex tw-cursor-grab tw-items-center tw-justify-center"
+          >
+            <GripVertical className="tw-size-4" />
+          </div>
+        )}
       </TableCell>
       <TableCell>{command.title}</TableCell>
       <TableCell className="tw-text-center">
@@ -269,7 +314,8 @@ const SortableTableRow: React.FC<{
                 `Are you sure you want to delete the command "${command.title}"? This will permanently remove the command file and cannot be undone.`,
                 "Delete Command",
                 "Delete",
-                "Cancel"
+                "Cancel",
+                "settings"
               ).open();
             }}
           >
@@ -286,6 +332,12 @@ export const CommandSettings: React.FC = () => {
   const commands = useMemo(() => {
     return sortCommandsByOrder([...rawCommands]);
   }, [rawCommands]);
+  const { hasQuery, normalizedQuery } = useSettingsSearch();
+  const isReorderEnabled = isCommandReorderEnabled(hasQuery);
+  const filteredCommands = useMemo(
+    () => filterCommandsByQuery(commands, normalizedQuery),
+    [commands, normalizedQuery]
+  );
 
   const settings = useSettingsValue();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -340,6 +392,10 @@ export const CommandSettings: React.FC = () => {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!isReorderEnabled) {
+      return;
+    }
+
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -366,16 +422,18 @@ export const CommandSettings: React.FC = () => {
     <div className="tw-relative md:tw-hidden">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext
-          items={commands.map((command) => command.title)}
+          items={filteredCommands.map((command) => command.title)}
           strategy={verticalListSortingStrategy}
         >
           <div className="tw-space-y-2">
-            {commands.length === 0 ? (
+            {filteredCommands.length === 0 ? (
               <div className="tw-rounded-lg tw-border tw-border-border tw-bg-primary tw-p-8 tw-text-center tw-text-muted">
-                No custom prompt files found.
+                {hasQuery
+                  ? "No commands match the current search."
+                  : "No custom prompt files found."}
               </div>
             ) : (
-              commands.map((command) => (
+              filteredCommands.map((command) => (
                 <MobileCommandCard
                   key={command.title}
                   command={command}
@@ -384,6 +442,7 @@ export const CommandSettings: React.FC = () => {
                   onRemove={handleRemove}
                   onCopy={handleCopy}
                   containerRef={containerRef}
+                  isReorderEnabled={isReorderEnabled}
                 />
               ))
             )}
@@ -402,8 +461,13 @@ export const CommandSettings: React.FC = () => {
       <SettingsSection
         icon={<Settings className="tw-size-4" />}
         title="Configuration"
-        description="Where commands are stored and how they behave"
+        description="Manage command storage and behavior."
         accentColor="var(--color-orange)"
+        searchTerms={[
+          "Custom Prompts Folder Name",
+          "Custom Prompt Templating",
+          "Custom Prompts Sort Strategy",
+        ]}
       >
         <SettingItem
           type="text"
@@ -443,8 +507,9 @@ export const CommandSettings: React.FC = () => {
       <SettingsSection
         icon={<List className="tw-size-4" />}
         title="Your Commands"
-        description="Manage your custom command library"
+        description="Manage command files and availability."
         accentColor="var(--color-green)"
+        searchTerms={filteredCommands.map((command) => command.title)}
       >
         <div className="tw-flex tw-items-start tw-gap-2 tw-rounded-md tw-border tw-border-solid tw-border-border tw-p-3 tw-text-xs tw-text-muted">
           <Lightbulb className="tw-mt-0.5 tw-size-4 tw-shrink-0" />
@@ -462,7 +527,10 @@ export const CommandSettings: React.FC = () => {
                 app,
                 generateDefaultCommands,
                 "This will add default commands to your custom prompts folder. Do you want to continue?",
-                "Generate Default Commands"
+                "Generate Default Commands",
+                "Continue",
+                "Cancel",
+                "settings"
               ).open()
             }
           >
@@ -533,18 +601,20 @@ export const CommandSettings: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <SortableContext
-                items={commands.map((command) => command.title)}
+                items={filteredCommands.map((command) => command.title)}
                 strategy={verticalListSortingStrategy}
               >
                 <TableBody>
-                  {commands.length === 0 ? (
+                  {filteredCommands.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="tw-py-8 tw-text-center tw-text-muted">
-                        No custom prompt files found.
+                        {hasQuery
+                          ? "No commands match the current search."
+                          : "No custom prompt files found."}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    commands.map((command) => (
+                    filteredCommands.map((command) => (
                       <SortableTableRow
                         key={command.title}
                         command={command}
@@ -552,6 +622,7 @@ export const CommandSettings: React.FC = () => {
                         onUpdate={handleUpdate}
                         onRemove={handleRemove}
                         onCopy={handleCopy}
+                        isReorderEnabled={isReorderEnabled}
                       />
                     ))
                   )}

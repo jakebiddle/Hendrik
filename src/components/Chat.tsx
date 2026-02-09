@@ -18,6 +18,7 @@ import type { WebTabContext } from "@/types/message";
 import { ChatControls, reloadCurrentProject } from "@/components/chat-components/ChatControls";
 import ChatInput from "@/components/chat-components/ChatInput";
 import ChatMessages from "@/components/chat-components/ChatMessages";
+import { ModeRibbon } from "@/components/chat-components/ModeRibbon";
 import { NewVersionBanner } from "@/components/chat-components/NewVersionBanner";
 import { ProjectList } from "@/components/chat-components/ProjectList";
 import { resolveProjectAppearance } from "@/components/project/projectAppearance";
@@ -625,6 +626,115 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     [chatHistory, chatUIState]
   );
 
+  /**
+   * Handle a user answering a Chronicle Mode interactive question.
+   * Updates the stored message's chronicleQuestions and auto-sends a reply.
+   */
+  const handleChronicleAnswer = useCallback(
+    async (messageIndex: number, questionId: string, answer: string | string[]) => {
+      const aiMessage = chatHistory[messageIndex];
+      if (!aiMessage) return;
+
+      // Update the chronicle question on the stored message
+      const updatedQuestions = (aiMessage.chronicleQuestions ?? []).map((q) =>
+        q.id === questionId ? { ...q, answer, isAnswered: true } : q
+      );
+
+      // If this question wasn't already tracked, add it
+      if (!updatedQuestions.find((q) => q.id === questionId)) {
+        updatedQuestions.push({
+          id: questionId,
+          question: "",
+          allowCustom: true,
+          isAnswered: true,
+          answer,
+        });
+      }
+
+      // Update the message in the repository
+      if (aiMessage.id) {
+        try {
+          await chatUIState.updateMessageChronicleQuestions(aiMessage.id, updatedQuestions);
+        } catch (error) {
+          logError("Error updating chronicle questions:", error);
+        }
+      }
+
+      // Build the reply text
+      const displayAnswer = Array.isArray(answer) ? answer.join(", ") : answer;
+      const questionText =
+        updatedQuestions.find((q) => q.id === questionId)?.question || "your question";
+      const replyText = `**Re: ${questionText}**\n\n${displayAnswer}`;
+
+      // Programmatically send as a new user message + trigger AI response
+      try {
+        const emptyContext = {
+          notes: [] as TFile[],
+          urls: [] as string[],
+          tags: [] as string[],
+          folders: [] as string[],
+          selectedTextContexts: [],
+          webTabs: [] as WebTabContext[],
+        };
+
+        streamingMessageIdRef.current = `msg-${uuidv4()}`;
+        safeSet.setLoading(true);
+        safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+
+        const messageId = await chatUIState.sendMessage(
+          replyText,
+          emptyContext,
+          currentChain,
+          effectiveIncludeActiveNote,
+          effectiveIncludeActiveWebTab,
+          undefined,
+          safeSet.setLoadingMessage
+        );
+
+        if (settings.autosaveChat) {
+          handleSaveAsNote();
+        }
+
+        const llmMessage = chatUIState.getLLMMessage(messageId);
+        if (llmMessage) {
+          await getAIResponse(
+            llmMessage,
+            chainManager,
+            addMessage,
+            safeSet.setCurrentAiMessage,
+            setAbortController,
+            { debug: settings.debug, updateLoadingMessage: safeSet.setLoadingMessage }
+          );
+        }
+
+        if (settings.autosaveChat) {
+          handleSaveAsNote();
+        }
+      } catch (error) {
+        logError("Error sending chronicle answer:", error);
+        new Notice("Failed to send answer. Please try again.");
+      } finally {
+        safeSet.setLoading(false);
+        safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+        streamingMessageIdRef.current = null;
+      }
+    },
+    [
+      chatHistory,
+      chatUIState,
+      currentChain,
+      effectiveIncludeActiveNote,
+      effectiveIncludeActiveWebTab,
+      settings.autosaveChat,
+      settings.debug,
+      chainManager,
+      addMessage,
+      safeSet,
+      setAbortController,
+      handleSaveAsNote,
+    ]
+  );
+
   const handleNewChat = useCallback(async () => {
     clearRecordedPromptPayload();
     await logFileManager.clear();
@@ -797,6 +907,41 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
       } as React.CSSProperties)
     : undefined;
 
+  /**
+   * Switches to Agent mode from the left ribbon.
+   * Project autosave is intentionally skipped here to avoid blocking UI and
+   * triggering expensive index refresh behavior while switching tabs.
+   */
+  const handleSelectAgentMode = useCallback(() => {
+    if (selectedChain !== ChainType.PROJECT_CHAIN) {
+      if (selectedChain !== ChainType.TOOL_CALLING_CHAIN) {
+        setSelectedChain(ChainType.TOOL_CALLING_CHAIN);
+      }
+      return;
+    }
+
+    setCurrentProject(null);
+    setViewingProject(null);
+    setCanGoBackInProjectMode(false);
+    setProgressCardVisible(null);
+    setShowChatUI(false);
+    setSelectedChain(ChainType.TOOL_CALLING_CHAIN);
+  }, [selectedChain, setSelectedChain]);
+
+  /**
+   * Switches to Projects mode from the left ribbon.
+   */
+  const handleSelectProjectMode = useCallback(() => {
+    if (selectedChain === ChainType.PROJECT_CHAIN) {
+      return;
+    }
+
+    setPreviousMode(selectedChain);
+    setShowChatUI(false);
+    setProgressCardVisible(null);
+    setSelectedChain(ChainType.PROJECT_CHAIN);
+  }, [selectedChain, setSelectedChain]);
+
   // Note: pendingMessages loading has been removed as ChatManager now handles
   // message persistence and loading automatically based on project context
 
@@ -821,6 +966,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
               onRegenerate={handleRegenerate}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onChronicleAnswer={handleChronicleAnswer}
               showHelperComponents={selectedChain !== ChainType.PROJECT_CHAIN}
               projectName={
                 selectedChain === ChainType.PROJECT_CHAIN
@@ -894,87 +1040,88 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     <div
       ref={chatContainerRef}
       onPointerDownCapture={handleChatPointerDownCapture}
-      className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden"
+      className="tw-flex tw-size-full tw-overflow-hidden"
     >
-      <div className="tw-h-full tw-overflow-hidden">
-        <div className="tw-relative tw-flex tw-h-full tw-min-w-0 tw-flex-col tw-overflow-hidden">
-          {isDragActive && (
-            <div className="tw-absolute tw-inset-0 tw-z-modal tw-flex tw-items-center tw-justify-center tw-rounded-md tw-border tw-border-dashed tw-bg-primary tw-opacity-80">
-              <span>Present your documents…</span>
-            </div>
-          )}
-          <div className="hendrik-chat-header">
-            <ChatControls
-              onNewChat={handleNewChat}
-              onSaveAsNote={() => handleSaveAsNote()}
-              onLoadHistory={handleLoadChatHistory}
-              onModeChange={(newMode) => {
-                setPreviousMode(selectedChain);
-                // Hide chat UI when switching to project mode
-                if (newMode === ChainType.PROJECT_CHAIN) {
-                  setShowChatUI(false);
-                }
-              }}
-              chatHistory={chatHistoryItems}
-              onUpdateChatTitle={handleUpdateChatTitle}
-              onDeleteChat={handleDeleteChat}
-              onLoadChat={handleLoadChat}
-              onOpenSourceFile={handleOpenSourceFile}
-              latestTokenCount={latestTokenCount}
-              onClosePanel={onClosePanel}
-              isProjectMode={selectedChain === ChainType.PROJECT_CHAIN}
-              activeProject={activeProject}
-              viewingProject={viewingProject}
-              onBackToProjects={
-                selectedChain === ChainType.PROJECT_CHAIN && canGoBackInProjectMode
-                  ? () => {
-                      setProjectBackSignal((prev) => prev + 1);
-                      setShowChatUI(false);
-                    }
-                  : undefined
-              }
-              onBackFromViewing={
-                viewingProject
-                  ? () => {
-                      setProjectBackSignal((prev) => prev + 1);
-                    }
-                  : undefined
-              }
-            />
-          </div>
-          {selectedChain === ChainType.PROJECT_CHAIN && (
-            <div className="hendrik-chat-root hendrik-chat-surface tw-flex-1 tw-overflow-hidden">
-              <ProjectList
-                projects={settings.projectList || []}
-                defaultOpen={true}
-                app={app}
-                plugin={plugin}
-                hasMessages={false}
-                onProjectAdded={handleAddProject}
-                onEditProject={handleEditProject}
-                onClose={() => {
-                  if (previousMode) {
-                    setSelectedChain(previousMode);
-                    setPreviousMode(null);
-                  } else {
-                    // default back to tool calling mode
-                    setSelectedChain(ChainType.TOOL_CALLING_CHAIN);
-                  }
-                }}
-                showChatUI={(v) => setShowChatUI(v)}
-                onProjectClose={() => {
-                  setProgressCardVisible(null);
-                }}
+      <ModeRibbon
+        selectedChain={selectedChain}
+        onSelectAgent={handleSelectAgentMode}
+        onSelectProjects={handleSelectProjectMode}
+      />
+
+      <div className="hendrik-chat-main tw-relative tw-flex tw-h-full tw-min-w-0 tw-flex-1 tw-flex-col tw-overflow-hidden">
+        <div className="tw-h-full tw-overflow-hidden">
+          <div className="tw-relative tw-flex tw-h-full tw-min-w-0 tw-flex-col tw-overflow-hidden">
+            {isDragActive && (
+              <div className="tw-absolute tw-inset-0 tw-z-modal tw-flex tw-items-center tw-justify-center tw-rounded-md tw-border tw-border-dashed tw-bg-primary tw-opacity-80">
+                <span>Present your documents…</span>
+              </div>
+            )}
+            <div className="hendrik-chat-header">
+              <ChatControls
+                onNewChat={handleNewChat}
+                onSaveAsNote={() => handleSaveAsNote()}
+                onLoadHistory={handleLoadChatHistory}
+                chatHistory={chatHistoryItems}
+                onUpdateChatTitle={handleUpdateChatTitle}
+                onDeleteChat={handleDeleteChat}
                 onLoadChat={handleLoadChat}
-                backSignal={projectBackSignal}
-                onCanGoBackChange={setCanGoBackInProjectMode}
-                onViewingProjectChange={setViewingProject}
+                onOpenSourceFile={handleOpenSourceFile}
+                latestTokenCount={latestTokenCount}
+                onClosePanel={onClosePanel}
+                isProjectMode={selectedChain === ChainType.PROJECT_CHAIN}
+                activeProject={activeProject}
+                viewingProject={viewingProject}
+                onBackToProjects={
+                  selectedChain === ChainType.PROJECT_CHAIN && canGoBackInProjectMode
+                    ? () => {
+                        setProjectBackSignal((prev) => prev + 1);
+                        setShowChatUI(false);
+                      }
+                    : undefined
+                }
+                onBackFromViewing={
+                  viewingProject
+                    ? () => {
+                        setProjectBackSignal((prev) => prev + 1);
+                      }
+                    : undefined
+                }
               />
             </div>
-          )}
-          {(selectedChain !== ChainType.PROJECT_CHAIN ||
-            (selectedChain === ChainType.PROJECT_CHAIN && showChatUI)) &&
-            renderChatComponents()}
+            {selectedChain === ChainType.PROJECT_CHAIN && (
+              <div className="hendrik-chat-root hendrik-chat-surface tw-flex-1 tw-overflow-hidden">
+                <ProjectList
+                  projects={settings.projectList || []}
+                  defaultOpen={true}
+                  app={app}
+                  plugin={plugin}
+                  hasMessages={false}
+                  onProjectAdded={handleAddProject}
+                  onEditProject={handleEditProject}
+                  onClose={() => {
+                    if (previousMode) {
+                      setSelectedChain(previousMode);
+                      setPreviousMode(null);
+                    } else {
+                      // default back to tool calling mode
+                      setSelectedChain(ChainType.TOOL_CALLING_CHAIN);
+                    }
+                  }}
+                  showChatUI={(v) => setShowChatUI(v)}
+                  onProjectClose={() => {
+                    setProgressCardVisible(null);
+                  }}
+                  onLoadChat={handleLoadChat}
+                  backSignal={projectBackSignal}
+                  onCanGoBackChange={setCanGoBackInProjectMode}
+                  onViewingProjectChange={setViewingProject}
+                />
+              </div>
+            )}
+            {(selectedChain !== ChainType.PROJECT_CHAIN ||
+              (selectedChain === ChainType.PROJECT_CHAIN && showChatUI)) &&
+              renderChatComponents()}
+          </div>
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ import * as settingsModel from "@/settings/model";
 jest.mock("@/system-prompts/state", () => ({
   getEffectiveSystemPromptContent: jest.fn(() => ""),
   getDisableBuiltinSystemPrompt: jest.fn(() => false),
+  getEffectiveChronicleMode: jest.fn(() => "none"),
 }));
 
 // Mock settings/model getSettings for legacy fallback tests

@@ -4,6 +4,16 @@ export * from "./type";
 // Constants
 export * from "./constants";
 
+// Chronicle Modes
+export {
+  CHRONICLE_MODE_NONE,
+  getChronicleModesMeta,
+  getChronicleModeMeta,
+  getChronicleModePrompt,
+  getChronicleModelIds,
+} from "./chronicleModes";
+export type { ChronicleModeMeta } from "./chronicleModes";
+
 // Utils
 export * from "./systemPromptUtils";
 

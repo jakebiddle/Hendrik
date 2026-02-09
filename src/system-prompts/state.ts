@@ -2,6 +2,8 @@ import { atom, createStore, useAtom } from "jotai";
 import { useAtomValue, useSetAtom } from "jotai";
 import { UserSystemPrompt } from "@/system-prompts/type";
 import { getSettings, updateSetting } from "@/settings/model";
+import { getCurrentProject } from "@/aiParams";
+import { CHRONICLE_MODE_NONE } from "@/system-prompts/chronicleModes";
 
 // Create independent store for system prompts (similar to custom commands)
 const systemPromptsStore = createStore();
@@ -10,6 +12,7 @@ const systemPromptsStore = createStore();
 const systemPromptsAtom = atom<UserSystemPrompt[]>([]);
 const selectedPromptTitleAtom = atom<string>("");
 const disableBuiltinSystemPromptAtom = atom<boolean>(false);
+const sessionChronicleModeAtom = atom<string>("");
 
 /**
  * React hook to get all system prompts
@@ -217,4 +220,63 @@ export function initializeSessionPromptFromDefault(): void {
 export function resetSessionSystemPromptSettings(): void {
   setDisableBuiltinSystemPrompt(false);
   setSelectedPromptTitle("");
+  setSessionChronicleMode("");
+}
+
+// ================================
+// CHRONICLE MODE (session-level)
+// ================================
+
+/**
+ * Set the session-level chronicle mode override.
+ * Empty string means "use project or global default".
+ * @param mode - Chronicle mode id or empty string to clear
+ */
+export function setSessionChronicleMode(mode: string): void {
+  systemPromptsStore.set(sessionChronicleModeAtom, mode);
+}
+
+/**
+ * Get the raw session-level chronicle mode (non-reactive, for non-React code).
+ * @returns The session chronicle mode id, or empty string if unset
+ */
+export function getSessionChronicleMode(): string {
+  return systemPromptsStore.get(sessionChronicleModeAtom);
+}
+
+/**
+ * React hook to get and set the session chronicle mode.
+ * @returns Tuple of [sessionMode, setSessionMode]
+ */
+export function useSessionChronicleMode(): [string, (mode: string) => void] {
+  return useAtom(sessionChronicleModeAtom, { store: systemPromptsStore });
+}
+
+/**
+ * Resolve the effective chronicle mode considering the priority chain:
+ * session override → project override → global setting → "none"
+ *
+ * @returns The effective chronicle mode id
+ */
+export function getEffectiveChronicleMode(): string {
+  // 1. Session-level override (from chat settings popover)
+  const sessionMode = getSessionChronicleMode();
+  if (sessionMode && sessionMode !== CHRONICLE_MODE_NONE) {
+    return sessionMode;
+  }
+
+  // 2. Project-level override (from ProjectConfig)
+  const project = getCurrentProject();
+  if (project?.chronicleMode && project.chronicleMode !== CHRONICLE_MODE_NONE) {
+    return project.chronicleMode;
+  }
+
+  // 3. Global setting
+  const globalMode = getSettings().chronicleMode;
+  if (globalMode && globalMode !== CHRONICLE_MODE_NONE) {
+    return globalMode;
+  }
+
+  // 4. Off
+  return CHRONICLE_MODE_NONE;
 }

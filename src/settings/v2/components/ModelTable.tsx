@@ -47,7 +47,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import React, { ForwardRefExoticComponent, RefAttributes, useRef } from "react";
+import React, { ForwardRefExoticComponent, RefAttributes, useMemo, useRef } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,6 +86,47 @@ const CAPABILITY_ORDER = [
   ModelCapability.VISION,
   ModelCapability.WEB_SEARCH,
 ] as const;
+
+/**
+ * Filters models by name, display name, provider, and capability text.
+ *
+ * @param models - Candidate model list.
+ * @param query - Normalized lowercase query text.
+ * @returns Filtered model list.
+ */
+export function filterModelsByQuery(models: CustomModel[], query: string): CustomModel[] {
+  if (!query) {
+    return models;
+  }
+
+  return models.filter((model) => {
+    const searchTerms = [
+      model.name,
+      model.displayName,
+      model.provider,
+      ...(model.capabilities || []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchTerms.includes(query);
+  });
+}
+
+/**
+ * Determines whether model reordering should be enabled.
+ *
+ * @param filterQuery - Active filter query.
+ * @param onReorderModels - Reorder callback availability.
+ * @returns True when reorder is enabled.
+ */
+export function isModelReorderEnabled(
+  filterQuery: string | undefined,
+  onReorderModels?: (newModels: CustomModel[]) => void
+): boolean {
+  return Boolean(onReorderModels) && (filterQuery || "").trim().length === 0;
+}
 
 interface ModelTableHeaderProps {
   title: string;
@@ -152,6 +193,7 @@ interface ModelCardProps {
   onUpdateModel: (model: CustomModel) => void;
   id: string;
   containerRef: React.RefObject<HTMLDivElement>;
+  isReorderEnabled: boolean;
 }
 
 const ModelCard: React.FC<ModelCardProps> = ({
@@ -162,6 +204,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
   onUpdateModel,
   id,
   containerRef,
+  isReorderEnabled,
 }) => {
   const dropdownActions: MobileCardDropdownAction<CustomModel>[] = [];
 
@@ -222,7 +265,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
           <ModelCapabilityIcons capabilities={model.capabilities} iconSize={14} />
         ) : undefined
       }
-      isDraggable={!model.core}
+      isDraggable={isReorderEnabled && !model.core}
       isExpandable
       expandedContent={expandedContent}
       primaryAction={
@@ -248,10 +291,20 @@ const DesktopSortableTableRow: React.FC<{
   onUpdateModel: (model: CustomModel) => void;
   isEmbeddingModel: boolean;
   containerRef: React.RefObject<HTMLDivElement>;
-}> = ({ model, onEdit, onCopy, onDelete, onUpdateModel, isEmbeddingModel, containerRef }) => {
+  isReorderEnabled: boolean;
+}> = ({
+  model,
+  onEdit,
+  onCopy,
+  onDelete,
+  onUpdateModel,
+  isEmbeddingModel,
+  containerRef,
+  isReorderEnabled,
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: getModelKeyFromModel(model),
-    disabled: model.core,
+    disabled: model.core || !isReorderEnabled,
   });
 
   const style = {
@@ -272,7 +325,7 @@ const DesktopSortableTableRow: React.FC<{
       )}
     >
       <TableCell className="tw-w-6 tw-px-2">
-        {!model.core && (
+        {!model.core && isReorderEnabled && (
           <Button
             variant="ghost"
             size="icon"
@@ -369,6 +422,7 @@ interface ModelTableProps {
   onReorderModels?: (newModels: CustomModel[]) => void;
   onRefresh?: () => void;
   title: string;
+  filterQuery?: string;
 }
 
 export const ModelTable: React.FC<ModelTableProps> = ({
@@ -381,8 +435,16 @@ export const ModelTable: React.FC<ModelTableProps> = ({
   onReorderModels,
   onRefresh,
   title,
+  filterQuery,
 }) => {
+  const normalizedFilterQuery = (filterQuery || "").trim().toLowerCase();
   const isEmbeddingModel = !!(models.length > 0 && models[0].isEmbeddingModel);
+  const isReorderEnabled = isModelReorderEnabled(filterQuery, onReorderModels);
+
+  const filteredModels = useMemo(
+    () => filterModelsByQuery(models, normalizedFilterQuery),
+    [models, normalizedFilterQuery]
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -438,6 +500,10 @@ export const ModelTable: React.FC<ModelTableProps> = ({
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (!isReorderEnabled) {
+      return;
+    }
+
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -480,11 +546,16 @@ export const ModelTable: React.FC<ModelTableProps> = ({
         }}
       >
         <SortableContext
-          items={models.map((model) => getModelKeyFromModel(model))}
+          items={filteredModels.map((model) => getModelKeyFromModel(model))}
           strategy={verticalListSortingStrategy}
         >
           <div className="tw-relative tw-touch-auto tw-space-y-2 tw-overflow-auto tw-pb-2">
-            {models.map((model) => (
+            {filteredModels.length === 0 && (
+              <div className="tw-rounded-md tw-border tw-border-border tw-bg-secondary tw-p-4 tw-text-sm tw-text-muted">
+                No models match the current search.
+              </div>
+            )}
+            {filteredModels.map((model) => (
               <ModelCard
                 key={getModelKeyFromModel(model)}
                 id={getModelKeyFromModel(model)}
@@ -494,6 +565,7 @@ export const ModelTable: React.FC<ModelTableProps> = ({
                 onCopy={onCopy}
                 onDelete={onDelete}
                 onUpdateModel={onUpdateModel}
+                isReorderEnabled={isReorderEnabled}
               />
             ))}
           </div>
@@ -528,21 +600,33 @@ export const ModelTable: React.FC<ModelTableProps> = ({
               </TableHeader>
               <TableBody className="tw-relative">
                 <SortableContext
-                  items={models.map((model) => getModelKeyFromModel(model))}
+                  items={filteredModels.map((model) => getModelKeyFromModel(model))}
                   strategy={verticalListSortingStrategy}
                 >
-                  {models.map((model) => (
-                    <DesktopSortableTableRow
-                      key={getModelKeyFromModel(model)}
-                      containerRef={containerRef}
-                      model={model}
-                      onEdit={onEdit}
-                      onCopy={onCopy}
-                      onDelete={onDelete}
-                      onUpdateModel={onUpdateModel}
-                      isEmbeddingModel={isEmbeddingModel}
-                    />
-                  ))}
+                  {filteredModels.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        className="tw-py-6 tw-text-center tw-text-muted"
+                        colSpan={isEmbeddingModel ? 6 : 7}
+                      >
+                        No models match the current search.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredModels.map((model) => (
+                      <DesktopSortableTableRow
+                        key={getModelKeyFromModel(model)}
+                        containerRef={containerRef}
+                        model={model}
+                        onEdit={onEdit}
+                        onCopy={onCopy}
+                        onDelete={onDelete}
+                        onUpdateModel={onUpdateModel}
+                        isEmbeddingModel={isEmbeddingModel}
+                        isReorderEnabled={isReorderEnabled}
+                      />
+                    ))
+                  )}
                 </SortableContext>
               </TableBody>
             </Table>

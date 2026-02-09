@@ -86,7 +86,6 @@ class ChainFactory {
       model,
     ]);
     ChainFactory.instances.set(ChainType.LLM_CHAIN, instance);
-    console.log("New LLM chain created.");
     return instance;
   }
 

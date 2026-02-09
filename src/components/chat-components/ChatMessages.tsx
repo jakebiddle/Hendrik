@@ -33,6 +33,7 @@ interface ChatMessagesProps {
   onRegenerate: (messageIndex: number) => void;
   onEdit: (messageIndex: number, newMessage: string) => void;
   onDelete: (messageIndex: number) => void;
+  onChronicleAnswer?: (messageIndex: number, questionId: string, answer: string | string[]) => void;
   showHelperComponents: boolean;
   /** When set, renders a project-specific empty state instead of the generic one. */
   projectName?: string | null;
@@ -43,6 +44,11 @@ interface ChatMessagesProps {
 interface QuickAction {
   label: string;
   prompt: string;
+}
+
+interface VisibleMessageEntry {
+  message: ChatMessage;
+  sourceIndex: number;
 }
 
 /**
@@ -59,6 +65,9 @@ const ARCHIVIST_WAITING_PHRASES = [
   "Scanning the index",
   "Unrolling the scrolls",
 ] as const;
+
+const INITIAL_VISIBLE_MESSAGE_BATCH_SIZE = 80;
+const LOAD_OLDER_MESSAGE_BATCH_SIZE = 120;
 
 /**
  * Builds compact quick actions tailored to the active note context.
@@ -110,11 +119,15 @@ const ChatMessages = memo(
     onRegenerate,
     onEdit,
     onDelete,
+    onChronicleAnswer,
     showHelperComponents = true,
     projectName,
     projectAppearance,
   }: ChatMessagesProps) => {
     const [loadingDots, setLoadingDots] = useState("");
+    const [visibleMessageRenderLimit, setVisibleMessageRenderLimit] = useState(
+      INITIAL_VISIBLE_MESSAGE_BATCH_SIZE
+    );
     const waitingPhraseRef = useRef(
       ARCHIVIST_WAITING_PHRASES[Math.floor(Math.random() * ARCHIVIST_WAITING_PHRASES.length)]
     );
@@ -122,21 +135,57 @@ const ChatMessages = memo(
     const chatInput = useChatInput();
     const activeNote = useActiveNoteInsight();
 
-    const hasVisibleMessages = useMemo(
-      () => chatHistory.some((message) => message.isVisible),
+    const visibleMessageEntries = useMemo<VisibleMessageEntry[]>(
+      () =>
+        chatHistory.reduce<VisibleMessageEntry[]>((entries, message, sourceIndex) => {
+          if (message.isVisible) {
+            entries.push({ message, sourceIndex });
+          }
+          return entries;
+        }, []),
       [chatHistory]
     );
 
+    const firstVisibleMessageId = visibleMessageEntries[0]?.message.id ?? null;
+
+    /**
+     * Reset the render window when switching between conversations/modes.
+     * Uses first visible message identity to avoid resetting on every appended turn.
+     */
+    useEffect(() => {
+      setVisibleMessageRenderLimit(INITIAL_VISIBLE_MESSAGE_BATCH_SIZE);
+    }, [firstVisibleMessageId, projectName]);
+
+    const hasVisibleMessages = visibleMessageEntries.length > 0;
+
+    const hiddenVisibleMessageCount = Math.max(
+      0,
+      visibleMessageEntries.length - visibleMessageRenderLimit
+    );
+
+    const renderedVisibleMessageEntries = useMemo(() => {
+      if (hiddenVisibleMessageCount <= 0) {
+        return visibleMessageEntries;
+      }
+
+      return visibleMessageEntries.slice(-visibleMessageRenderLimit);
+    }, [hiddenVisibleMessageCount, visibleMessageEntries, visibleMessageRenderLimit]);
+
+    const lastVisibleSourceIndex = useMemo(() => {
+      const lastEntry = renderedVisibleMessageEntries[renderedVisibleMessageEntries.length - 1];
+      return lastEntry ? lastEntry.sourceIndex : -1;
+    }, [renderedVisibleMessageEntries]);
+
     const latestUserMessage = useMemo(() => {
-      for (let index = chatHistory.length - 1; index >= 0; index -= 1) {
-        const message = chatHistory[index];
+      for (let index = visibleMessageEntries.length - 1; index >= 0; index -= 1) {
+        const message = visibleMessageEntries[index]?.message;
         if (message.sender === USER_SENDER && message.isVisible) {
           return message.message;
         }
       }
 
       return null;
-    }, [chatHistory]);
+    }, [visibleMessageEntries]);
 
     const royalAddress = useMemo(
       () =>
@@ -308,32 +357,54 @@ const ChatMessages = memo(
           data-testid="chat-messages"
           className="tw-relative tw-flex tw-w-full tw-flex-1 tw-select-text tw-flex-col tw-items-start tw-justify-start tw-overflow-y-auto tw-scroll-smooth tw-break-words tw-text-[calc(var(--font-text-size)_-_2px)]"
         >
-          {chatHistory.map((message, index) => {
-            const visibleMessages = chatHistory.filter((m) => m.isVisible);
-            const isLastMessage = index === visibleMessages.length - 1;
-            const shouldApplyMinHeight = isLastMessage && message.sender !== USER_SENDER;
+          {hiddenVisibleMessageCount > 0 && (
+            <div className="tw-flex tw-w-full tw-justify-center tw-py-2">
+              <button
+                type="button"
+                className="tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-secondary tw-px-3 tw-py-1.5 tw-text-xs tw-font-medium tw-text-muted tw-transition-colors hover:tw-bg-secondary-alt hover:tw-text-normal"
+                onClick={() => {
+                  setVisibleMessageRenderLimit((previousLimit) =>
+                    Math.min(
+                      visibleMessageEntries.length,
+                      previousLimit + LOAD_OLDER_MESSAGE_BATCH_SIZE
+                    )
+                  );
+                }}
+              >
+                Load {Math.min(hiddenVisibleMessageCount, LOAD_OLDER_MESSAGE_BATCH_SIZE)} older
+                messages
+              </button>
+            </div>
+          )}
+          {renderedVisibleMessageEntries.map(({ message, sourceIndex }, visibleIndex) => {
+            const shouldApplyMinHeight =
+              sourceIndex === lastVisibleSourceIndex && message.sender !== USER_SENDER;
+            const messageKey = getMessageKey(message, sourceIndex);
 
             return (
-              message.isVisible && (
-                <div
-                  key={getMessageKey(message, index)}
-                  data-message-key={getMessageKey(message, index)}
-                  className="tw-w-full"
-                  style={{
-                    minHeight: shouldApplyMinHeight ? `${containerMinHeight}px` : "auto",
-                  }}
-                >
-                  <ChatSingleMessage
-                    message={message}
-                    app={app}
-                    isStreaming={false}
-                    onRegenerate={() => onRegenerate(index)}
-                    onEdit={(newMessage) => onEdit(index, newMessage)}
-                    onDelete={() => onDelete(index)}
-                    staggerDelayMs={(index % 5) * 12}
-                  />
-                </div>
-              )
+              <div
+                key={messageKey}
+                data-message-key={messageKey}
+                className="tw-w-full"
+                style={{
+                  minHeight: shouldApplyMinHeight ? `${containerMinHeight}px` : "auto",
+                }}
+              >
+                <ChatSingleMessage
+                  message={message}
+                  app={app}
+                  isStreaming={false}
+                  onRegenerate={() => onRegenerate(sourceIndex)}
+                  onEdit={(newMessage) => onEdit(sourceIndex, newMessage)}
+                  onDelete={() => onDelete(sourceIndex)}
+                  onChronicleAnswer={
+                    onChronicleAnswer
+                      ? (qId, answer) => onChronicleAnswer(sourceIndex, qId, answer)
+                      : undefined
+                  }
+                  staggerDelayMs={(visibleIndex % 5) * 12}
+                />
+              </div>
             );
           })}
           {(currentAiMessage || loading) && (

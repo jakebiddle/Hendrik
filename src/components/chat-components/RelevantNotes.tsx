@@ -18,10 +18,154 @@ import { ChevronDown, ChevronUp, PlusCircle, RefreshCcw, TriangleAlert } from "l
 import { Notice, TFile } from "obsidian";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
+const RELEVANT_NOTES_CACHE_TTL_MS = 60_000;
+const HAS_INDEX_CACHE_TTL_MS = 60_000;
+const DEFAULT_FETCH_DELAY_MS = 140;
+
+type RelevantNotesSource = "smart-connections" | "vault-index";
+
+interface CacheEntry<T> {
+  value: T;
+  storedAtMs: number;
+}
+
+const relevantNotesCache = new Map<string, CacheEntry<RelevantNoteEntry[]>>();
+const relevantNotesInFlight = new Map<string, Promise<RelevantNoteEntry[]>>();
+const hasIndexCache = new Map<string, CacheEntry<boolean>>();
+const hasIndexInFlight = new Map<string, Promise<boolean>>();
+
 interface RelevantNoteRowProps {
   note: RelevantNoteEntry;
   onAddToChat: () => void;
   onNavigateToNote: (openInNewLeaf: boolean) => void;
+}
+
+/**
+ * Builds a stable cache key for note retrieval source and path.
+ */
+function getRelevantNotesCacheKey(filePath: string, source: RelevantNotesSource): string {
+  return `${source}::${filePath}`;
+}
+
+/**
+ * Returns a cached value if it is still inside the configured TTL.
+ */
+function getFreshCachedValue<T>(
+  cache: Map<string, CacheEntry<T>>,
+  cacheKey: string,
+  ttlMs: number
+): T | null {
+  const entry = cache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() - entry.storedAtMs > ttlMs) {
+    cache.delete(cacheKey);
+    return null;
+  }
+
+  return entry.value;
+}
+
+/**
+ * Stores a value in the given cache with a timestamp.
+ */
+function setCachedValue<T>(cache: Map<string, CacheEntry<T>>, cacheKey: string, value: T): void {
+  cache.set(cacheKey, { value, storedAtMs: Date.now() });
+}
+
+/**
+ * Reuses an in-flight request for the same key, or starts a new request once.
+ */
+async function getOrStartRequest<T>(
+  inFlightCache: Map<string, Promise<T>>,
+  cacheKey: string,
+  requestFactory: () => Promise<T>
+): Promise<T> {
+  const existingRequest = inFlightCache.get(cacheKey);
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = requestFactory().finally(() => {
+    inFlightCache.delete(cacheKey);
+  });
+
+  inFlightCache.set(cacheKey, request);
+  return request;
+}
+
+/**
+ * Defers expensive work so mode transitions can render first.
+ */
+function scheduleDeferredTask(task: () => void, delayMs: number): () => void {
+  const timeoutId = globalThis.setTimeout(task, delayMs);
+  return () => {
+    globalThis.clearTimeout(timeoutId);
+  };
+}
+
+/**
+ * Clears cached relevant-note and index state for a specific note path.
+ */
+function invalidateRelevantNoteCaches(notePath: string): void {
+  if (!notePath) {
+    return;
+  }
+
+  for (const source of ["smart-connections", "vault-index"] as const) {
+    const cacheKey = getRelevantNotesCacheKey(notePath, source);
+    relevantNotesCache.delete(cacheKey);
+    relevantNotesInFlight.delete(cacheKey);
+  }
+
+  hasIndexCache.delete(notePath);
+  hasIndexInFlight.delete(notePath);
+}
+
+/**
+ * Loads relevant notes for a file using the configured source.
+ */
+async function fetchRelevantNotesForFile({
+  filePath,
+  useSmartConnectionsSource,
+}: {
+  filePath: string;
+  useSmartConnectionsSource: boolean;
+}): Promise<RelevantNoteEntry[]> {
+  if (useSmartConnectionsSource) {
+    try {
+      return await findRelevantNotesViaSC({ app, filePath });
+    } catch (error) {
+      logWarn("Failed to fetch relevant notes via Smart Connections", error);
+    }
+  }
+
+  try {
+    const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
+    const db = await VectorStoreManager.getInstance().getDb();
+    if (!db) {
+      return [];
+    }
+
+    return await findRelevantNotes({ db, filePath });
+  } catch (error) {
+    logWarn("Failed to fetch relevant notes", error);
+    return [];
+  }
+}
+
+/**
+ * Checks if a note has an index in the local vector store.
+ */
+async function fetchHasIndex(notePath: string): Promise<boolean> {
+  try {
+    const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
+    return await VectorStoreManager.getInstance().hasIndex(notePath);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -52,45 +196,59 @@ function getEmptyStateMessage(useSmartConnectionsSource: boolean, hasIndex: bool
 /**
  * Loads relevant notes using the active retrieval source.
  */
-function useRelevantNotes(refresher: number, useSmartConnectionsSource: boolean) {
+function useRelevantNotes(refresher: number, useSmartConnectionsSource: boolean, isOpen: boolean) {
   const [relevantNotes, setRelevantNotes] = useState<RelevantNoteEntry[]>([]);
   const activeFile = useActiveFile();
 
   useEffect(() => {
-    async function fetchNotes() {
-      if (!activeFile?.path) {
-        setRelevantNotes([]);
-        return;
-      }
-
-      if (useSmartConnectionsSource) {
-        try {
-          const notes = await findRelevantNotesViaSC({ app, filePath: activeFile.path });
-          setRelevantNotes(notes);
-          return;
-        } catch (error) {
-          logWarn("Failed to fetch relevant notes via Smart Connections", error);
-        }
-      }
-
-      try {
-        const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
-        const db = await VectorStoreManager.getInstance().getDb();
-        if (!db) {
-          setRelevantNotes([]);
-          return;
-        }
-
-        const notes = await findRelevantNotes({ db, filePath: activeFile.path });
-        setRelevantNotes(notes);
-      } catch (error) {
-        logWarn("Failed to fetch relevant notes", error);
-        setRelevantNotes([]);
-      }
+    const notePath = activeFile?.path;
+    if (!notePath) {
+      setRelevantNotes([]);
+      return;
     }
 
-    fetchNotes();
-  }, [activeFile?.path, refresher, useSmartConnectionsSource]);
+    const source: RelevantNotesSource = useSmartConnectionsSource
+      ? "smart-connections"
+      : "vault-index";
+    const cacheKey = getRelevantNotesCacheKey(notePath, source);
+
+    const cachedNotes = getFreshCachedValue(
+      relevantNotesCache,
+      cacheKey,
+      RELEVANT_NOTES_CACHE_TTL_MS
+    );
+    if (cachedNotes) {
+      setRelevantNotes(cachedNotes);
+      return;
+    }
+
+    setRelevantNotes([]);
+    let cancelled = false;
+    const cancelDeferredFetch = scheduleDeferredTask(
+      () => {
+        void (async () => {
+          const notes = await getOrStartRequest(relevantNotesInFlight, cacheKey, async () => {
+            const fetchedNotes = await fetchRelevantNotesForFile({
+              filePath: notePath,
+              useSmartConnectionsSource,
+            });
+            setCachedValue(relevantNotesCache, cacheKey, fetchedNotes);
+            return fetchedNotes;
+          });
+
+          if (!cancelled) {
+            setRelevantNotes(notes);
+          }
+        })();
+      },
+      isOpen ? 0 : DEFAULT_FETCH_DELAY_MS
+    );
+
+    return () => {
+      cancelled = true;
+      cancelDeferredFetch();
+    };
+  }, [activeFile?.path, refresher, useSmartConnectionsSource, isOpen]);
 
   return relevantNotes;
 }
@@ -98,31 +256,56 @@ function useRelevantNotes(refresher: number, useSmartConnectionsSource: boolean)
 /**
  * Determines whether the active note has a local vector index available.
  */
-function useHasIndex(notePath: string, refresher: number, useSmartConnectionsSource: boolean) {
+function useHasIndex({
+  notePath,
+  refresher,
+  useSmartConnectionsSource,
+  shouldCheck,
+}: {
+  notePath: string;
+  refresher: number;
+  useSmartConnectionsSource: boolean;
+  shouldCheck: boolean;
+}) {
   const [hasIndex, setHasIndex] = useState(true);
 
   useEffect(() => {
     if (!notePath) {
-      return;
-    }
-
-    if (useSmartConnectionsSource) {
       setHasIndex(true);
       return;
     }
 
-    async function fetchHasIndex() {
-      try {
-        const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
-        const has = await VectorStoreManager.getInstance().hasIndex(notePath);
-        setHasIndex(has);
-      } catch {
-        setHasIndex(false);
-      }
+    if (useSmartConnectionsSource || !shouldCheck) {
+      setHasIndex(true);
+      return;
     }
 
-    fetchHasIndex();
-  }, [notePath, refresher, useSmartConnectionsSource]);
+    const cachedHasIndex = getFreshCachedValue(hasIndexCache, notePath, HAS_INDEX_CACHE_TTL_MS);
+    if (cachedHasIndex !== null) {
+      setHasIndex(cachedHasIndex);
+      return;
+    }
+
+    let cancelled = false;
+    const cancelDeferredFetch = scheduleDeferredTask(() => {
+      void (async () => {
+        const has = await getOrStartRequest(hasIndexInFlight, notePath, async () => {
+          const hasLocalIndex = await fetchHasIndex(notePath);
+          setCachedValue(hasIndexCache, notePath, hasLocalIndex);
+          return hasLocalIndex;
+        });
+
+        if (!cancelled) {
+          setHasIndex(has);
+        }
+      })();
+    }, DEFAULT_FETCH_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      cancelDeferredFetch();
+    };
+  }, [notePath, refresher, useSmartConnectionsSource, shouldCheck]);
 
   return hasIndex;
 }
@@ -193,8 +376,13 @@ export const RelevantNotes = memo(
     const useSmartConnectionsSource =
       settings.useSmartConnections && isSmartConnectionsAvailable(app);
 
-    const relevantNotes = useRelevantNotes(refresher, useSmartConnectionsSource);
-    const hasIndex = useHasIndex(activeFile?.path ?? "", refresher, useSmartConnectionsSource);
+    const relevantNotes = useRelevantNotes(refresher, useSmartConnectionsSource, isOpen);
+    const hasIndex = useHasIndex({
+      notePath: activeFile?.path ?? "",
+      refresher,
+      useSmartConnectionsSource,
+      shouldCheck: relevantNotes.length === 0,
+    });
 
     const compactNotes = useMemo(() => relevantNotes.slice(0, 3), [relevantNotes]);
     const visibleRows = useMemo(() => relevantNotes.slice(0, 8), [relevantNotes]);
@@ -233,6 +421,7 @@ export const RelevantNotes = memo(
 
       const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
       await VectorStoreManager.getInstance().reindexFile(activeFile);
+      invalidateRelevantNoteCaches(activeFile.path);
       new Notice(`Refreshed index for ${activeFile.basename}`);
       setRefresher((count) => count + 1);
     }, [activeFile, useSmartConnectionsSource]);
@@ -304,7 +493,7 @@ export const RelevantNotes = memo(
                 <button
                   key={note.document.path}
                   type="button"
-                  className="hendrik-relevant-notes__chip tw-max-w-40 tw-truncate tw-rounded-full tw-px-2 tw-py-0.5 tw-text-xs"
+                  className="hendrik-relevant-notes__chip tw-max-w-full tw-truncate tw-rounded-full tw-px-2 tw-py-0.5 tw-text-xs"
                   title={note.document.title}
                   onClick={(event) => {
                     const openInNewLeaf = event.metaKey || event.ctrlKey;

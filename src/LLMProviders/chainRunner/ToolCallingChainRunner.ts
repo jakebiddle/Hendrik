@@ -25,6 +25,10 @@ import { localSearchTool, webSearchTool } from "@/tools/SearchTools";
 import { updateMemoryTool } from "@/tools/memoryTools";
 import { extractChatHistory } from "@/utils";
 import { ChatMessage, ResponseMetadata } from "@/types/message";
+import {
+  resolveCompactionThresholdTokens,
+  resolveLocalSearchContextCharBudget,
+} from "@/utils/contextBudgetUtils";
 import { getApiErrorMessage, getMessageRole, withSuppressedTokenWarnings } from "@/utils";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { BaseChainRunner } from "./BaseChainRunner";
@@ -525,6 +529,72 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
   }
 
   /**
+   * Resolve context window tokens for the active chat model.
+   *
+   * @returns Active model context window in tokens.
+   */
+  protected resolveActiveModelContextWindowTokens(): number {
+    const settings = getSettings();
+    const chatModel = this.chainManager.chatModelManager.getChatModel();
+    const modelName = (chatModel as any).modelName || (chatModel as any).model || "";
+    const configuredModel = this.chainManager.chatModelManager.findModelByName(modelName);
+
+    const configuredContextWindow =
+      typeof configuredModel?.maxContextTokens === "number" &&
+      Number.isFinite(configuredModel.maxContextTokens) &&
+      configuredModel.maxContextTokens > 0
+        ? Math.floor(configuredModel.maxContextTokens)
+        : null;
+
+    if (configuredContextWindow) {
+      return configuredContextWindow;
+    }
+
+    return Math.max(8000, Math.floor(settings.defaultMaxContextTokens || 128000));
+  }
+
+  /**
+   * Resolve model-aware threshold tokens for auto-compaction decisions.
+   *
+   * @returns Effective compaction threshold in tokens, or Infinity when disabled.
+   */
+  protected resolveEffectiveAutoCompactThresholdTokens(): number {
+    const settings = getSettings();
+    return resolveCompactionThresholdTokens({
+      enableAutoCompaction: settings.enableAutoCompaction,
+      configuredThresholdTokens: settings.autoCompactThreshold,
+      contextWindowTokens: this.resolveActiveModelContextWindowTokens(),
+    });
+  }
+
+  /**
+   * Ratio of model context allocated to local-search payload.
+   * Subclasses can override for tighter/looser budgets.
+   *
+   * @returns Context allocation ratio for local-search payloads.
+   */
+  protected getLocalSearchContextBudgetRatio(): number {
+    return 0.22;
+  }
+
+  /**
+   * Resolve dynamic character budget for local-search context payloads.
+   *
+   * @returns Maximum local-search payload size in characters.
+   */
+  protected resolveLocalSearchContextCharBudget(): number {
+    const contextWindowTokens = this.resolveActiveModelContextWindowTokens();
+    const compactionThresholdTokens = this.resolveEffectiveAutoCompactThresholdTokens();
+
+    return resolveLocalSearchContextCharBudget({
+      contextWindowTokens,
+      compactionThresholdTokens,
+      contextWindowRatio: this.getLocalSearchContextBudgetRatio(),
+      hardMaxChars: MAX_CHARS_FOR_LOCAL_SEARCH_CONTEXT,
+    });
+  }
+
+  /**
    * If userMessage.message contains '@composer', append COMPOSER_OUTPUT_INSTRUCTIONS to the text content.
    * Handles both string and MessageContent[] types.
    */
@@ -960,14 +1030,17 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       0
     );
 
+    const localSearchCharBudget = this.resolveLocalSearchContextCharBudget();
+
     // If total content length exceeds threshold, truncate content proportionally
     let processedDocs = includedDocs;
-    if (totalContentLength > MAX_CHARS_FOR_LOCAL_SEARCH_CONTEXT) {
-      const truncationRatio = MAX_CHARS_FOR_LOCAL_SEARCH_CONTEXT / totalContentLength;
-      logInfo(
-        "Truncating document contents to fit context length. Truncation ratio:",
-        truncationRatio
-      );
+    if (totalContentLength > localSearchCharBudget) {
+      const truncationRatio = localSearchCharBudget / totalContentLength;
+      logInfo("Truncating document contents to fit context length.", {
+        truncationRatio,
+        totalContentLength,
+        localSearchCharBudget,
+      });
       processedDocs = includedDocs.map((doc) => ({
         ...doc,
         // Truncate only content, preserve all metadata

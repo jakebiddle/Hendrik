@@ -4,8 +4,10 @@ import { DEFAULT_SYSTEM_PROMPT } from "@/constants";
 import { logInfo } from "@/logger";
 import {
   getDisableBuiltinSystemPrompt,
+  getEffectiveChronicleMode,
   getEffectiveSystemPromptContent,
 } from "@/system-prompts/state";
+import { CHRONICLE_MODE_NONE, getChronicleModePrompt } from "@/system-prompts/chronicleModes";
 
 /**
  * Build a personalization block from user settings.
@@ -90,7 +92,10 @@ export function getEffectiveUserPrompt(): string {
 
 /**
  * Build the complete system prompt for the current session.
- * Combines builtin prompt with user custom instructions.
+ * Combines builtin prompt with user custom instructions or chronicle mode.
+ *
+ * When a Chronicle Mode is active, its proprietary prompt REPLACES the user's
+ * custom system prompt. Personalization and builtin prompt still stack normally.
  *
  * Priority for user prompt: session override > global default > legacy setting fallback > ""
  *
@@ -117,7 +122,15 @@ export function getSystemPrompt(): string {
     prompt = `${prompt}${personalization}`;
   }
 
-  if (userPrompt) {
+  // Resolve chronicle mode — when active, replaces user custom instructions
+  const chronicleMode = getEffectiveChronicleMode();
+  const chronicleModePrompt =
+    chronicleMode !== CHRONICLE_MODE_NONE ? getChronicleModePrompt(chronicleMode) : "";
+
+  if (chronicleModePrompt) {
+    // Chronicle mode replaces user custom instructions
+    prompt = `${prompt}\n<chronicle_mode>\n${chronicleModePrompt}\n</chronicle_mode>`;
+  } else if (userPrompt) {
     prompt = `${prompt}\n<user_custom_instructions>\n${userPrompt}\n</user_custom_instructions>`;
   }
 

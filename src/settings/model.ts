@@ -192,6 +192,8 @@ export interface HendrikSettings {
   defaultMaxContextTokens: number;
   /** Show context pressure indicator in chat controls */
   showContextPressureIndicator: boolean;
+  /** Active chronicle mode id ("none" = off, "narrator", "lorekeeper", "worldbuilder") */
+  chronicleMode: string;
 }
 
 export const settingsStore = createStore();

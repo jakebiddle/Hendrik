@@ -40,12 +40,14 @@ interface PatternListEditorProps {
   value: string;
   onChange: (value: string) => void;
   maxCollapsedHeight?: number;
+  filterQuery?: string;
 }
 
 export const PatternListEditor: React.FC<PatternListEditorProps> = ({
   value,
   onChange,
   maxCollapsedHeight = 84,
+  filterQuery,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -245,6 +247,17 @@ export const PatternListEditor: React.FC<PatternListEditorProps> = ({
     return badges;
   }, [folderPatterns, tagPatterns, notePatterns, extensionPatterns]);
 
+  const normalizedFilterQuery = (filterQuery || "").trim().toLowerCase();
+  const filteredBadges = useMemo(() => {
+    if (!normalizedFilterQuery) {
+      return allBadges;
+    }
+
+    return allBadges.filter(({ pattern, type }) =>
+      `${pattern} ${PATTERN_TYPE_CONFIG[type].label}`.toLowerCase().includes(normalizedFilterQuery)
+    );
+  }, [allBadges, normalizedFilterQuery]);
+
   const hasPatterns = patterns.length > 0;
 
   return (
@@ -263,10 +276,16 @@ export const PatternListEditor: React.FC<PatternListEditorProps> = ({
             </div>
           )}
 
+          {hasPatterns && filteredBadges.length === 0 && normalizedFilterQuery && (
+            <div className="tw-py-2 tw-text-center tw-text-sm tw-italic tw-text-muted">
+              No patterns match the current search
+            </div>
+          )}
+
           {/* Badge list - always render all, CSS handles truncation */}
-          {hasPatterns && (
+          {hasPatterns && filteredBadges.length > 0 && (
             <div className="tw-flex tw-flex-wrap tw-gap-1.5">
-              {allBadges.map((b) => renderBadge(b.pattern, b.type))}
+              {filteredBadges.map((b) => renderBadge(b.pattern, b.type))}
             </div>
           )}
         </div>
@@ -280,7 +299,7 @@ export const PatternListEditor: React.FC<PatternListEditorProps> = ({
       {/* Control bar: single row, Show on left, Add on right */}
       <div className="tw-flex tw-flex-row tw-items-center tw-justify-between">
         {/* Expand/collapse button (left side) */}
-        {isOverflowing ? (
+        {isOverflowing && !normalizedFilterQuery ? (
           <Button
             variant="ghost2"
             size="sm"

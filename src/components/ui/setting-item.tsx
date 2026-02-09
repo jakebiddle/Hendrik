@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { SettingSlider } from "@/components/ui/setting-slider";
 import { debounce } from "@/utils";
+import { useOptionalSettingsSearch } from "@/settings/v2/search/SettingsSearchContext";
 
 // 定义输入控件的类型
 type InputType =
@@ -42,6 +43,8 @@ interface BaseSettingItemProps {
   description?: string | React.ReactNode;
   className?: string;
   disabled?: boolean;
+  searchTerms?: string[];
+  rowId?: string;
 }
 
 // 不同类型输入控件的Props
@@ -110,8 +113,9 @@ type SettingItemProps =
   | DialogSettingItemProps;
 
 export function SettingItem(props: SettingItemProps) {
-  const { title, description, className, disabled } = props;
+  const { title, description, className, disabled, searchTerms, rowId } = props;
   const { modalContainer } = useTab();
+  const search = useOptionalSettingsSearch();
 
   const onChange: ((value: string | number) => void) | undefined =
     "onChange" in props ? props.onChange : undefined;
@@ -121,6 +125,24 @@ export function SettingItem(props: SettingItemProps) {
       onChange(value);
     }, 1000);
   }, [onChange]);
+
+  const normalizedTerms = useMemo(() => {
+    if (searchTerms && searchTerms.length > 0) {
+      return searchTerms;
+    }
+
+    if (typeof description === "string") {
+      return [title, description];
+    }
+
+    return [title];
+  }, [description, searchTerms, title]);
+
+  const isVisible = search?.matches(normalizedTerms) ?? true;
+
+  if (!isVisible) {
+    return null;
+  }
 
   const renderControl = () => {
     switch (props.type) {
@@ -253,17 +275,25 @@ export function SettingItem(props: SettingItemProps) {
 
   return (
     <div
+      id={rowId}
       className={cn(
-        "tw-flex tw-flex-col tw-items-start tw-justify-between tw-gap-4 tw-py-5 sm:tw-flex-row sm:tw-items-center",
-        "tw-w-full",
+        "setting-item",
+        "tw-flex tw-flex-col tw-items-start tw-justify-between tw-gap-3 tw-py-4 sm:tw-flex-row sm:tw-items-center",
+        "tw-w-full tw-border-b tw-border-border",
         className
       )}
     >
-      <div className="tw-w-full tw-space-y-1.5 sm:tw-w-[300px]">
-        <div className="tw-text-sm tw-font-medium tw-leading-none">{title}</div>
-        {description && <div className="tw-text-xs tw-text-muted">{description}</div>}
+      <div className="setting-item-info tw-w-full tw-space-y-1.5 sm:tw-w-[360px]">
+        <div className="setting-item-name tw-text-sm tw-font-medium tw-leading-none">{title}</div>
+        {description && (
+          <div className="setting-item-description tw-text-xs tw-leading-relaxed tw-text-muted">
+            {description}
+          </div>
+        )}
       </div>
-      <div className="tw-w-full tw-flex-1 sm:tw-flex sm:tw-justify-end">{renderControl()}</div>
+      <div className="setting-item-control tw-w-full tw-flex-1 sm:tw-flex sm:tw-justify-end">
+        {renderControl()}
+      </div>
     </div>
   );
 }

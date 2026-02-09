@@ -1354,8 +1354,10 @@ export class ContextManageModal extends Modal {
   onOpen() {
     const { contentEl, modalEl } = this;
     this.root = createRoot(contentEl);
-
-    modalEl.style.minWidth = "50vw";
+    modalEl.addClass("hendrik-context-manage-modal-shell");
+    modalEl.style.width = "min(92vw, 1120px)";
+    modalEl.style.maxWidth = "1120px";
+    modalEl.style.minWidth = "min(92vw, 860px)";
 
     const handleSave = (project: ProjectConfig) => {
       this.onSave(project);
@@ -1380,5 +1382,9 @@ export class ContextManageModal extends Modal {
     if (this.root) {
       this.root.unmount();
     }
+    this.modalEl.removeClass("hendrik-context-manage-modal-shell");
+    this.modalEl.style.width = "";
+    this.modalEl.style.maxWidth = "";
+    this.modalEl.style.minWidth = "";
   }
 }

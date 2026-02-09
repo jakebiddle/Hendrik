@@ -1,4 +1,4 @@
-import { getSelectedTextContexts } from "@/aiParams";
+import { getCurrentProject, getModelKey, getSelectedTextContexts } from "@/aiParams";
 import { ChainType } from "@/chainFactory";
 import { processPrompt } from "@/commands/customCommandUtils";
 import { LOADING_MESSAGES } from "@/constants";
@@ -14,6 +14,7 @@ import { Mention } from "@/mentions/Mention";
 import { getSettings } from "@/settings/model";
 import { FileParserManager } from "@/tools/FileParserManager";
 import { ChatMessage, MessageContext } from "@/types/message";
+import { resolveCompactionThresholdTokens } from "@/utils/contextBudgetUtils";
 import { extractNoteFiles, getNotesFromPath, getNotesFromTags } from "@/utils";
 import { TFile, Vault } from "obsidian";
 import { MessageRepository } from "./MessageRepository";
@@ -54,6 +55,67 @@ export class ContextManager {
       ContextManager.instance = new ContextManager();
     }
     return ContextManager.instance;
+  }
+
+  /**
+   * Resolve the active model context window in tokens for compaction decisions.
+   * Uses project model in project mode, otherwise the currently selected chat model.
+   *
+   * @param chainType - Active chain type for the message being processed.
+   * @returns Context window token count.
+   */
+  private resolveContextWindowTokens(chainType: ChainType): number {
+    const settings = getSettings();
+    const activeModels = Array.isArray(settings.activeModels) ? settings.activeModels : [];
+
+    let modelKey = getModelKey();
+    if (chainType === ChainType.PROJECT_CHAIN) {
+      const currentProject = getCurrentProject();
+      if (currentProject?.projectModelKey) {
+        modelKey = currentProject.projectModelKey;
+      }
+    }
+
+    const configuredModel = activeModels.find(
+      (model) => `${model.name}|${model.provider}` === modelKey
+    );
+    const configuredContextWindow =
+      typeof configuredModel?.maxContextTokens === "number" &&
+      Number.isFinite(configuredModel.maxContextTokens) &&
+      configuredModel.maxContextTokens > 0
+        ? Math.floor(configuredModel.maxContextTokens)
+        : null;
+
+    if (configuredContextWindow) {
+      return configuredContextWindow;
+    }
+
+    const defaultContextWindow =
+      typeof settings.defaultMaxContextTokens === "number" &&
+      Number.isFinite(settings.defaultMaxContextTokens) &&
+      settings.defaultMaxContextTokens > 0
+        ? Math.floor(settings.defaultMaxContextTokens)
+        : 128000;
+
+    return defaultContextWindow;
+  }
+
+  /**
+   * Resolve the effective token threshold for context auto-compaction.
+   * The threshold is model-aware so compaction can fire before context exhaustion.
+   *
+   * @param chainType - Active chain type for the message being processed.
+   * @returns Effective threshold in tokens, or Infinity when disabled.
+   */
+  private resolveAutoCompactionThreshold(chainType: ChainType): number {
+    const settings = getSettings();
+    const contextWindowTokens = this.resolveContextWindowTokens(chainType);
+
+    return resolveCompactionThresholdTokens({
+      enableAutoCompaction: settings.enableAutoCompaction,
+      configuredThresholdTokens: settings.autoCompactThreshold,
+      contextWindowTokens,
+    });
   }
 
   /**
@@ -223,18 +285,12 @@ export class ContextManager {
       let finalProcessedMessage = processedUserMessage + contextPortion;
 
       // 10. Auto-compact if context exceeds threshold (tokens * 4 = chars estimate)
-      // Projects mode uses a fixed 800k token threshold
-      // TODO(logan): deprecate this threshold when Projects mode is out of alpha
-      const PROJECT_COMPACT_THRESHOLD = 1000000;
-      const tokenThreshold =
-        chainType === ChainType.PROJECT_CHAIN
-          ? PROJECT_COMPACT_THRESHOLD
-          : getSettings().autoCompactThreshold;
+      const tokenThreshold = this.resolveAutoCompactionThreshold(chainType);
       const charThreshold = tokenThreshold * 4;
 
       let wasCompacted = false;
       let compactedContextPortion = contextPortion;
-      if (finalProcessedMessage.length > charThreshold) {
+      if (Number.isFinite(charThreshold) && finalProcessedMessage.length > charThreshold) {
         updateLoadingMessage?.(LOADING_MESSAGES.COMPACTING);
         const compactor = await getContextCompactor();
         // Only compact context portion, not user message, to preserve boundary

@@ -1,6 +1,7 @@
 import { PromptContextEnvelope } from "@/context/PromptContextTypes";
 import { formatDateTime } from "@/utils";
 import { ChatMessage, MessageContext, NewChatMessage, StoredMessage } from "@/types/message";
+import { ChronicleQuestion } from "@/types/chronicleQuestion";
 import { logInfo } from "@/logger";
 
 /**
@@ -154,6 +155,21 @@ export class MessageRepository {
   }
 
   /**
+   * Update chronicle questions on a message (for interactive question cards).
+   */
+  updateChronicleQuestions(id: string, questions: ChronicleQuestion[]): boolean {
+    const message = this.messages.find((msg) => msg.id === id);
+    if (!message) {
+      logInfo(`[MessageRepository] Message not found for chronicle question update: ${id}`);
+      return false;
+    }
+
+    message.chronicleQuestions = questions;
+    logInfo(`[MessageRepository] Updated chronicle questions for message ${id}`);
+    return true;
+  }
+
+  /**
    * Delete a message
    */
   deleteMessage(id: string): boolean {
@@ -215,6 +231,7 @@ export class MessageRepository {
         sources: msg.sources,
         content: msg.content,
         responseMetadata: msg.responseMetadata,
+        chronicleQuestions: msg.chronicleQuestions,
       }));
   }
 

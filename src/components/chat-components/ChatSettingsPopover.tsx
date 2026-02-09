@@ -1,5 +1,5 @@
 /* eslint-disable tailwindcss/no-custom-classname */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -8,14 +8,10 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, ArrowUpRight, RefreshCw, RotateCcw, Settings } from "lucide-react";
 import { SettingSwitch } from "@/components/ui/setting-switch";
-import { ModelParametersEditor } from "@/components/ui/ModelParametersEditor";
-import { CustomModel, getModelKey, useChainType } from "@/aiParams";
+import { useChainType } from "@/aiParams";
 import { ChainType } from "@/chainFactory";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
-import { AGENT_MAX_ITERATIONS_LIMIT } from "@/constants";
-import { SettingSlider } from "@/components/ui/setting-slider";
 import { getSettings, updateSetting } from "@/settings/model";
-import debounce from "lodash.debounce";
 import {
   refreshVaultIndex,
   forceReindexVault,
@@ -30,193 +26,144 @@ import {
   useSelectedPrompt,
   useSystemPrompts,
 } from "@/system-prompts";
+import {
+  CHRONICLE_MODE_NONE,
+  getChronicleModeMeta,
+  getChronicleModesMeta,
+} from "@/system-prompts/chronicleModes";
+import { getEffectiveChronicleMode, useSessionChronicleMode } from "@/system-prompts/state";
+import { openHendrikSettings } from "@/settings/v2/settingsNavigation";
 
 /**
- * Optional model parameters that can be reset to global defaults
- * These are model-specific overrides that should be cleared on reset
+ * Resets session-only system prompt settings in chat.
  */
-const RESETTABLE_MODEL_PARAMS: (keyof CustomModel)[] = [
-  "topP",
-  "frequencyPenalty",
-  "reasoningEffort",
-  "verbosity",
-];
+function resetSessionPromptState(
+  setSessionPrompt: (value: string) => void,
+  setSessionChronicleMode: (value: string) => void,
+  setDisableBuiltin: (value: boolean) => void,
+  setShowConfirmation: (value: boolean) => void
+): void {
+  setSessionPrompt("");
+  setSessionChronicleMode("");
+  setDisableBuiltin(false);
+  setShowConfirmation(false);
+  setDisableBuiltinSystemPrompt(false);
+}
 
 export function ChatSettingsPopover() {
   const settings = getSettings();
-  const modelKey = getModelKey();
-
-  // Find the currently selected model (original model)
-  const originalModel = settings.activeModels.find(
-    (model) => `${model.name}|${model.provider}` === modelKey
-  );
-
-  // Local editing state
-  const [localModel, setLocalModel] = useState<CustomModel | undefined>(originalModel);
-
-  // System prompt state (session-level, in-memory)
   const prompts = useSystemPrompts();
   const [sessionPrompt, setSessionPrompt] = useSelectedPrompt();
-  const globalDefault = getDefaultSystemPromptTitle();
+  const [sessionChronicleMode, setSessionChronicleMode] = useSessionChronicleMode();
   const [selectedChain] = useChainType();
+  const [disableBuiltin, setDisableBuiltin] = useState(getDisableBuiltinSystemPrompt());
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const confirmationRef = useRef<HTMLDivElement>(null);
+
+  const globalDefault = getDefaultSystemPromptTitle();
+  const effectiveChronicleMode = getEffectiveChronicleMode();
+  const activeModeMeta = getChronicleModeMeta(effectiveChronicleMode);
+  const isProjectMode = selectedChain === ChainType.PROJECT_CHAIN;
 
   /**
-   * Check if a prompt title exists in the current prompts list
+   * Checks whether a prompt title exists in the prompt collection.
+   *
+   * @param title - Candidate prompt title.
+   * @returns True when a prompt with the title exists.
    */
   const promptExists = (title: string | null | undefined): boolean => {
-    if (!title) return false;
-    return prompts.some((p) => p.title === title);
+    if (!title) {
+      return false;
+    }
+    return prompts.some((prompt) => prompt.title === title);
   };
 
-  // Display value: use existing prompts only, otherwise show placeholder
   const displayValue = promptExists(sessionPrompt)
     ? sessionPrompt
     : promptExists(globalDefault)
       ? globalDefault
       : "";
 
-  // Read state from session atom
-  const [disableBuiltin, setDisableBuiltin] = useState(getDisableBuiltinSystemPrompt());
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const confirmationRef = useRef<HTMLDivElement>(null);
-
-  // Update local state when original model changes (e.g., switching models)
-  useEffect(() => {
-    setLocalModel(originalModel);
-  }, [originalModel]);
-
-  // Auto-scroll to confirmation box when it appears
   useEffect(() => {
     if (showConfirmation && confirmationRef.current) {
       confirmationRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
     }
   }, [showConfirmation]);
 
-  // Debounced save function - must be defined before handleOpenChange
-  // Reference: Command module uses lodash.debounce which has cancel() method
-  const debouncedSave = useMemo(
-    () =>
-      debounce((updatedModel: CustomModel) => {
-        const updatedModels = settings.activeModels.map((model) =>
-          `${model.name}|${model.provider}` === modelKey ? updatedModel : model
-        );
-        updateSetting("activeModels", updatedModels);
-      }, 500),
-    [settings.activeModels, modelKey]
-  );
-
-  // Cleanup debounced save on unmount to ensure pending changes are persisted
-  useEffect(() => {
-    return () => {
-      debouncedSave.flush();
-      debouncedSave.cancel();
-    };
-  }, [debouncedSave]);
-
   /**
-   * Sync global disableBuiltinSystemPrompt state to local UI state when popover opens
-   * This ensures the UI reflects the current state after chat switches (new chat or load history)
+   * Syncs local UI state when popover opens.
+   *
+   * @param open - Whether popover is opening.
    */
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        // Flush pending debounced saves when popover closes to ensure changes are persisted
-        // Reason: cancel() would discard user's last modification if they close quickly
-        debouncedSave.flush();
-      }
-      if (open) {
-        const currentValue = getDisableBuiltinSystemPrompt();
-        setDisableBuiltin(currentValue);
-        if (!currentValue) {
-          setShowConfirmation(false);
-        }
-      }
-    },
-    [debouncedSave]
-  );
-
-  /**
-   * Update model parameters (immediately update UI, delayed save)
-   */
-  const handleParamChange = useCallback(
-    (field: keyof CustomModel, value: any) => {
-      if (!localModel) return;
-
-      const updatedModel = { ...localModel, [field]: value };
-      setLocalModel(updatedModel);
-      debouncedSave(updatedModel);
-    },
-    [localModel, debouncedSave]
-  );
-
-  /**
-   * Reset parameters (delete model-specific values, revert to global defaults)
-   */
-  const handleParamReset = useCallback(
-    (field: keyof CustomModel) => {
-      if (!localModel) return;
-
-      const updatedModel = { ...localModel };
-      delete updatedModel[field];
-      setLocalModel(updatedModel);
-      debouncedSave(updatedModel);
-    },
-    [localModel, debouncedSave]
-  );
-
-  const handleReset = useCallback(() => {
-    // Reset all optional parameters in one operation
-    // Reason: Calling handleParamReset multiple times would capture stale localModel
-    // Reference: Command module uses single object construction pattern
-    if (localModel) {
-      const updatedModel = { ...localModel };
-      RESETTABLE_MODEL_PARAMS.forEach((key) => delete updatedModel[key]);
-      setLocalModel(updatedModel);
-      debouncedSave(updatedModel);
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      return;
     }
-    // Reset session prompt to use global default
-    setSessionPrompt("");
-    setDisableBuiltin(false);
-    setShowConfirmation(false);
-    // Clear session settings
-    setDisableBuiltinSystemPrompt(false);
-  }, [localModel, debouncedSave, setSessionPrompt]);
+    const currentDisableState = getDisableBuiltinSystemPrompt();
+    setDisableBuiltin(currentDisableState);
+    if (!currentDisableState) {
+      setShowConfirmation(false);
+    }
+  }, []);
 
-  const handleDisableBuiltinToggle = (checked: boolean) => {
+  /**
+   * Handles toggle for disabling built-in prompt.
+   *
+   * @param checked - Switch value.
+   */
+  const handleDisableBuiltinToggle = (checked: boolean): void => {
     if (checked) {
       setShowConfirmation(true);
-    } else {
-      setDisableBuiltin(false);
-      setShowConfirmation(false);
-      // Update session settings
-      setDisableBuiltinSystemPrompt(false);
+      return;
     }
+
+    setDisableBuiltin(false);
+    setShowConfirmation(false);
+    setDisableBuiltinSystemPrompt(false);
   };
 
-  const confirmDisableBuiltin = () => {
+  /**
+   * Confirms disabling built-in prompt support.
+   */
+  const confirmDisableBuiltin = (): void => {
     setDisableBuiltin(true);
     setShowConfirmation(false);
-    // Update session settings
     setDisableBuiltinSystemPrompt(true);
   };
 
-  const cancelDisableBuiltin = () => {
+  /**
+   * Cancels the disable prompt confirmation flow.
+   */
+  const cancelDisableBuiltin = (): void => {
     setShowConfirmation(false);
   };
 
   /**
-   * Open the source file of the currently selected system prompt
+   * Opens prompt source file in Obsidian.
    */
-  const handleOpenSourceFile = () => {
-    if (!displayValue) return;
+  const handleOpenSourceFile = (): void => {
+    if (!displayValue) {
+      return;
+    }
     const filePath = getPromptFilePath(displayValue);
     app.workspace.openLinkText(filePath, "", true);
   };
 
-  if (!localModel) {
-    return null;
-  }
-  const isProjectMode = selectedChain === ChainType.PROJECT_CHAIN;
+  /**
+   * Creates a confirmation flow for force reindex.
+   */
+  const handleForceReindex = (): void => {
+    const modal = new ConfirmModal(
+      app,
+      () => forceReindexVault(),
+      "This deletes and rebuilds the full vault index. Continue?",
+      "Force Reindex Vault",
+      "Continue",
+      "Cancel",
+      "settings"
+    );
+    modal.open();
+  };
 
   return (
     <Popover onOpenChange={handleOpenChange}>
@@ -225,30 +172,39 @@ export function ChatSettingsPopover() {
           <Settings className="tw-size-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="hendrik-settings-popover tw-w-80 tw-rounded-xl tw-p-0" align="end">
-        <div className="hendrik-settings-popover__frame tw-flex tw-max-h-[500px] tw-flex-col">
-          {/* Header with Reset */}
+      <PopoverContent
+        align="end"
+        side="bottom"
+        sideOffset={8}
+        className="hendrik-settings-popover hendrik-settings-menu !tw-z-[10020] !tw-w-[380px] !tw-max-w-[min(94vw,380px)] tw-p-0"
+      >
+        <div className="hendrik-settings-popover__frame hendrik-settings-menu__frame tw-flex tw-max-h-[min(74vh,760px)] tw-flex-col">
           <div className="hendrik-settings-popover__header tw-shrink-0 tw-border-b tw-px-4">
             <div className="tw-flex tw-items-center tw-justify-between">
               <h3 className="hendrik-settings-popover__title tw-text-sm tw-font-semibold">
-                Settings
+                Chat Settings
               </h3>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleReset}
+                onClick={() =>
+                  resetSessionPromptState(
+                    setSessionPrompt,
+                    setSessionChronicleMode,
+                    setDisableBuiltin,
+                    setShowConfirmation
+                  )
+                }
                 className="hendrik-settings-popover__reset tw-h-7 tw-text-xs"
               >
                 <RotateCcw className="tw-mr-1 tw-size-3" />
-                Reset
+                Reset Session
               </Button>
             </div>
           </div>
 
-          {/* Scrollable Content Area */}
           <ScrollArea className="hendrik-settings-popover__scroll tw-flex-1 tw-overflow-y-auto">
             <div className="hendrik-settings-popover__content tw-space-y-3 tw-p-3">
-              {/* Display Toggles */}
               <div className="hendrik-settings-section tw-space-y-2">
                 <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
                   Quick Toggles
@@ -258,21 +214,21 @@ export function ChatSettingsPopover() {
                     <span className="tw-text-sm">Relevant Notes</span>
                     <SettingSwitch
                       checked={settings.showRelevantNotes}
-                      onCheckedChange={(v) => updateSetting("showRelevantNotes", v)}
+                      onCheckedChange={(value) => updateSetting("showRelevantNotes", value)}
                     />
                   </div>
                   <div className="hendrik-settings-row tw-flex tw-items-center tw-justify-between tw-py-1">
                     <span className="tw-text-sm">Auto-accept Edits</span>
                     <SettingSwitch
                       checked={settings.autoAcceptEdits}
-                      onCheckedChange={(v) => updateSetting("autoAcceptEdits", v)}
+                      onCheckedChange={(value) => updateSetting("autoAcceptEdits", value)}
                     />
                   </div>
                 </div>
               </div>
+
               <Separator />
 
-              {/* System Prompt */}
               <div className="hendrik-settings-section tw-space-y-2">
                 <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
                   System Prompt
@@ -280,8 +236,8 @@ export function ChatSettingsPopover() {
                 <div className="tw-flex tw-items-center tw-gap-2">
                   <ObsidianNativeSelect
                     value={displayValue}
-                    onChange={(e) => {
-                      const value = e.target.value;
+                    onChange={(event) => {
+                      const value = event.target.value;
                       if (value && promptExists(value)) {
                         setSessionPrompt(value);
                       }
@@ -306,7 +262,7 @@ export function ChatSettingsPopover() {
                   </Button>
                 </div>
                 <div className="hendrik-settings-row tw-flex tw-items-center tw-justify-between tw-py-1">
-                  <span className="tw-text-sm">Disable Builtin Prompt</span>
+                  <span className="tw-text-sm">Disable Built-in Prompt</span>
                   <SettingSwitch
                     checked={disableBuiltin}
                     onCheckedChange={handleDisableBuiltinToggle}
@@ -316,14 +272,15 @@ export function ChatSettingsPopover() {
                 {(disableBuiltin || showConfirmation) && (
                   <div
                     ref={confirmationRef}
-                    className="tw-rounded-md tw-border tw-bg-error/10 tw-p-2 tw-border-error/50"
+                    // eslint-disable-next-line tailwindcss/classnames-order
+                    className="tw-rounded-md tw-border tw-bg-error/10 tw-border-error/50 tw-p-2"
                   >
                     <div className="tw-flex tw-gap-2">
                       <AlertTriangle className="tw-mt-0.5 tw-size-3 tw-shrink-0 tw-text-error" />
                       <div className="tw-flex-1 tw-space-y-1.5">
                         <div className="tw-text-xs tw-leading-relaxed tw-text-muted">
-                          Vault search, web search, and agent mode will become unavailable. Only
-                          your custom system prompt will be used.
+                          Vault search, web search, and agent tools are unavailable when the
+                          built-in prompt is disabled.
                         </div>
                         {showConfirmation && (
                           <div className="tw-flex tw-gap-2">
@@ -350,51 +307,41 @@ export function ChatSettingsPopover() {
                   </div>
                 )}
                 <div className="tw-text-[10px] tw-italic tw-text-muted">
-                  System prompt settings apply to this session only
+                  Applies to the current chat session only.
                 </div>
               </div>
 
               <Separator />
 
-              {/* Agent Controls */}
               <div className="hendrik-settings-section tw-space-y-2">
                 <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
-                  Agent
+                  Chronicle Mode
                 </Label>
-                <div className="tw-space-y-1">
-                  <div className="hendrik-settings-row tw-flex tw-items-center tw-justify-between tw-gap-3 tw-py-1">
-                    <span className="tw-text-sm">Max Iterations</span>
-                    <div className="tw-min-w-[160px] tw-flex-1">
-                      <SettingSlider
-                        value={settings.autonomousAgentMaxIterations ?? 8}
-                        onChange={(value) => updateSetting("autonomousAgentMaxIterations", value)}
-                        min={1}
-                        max={AGENT_MAX_ITERATIONS_LIMIT}
-                        step={1}
-                      />
+                <ObsidianNativeSelect
+                  value={sessionChronicleMode || effectiveChronicleMode}
+                  onChange={(event) => {
+                    setSessionChronicleMode(event.target.value);
+                  }}
+                  options={[
+                    { label: "None", value: CHRONICLE_MODE_NONE },
+                    ...getChronicleModesMeta().map((mode) => ({
+                      label: mode.name,
+                      value: mode.id,
+                    })),
+                  ]}
+                  containerClassName="tw-flex-1"
+                />
+                {activeModeMeta && (
+                  <div className="tw-rounded-md tw-border tw-border-solid tw-border-border tw-bg-primary-alt tw-p-2">
+                    <div className="tw-text-xs tw-italic tw-text-muted">
+                      {activeModeMeta.flavorText}
                     </div>
                   </div>
-                </div>
-              </div>
-              <Separator />
-
-              {/* Model Parameters */}
-              <div className="hendrik-settings-section tw-space-y-2">
-                <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
-                  Model Parameters
-                </Label>
-                <ModelParametersEditor
-                  model={localModel}
-                  settings={settings}
-                  onChange={handleParamChange}
-                  onReset={handleParamReset}
-                  showTokenLimit={true}
-                />
+                )}
               </div>
 
               <Separator />
 
-              {/* Actions */}
               <div className="hendrik-settings-section tw-space-y-1">
                 <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
                   Actions
@@ -431,21 +378,45 @@ export function ChatSettingsPopover() {
                     <button
                       type="button"
                       className="hendrik-settings-action hendrik-settings-action--danger tw-flex tw-w-full tw-items-center tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm tw-text-error hover:tw-bg-interactive-hover"
-                      onClick={() => {
-                        const modal = new ConfirmModal(
-                          app,
-                          () => forceReindexVault(),
-                          "This will delete and rebuild your entire vault index from scratch. This operation cannot be undone. Are you sure?",
-                          "Force Reindex Vault"
-                        );
-                        modal.open();
-                      }}
+                      onClick={handleForceReindex}
                     >
                       <AlertTriangle className="tw-size-3.5" />
                       Force Reindex Vault
                     </button>
                   </>
                 )}
+              </div>
+
+              <Separator />
+
+              <div className="hendrik-settings-section tw-space-y-1">
+                <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+                  More Settings
+                </Label>
+                <button
+                  type="button"
+                  className="hendrik-settings-action tw-flex tw-w-full tw-items-center tw-justify-between tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm hover:tw-bg-interactive-hover"
+                  onClick={() => openHendrikSettings("ai")}
+                >
+                  Open AI Settings
+                  <ArrowUpRight className="tw-size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="hendrik-settings-action tw-flex tw-w-full tw-items-center tw-justify-between tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm hover:tw-bg-interactive-hover"
+                  onClick={() => openHendrikSettings("search")}
+                >
+                  Open Search Settings
+                  <ArrowUpRight className="tw-size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="hendrik-settings-action tw-flex tw-w-full tw-items-center tw-justify-between tw-gap-2 tw-rounded-md tw-px-2 tw-py-1.5 tw-text-sm hover:tw-bg-interactive-hover"
+                  onClick={() => openHendrikSettings("advanced")}
+                >
+                  Open Advanced Settings
+                  <ArrowUpRight className="tw-size-3.5" />
+                </button>
               </div>
             </div>
           </ScrollArea>

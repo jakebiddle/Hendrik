@@ -41,22 +41,17 @@ const ModalSection: React.FC<{
   accentColor: string;
   children: React.ReactNode;
 }> = ({ icon, title, accentColor, children }) => (
-  <div
-    className="tw-rounded-lg tw-border tw-border-l-[3px] tw-border-border tw-bg-primary"
-    style={{ borderLeftColor: accentColor }}
-  >
-    <div className="tw-flex tw-items-center tw-gap-2.5 tw-px-4 tw-pb-1 tw-pt-3">
+  <div className="tw-rounded-md tw-border tw-border-border tw-bg-primary">
+    <div className="tw-flex tw-items-center tw-gap-2 tw-border-b tw-border-border tw-px-3 tw-py-2">
       <div
-        className="tw-flex tw-size-6 tw-items-center tw-justify-center tw-rounded-md"
-        style={{ backgroundColor: `color-mix(in srgb, ${accentColor} 12%, transparent)` }}
+        className="tw-flex tw-size-6 tw-items-center tw-justify-center tw-rounded-md tw-border tw-border-border tw-bg-secondary"
+        style={{ color: accentColor }}
       >
-        <div className="tw-size-3.5" style={{ color: accentColor }}>
-          {icon}
-        </div>
+        <div className="tw-size-3.5">{icon}</div>
       </div>
-      <h3 className="tw-text-sm tw-font-semibold">{title}</h3>
+      <h3 className="tw-text-sm tw-font-semibold tw-text-normal">{title}</h3>
     </div>
-    <div className="tw-px-4 tw-pb-3 tw-pt-1">{children}</div>
+    <div className="tw-p-3">{children}</div>
   </div>
 );
 
@@ -86,9 +81,9 @@ function ApiKeyModalContent({ onClose, onGoToModelTab }: ApiKeyModalContentProps
   const configuredCount = providers.filter((p) => !!p.apiKey).length;
 
   return (
-    <div className="tw-p-5 sm:tw-max-w-[540px]">
+    <div className="tw-p-3 sm:tw-max-w-[560px]">
       {/* Header */}
-      <div className="tw-mb-5">
+      <div className="tw-mb-4">
         <h2 className="tw-text-lg tw-font-bold">AI Provider Settings</h2>
         <p className="tw-mt-1 tw-text-xs tw-text-muted">
           {configuredCount} of {providers.length} cloud providers configured
@@ -242,6 +237,7 @@ export class ApiKeyDialog extends Modal {
 
   onOpen() {
     const { contentEl } = this;
+    this.modalEl.addClass("hendrik-settings-modal-shell");
     this.root = createRoot(contentEl);
 
     this.root.render(
@@ -251,5 +247,6 @@ export class ApiKeyDialog extends Modal {
 
   onClose() {
     this.root.unmount();
+    this.modalEl.removeClass("hendrik-settings-modal-shell");
   }
 }
