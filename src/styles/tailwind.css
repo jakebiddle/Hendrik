@@ -1027,7 +1027,11 @@ body.is-mobile
   color: var(--text-accent);
 }
 
-/* Notion-like floating Hendrik UI */
+/* Notion-like floating Hendrik UI — hidden on mobile (sidebar only) */
+body.is-mobile .hendrik-floating-root {
+  display: none !important;
+}
+
 .hendrik-floating-root {
   position: fixed;
   inset: 0;
@@ -4652,4 +4656,22 @@ body.is-mobile div[data-radix-popper-content-wrapper] {
 /* Final bubble radius safeguard across Obsidian themes. */
 .hendrik-chat-message-card {
   border-radius: clamp(10px, var(--radius-xl, 16px), 14px);
+}
+
+/* Mobile sidebar fit for Hendrik chat. */
+body.is-mobile .hendrik-mode-ribbon {
+  display: none !important;
+}
+
+body.is-mobile .hendrik-chat-header {
+  padding: 6px 8px;
+}
+
+body.is-mobile .hendrik-chat-body {
+  padding: 6px 8px;
+  gap: 8px;
+}
+
+body.is-mobile .hendrik-chat-composer {
+  padding: 6px 8px 10px;
 }

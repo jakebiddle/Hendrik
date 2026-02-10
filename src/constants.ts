@@ -120,6 +120,8 @@ export const TEXT_WEIGHT = 0.4;
 export const MAX_CHARS_FOR_LOCAL_SEARCH_CONTEXT = 448000;
 export const LLM_TIMEOUT_MS = 30000; // 30 seconds timeout for LLM operations
 export const AGENT_LOOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes timeout for agent loop
+export const AGENT_CONTINUATION_MAX_CYCLES = 2; // Max timeout continuation cycles in agent mode
+export const AGENT_REASONING_QUERY_EXPANSION_TIMEOUT_MS = 5000; // Fast fallback timeout for reasoning models
 export const AGENT_MAX_ITERATIONS_LIMIT = 64; // Maximum allowed value for agent iterations setting
 export const LOADING_MESSAGES = {
   DEFAULT: "",
@@ -781,6 +783,7 @@ export const DEFAULT_SETTINGS: HendrikSettings = {
   embeddingRequestsPerMin: 60,
   embeddingBatchSize: 16,
   disableIndexOnMobile: true,
+  disableAutoIndexOnMobile: true,
   showSuggestedPrompts: true,
   showRelevantNotes: true,
   userPreferredName: "",

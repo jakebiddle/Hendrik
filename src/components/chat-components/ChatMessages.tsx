@@ -17,7 +17,7 @@ import { USER_SENDER } from "@/constants";
 import { useChatInput } from "@/context/ChatInputContext";
 import { useChatScrolling } from "@/hooks/useChatScrolling";
 import { useSettingsValue } from "@/settings/model";
-import { ChatMessage } from "@/types/message";
+import { AgentContinuationCheckpoint, ChatMessage } from "@/types/message";
 import { App } from "obsidian";
 import { Folder } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +34,7 @@ interface ChatMessagesProps {
   onEdit: (messageIndex: number, newMessage: string) => void;
   onDelete: (messageIndex: number) => void;
   onChronicleAnswer?: (messageIndex: number, questionId: string, answer: string | string[]) => void;
+  onAgentContinue?: (messageIndex: number, checkpoint: AgentContinuationCheckpoint) => void;
   showHelperComponents: boolean;
   /** When set, renders a project-specific empty state instead of the generic one. */
   projectName?: string | null;
@@ -120,6 +121,7 @@ const ChatMessages = memo(
     onEdit,
     onDelete,
     onChronicleAnswer,
+    onAgentContinue,
     showHelperComponents = true,
     projectName,
     projectAppearance,
@@ -400,6 +402,11 @@ const ChatMessages = memo(
                   onChronicleAnswer={
                     onChronicleAnswer
                       ? (qId, answer) => onChronicleAnswer(sourceIndex, qId, answer)
+                      : undefined
+                  }
+                  onAgentContinue={
+                    onAgentContinue
+                      ? (checkpoint) => onAgentContinue(sourceIndex, checkpoint)
                       : undefined
                   }
                   staggerDelayMs={(visibleIndex % 5) * 12}

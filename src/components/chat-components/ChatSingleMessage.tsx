@@ -1,6 +1,7 @@
 /* eslint-disable tailwindcss/no-custom-classname */
 import { ChatButtons } from "@/components/chat-components/ChatButtons";
 import { SourcesModal } from "@/components/modals/SourcesModal";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ContextFolderBadge,
@@ -43,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { parseToolCallMarkers } from "@/LLMProviders/chainRunner/utils/toolCallParser";
 import { parseReasoningBlock } from "@/LLMProviders/chainRunner/utils/AgentReasoningState";
 import { processInlineCitations } from "@/LLMProviders/chainRunner/utils/citationUtils";
-import { ChatMessage } from "@/types/message";
+import { AgentContinuationCheckpoint, ChatMessage } from "@/types/message";
 import { cleanMessageForCopy, extractYoutubeVideoId, insertIntoEditor } from "@/utils";
 import { App, Component, MarkdownRenderer, MarkdownView, TFile } from "obsidian";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -191,6 +192,7 @@ interface ChatSingleMessageProps {
   onEdit?: (newMessage: string) => void;
   onDelete: () => void;
   onChronicleAnswer?: (questionId: string, answer: string | string[]) => void;
+  onAgentContinue?: (checkpoint: AgentContinuationCheckpoint) => void;
   staggerDelayMs?: number;
 }
 
@@ -202,6 +204,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   onEdit,
   onDelete,
   onChronicleAnswer,
+  onAgentContinue,
   staggerDelayMs,
 }) => {
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -980,6 +983,14 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   };
 
   const isUserMessage = message.sender === USER_SENDER;
+  const continuationCheckpoint = message.responseMetadata?.agentContinuation;
+  const canContinueReasoning = Boolean(
+    !isStreaming &&
+      !isUserMessage &&
+      continuationCheckpoint &&
+      continuationCheckpoint.cycle < continuationCheckpoint.maxCycles &&
+      onAgentContinue
+  );
   const hasReasoningState = useMemo(() => {
     if (isUserMessage) {
       return false;
@@ -1056,6 +1067,19 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
           {message.responseMetadata?.wasTruncated && !isUserMessage && (
             <TokenLimitWarning message={message} app={app} />
+          )}
+
+          {canContinueReasoning && continuationCheckpoint && (
+            <div className="tw-flex tw-items-center">
+              <Button
+                variant="default"
+                size="sm"
+                className="tw-h-7 tw-px-3 tw-text-xs"
+                onClick={() => onAgentContinue?.(continuationCheckpoint)}
+              >
+                Continue reasoning
+              </Button>
+            </div>
           )}
 
           {!isStreaming && (

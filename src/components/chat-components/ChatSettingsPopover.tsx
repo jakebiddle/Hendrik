@@ -33,6 +33,12 @@ import {
 } from "@/system-prompts/chronicleModes";
 import { getEffectiveChronicleMode, useSessionChronicleMode } from "@/system-prompts/state";
 import { openHendrikSettings } from "@/settings/v2/settingsNavigation";
+import { Platform } from "obsidian";
+
+interface ChatSettingsPopoverProps {
+  onSelectAgentMode?: () => void;
+  onSelectProjectMode?: () => void;
+}
 
 /**
  * Resets session-only system prompt settings in chat.
@@ -50,12 +56,15 @@ function resetSessionPromptState(
   setDisableBuiltinSystemPrompt(false);
 }
 
-export function ChatSettingsPopover() {
+export function ChatSettingsPopover({
+  onSelectAgentMode,
+  onSelectProjectMode,
+}: ChatSettingsPopoverProps) {
   const settings = getSettings();
   const prompts = useSystemPrompts();
   const [sessionPrompt, setSessionPrompt] = useSelectedPrompt();
   const [sessionChronicleMode, setSessionChronicleMode] = useSessionChronicleMode();
-  const [selectedChain] = useChainType();
+  const [selectedChain, setSelectedChain] = useChainType();
   const [disableBuiltin, setDisableBuiltin] = useState(getDisableBuiltinSystemPrompt());
   const [showConfirmation, setShowConfirmation] = useState(false);
   const confirmationRef = useRef<HTMLDivElement>(null);
@@ -64,6 +73,7 @@ export function ChatSettingsPopover() {
   const effectiveChronicleMode = getEffectiveChronicleMode();
   const activeModeMeta = getChronicleModeMeta(effectiveChronicleMode);
   const isProjectMode = selectedChain === ChainType.PROJECT_CHAIN;
+  const modeValue = isProjectMode ? "projects" : "agent";
 
   /**
    * Checks whether a prompt title exists in the prompt collection.
@@ -226,6 +236,42 @@ export function ChatSettingsPopover() {
                   </div>
                 </div>
               </div>
+
+              {Platform.isMobile && (
+                <>
+                  <Separator />
+
+                  <div className="hendrik-settings-section tw-space-y-2">
+                    <Label className="hendrik-settings-section__label tw-text-[11px] tw-font-medium tw-uppercase tw-tracking-wider tw-text-muted">
+                      Mode
+                    </Label>
+                    <ObsidianNativeSelect
+                      value={modeValue}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (value === "projects") {
+                          if (onSelectProjectMode) {
+                            onSelectProjectMode();
+                          } else {
+                            setSelectedChain(ChainType.PROJECT_CHAIN);
+                          }
+                          return;
+                        }
+                        if (onSelectAgentMode) {
+                          onSelectAgentMode();
+                        } else {
+                          setSelectedChain(ChainType.TOOL_CALLING_CHAIN);
+                        }
+                      }}
+                      options={[
+                        { label: "Agent", value: "agent" },
+                        { label: "Projects", value: "projects" },
+                      ]}
+                      placeholder="Mode"
+                    />
+                  </div>
+                </>
+              )}
 
               <Separator />
 

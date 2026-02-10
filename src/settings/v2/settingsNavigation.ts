@@ -36,13 +36,21 @@ export function openHendrikSettings(tab?: SettingsTabId): void {
     setPendingSettingsTab(tab);
   }
 
-  const settingsApi = (app as unknown as { setting?: { openTabById?: (tabId: string) => any } })
-    .setting;
+  const settingsApi = (
+    app as unknown as {
+      setting?: {
+        open?: () => void;
+        openTabById?: (tabId: string) => { display?: () => void } | void;
+      };
+    }
+  ).setting;
 
-  const openedSettingsTab = settingsApi?.openTabById?.("hendrik");
-  openedSettingsTab?.display?.();
-
-  if (!openedSettingsTab) {
-    window.open("obsidian://show-plugin?id=hendrik", "_blank");
+  settingsApi?.open?.();
+  if (settingsApi?.openTabById) {
+    const openedSettingsTab = settingsApi.openTabById("hendrik");
+    openedSettingsTab?.display?.();
+    return;
   }
+
+  window.open("obsidian://show-plugin?id=hendrik", "_blank");
 }

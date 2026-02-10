@@ -1,6 +1,6 @@
 {
   "name": "hendrik",
-  "version": "3.1.5",
+  "version": "3.1.6",
   "description": "Your AI assistant: Chat with your second brain, learn faster, work smarter.",
   "main": "main.js",
   "scripts": {

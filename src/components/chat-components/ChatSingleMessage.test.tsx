@@ -1,5 +1,5 @@
 import React from "react";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ChatSingleMessage, {
   normalizeFootnoteRendering,
 } from "@/components/chat-components/ChatSingleMessage";
@@ -172,5 +172,81 @@ describe("ChatSingleMessage", () => {
     expect(messageSegment?.querySelector(".footnote-backref")).toBeNull();
     expect(messageSegment?.querySelector(".content-hr")).not.toBeNull();
     expect(messageSegment?.querySelector('a[href="#fn-2"]')?.textContent).toBe("2");
+  });
+
+  it("renders continue button only for valid continuation metadata and triggers callback", async () => {
+    const checkpoint = {
+      checkpointId: "cp-1",
+      reason: "timeout" as const,
+      cycle: 0,
+      maxCycles: 2,
+      originalPrompt: "Find treaty date",
+      summary: "Searched records and found candidate notes.",
+      sourceTitles: ["Treaty Notes"],
+    };
+    const onAgentContinue = jest.fn();
+
+    const { rerender } = render(
+      <TooltipProvider>
+        <ChatSingleMessage
+          message={{
+            ...baseMessage,
+            responseMetadata: {
+              agentContinuation: checkpoint,
+            },
+          }}
+          app={createAppStub()}
+          isStreaming={false}
+          onDelete={() => {}}
+          onAgentContinue={onAgentContinue}
+        />
+      </TooltipProvider>
+    );
+
+    const continueButton = await screen.findByRole("button", { name: "Continue reasoning" });
+    fireEvent.click(continueButton);
+    expect(onAgentContinue).toHaveBeenCalledWith(checkpoint);
+
+    rerender(
+      <TooltipProvider>
+        <ChatSingleMessage
+          message={{
+            ...baseMessage,
+            responseMetadata: {
+              agentContinuation: checkpoint,
+            },
+          }}
+          app={createAppStub()}
+          isStreaming={true}
+          onDelete={() => {}}
+          onAgentContinue={onAgentContinue}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.queryByRole("button", { name: "Continue reasoning" })).toBeNull();
+
+    rerender(
+      <TooltipProvider>
+        <ChatSingleMessage
+          message={{
+            ...baseMessage,
+            responseMetadata: {
+              agentContinuation: {
+                ...checkpoint,
+                cycle: 2,
+                maxCycles: 2,
+              },
+            },
+          }}
+          app={createAppStub()}
+          isStreaming={false}
+          onDelete={() => {}}
+          onAgentContinue={onAgentContinue}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.queryByRole("button", { name: "Continue reasoning" })).toBeNull();
   });
 });

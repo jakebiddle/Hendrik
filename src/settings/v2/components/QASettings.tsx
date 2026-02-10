@@ -10,6 +10,7 @@ import { SettingItem } from "@/components/ui/setting-item";
 import { VAULT_VECTOR_STORE_STRATEGIES } from "@/constants";
 import { getModelKeyFromModel, updateSetting, useSettingsValue } from "@/settings/model";
 import { PatternListEditor } from "@/settings/v2/components/PatternListEditor";
+import { shouldRunAutoIndexing } from "@/utils/indexingGuards";
 
 export const QASettings: React.FC = () => {
   const settings = useSettingsValue();
@@ -21,6 +22,12 @@ export const QASettings: React.FC = () => {
       // Persist only after user confirms rebuild
       new RebuildIndexConfirmModal(app, async () => {
         updateSetting("embeddingModelKey", modelKey);
+        if (!shouldRunAutoIndexing()) {
+          new Notice(
+            "Embedding model saved. Auto indexing is disabled on mobile; use Refresh Index when ready."
+          );
+          return;
+        }
         const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
         await VectorStoreManager.getInstance().indexVaultToVectorStore(false);
       }).open();
@@ -65,6 +72,12 @@ export const QASettings: React.FC = () => {
                     async () => {
                       updateSetting("enableSemanticSearchV3", checked);
                       if (checked) {
+                        if (!shouldRunAutoIndexing()) {
+                          new Notice(
+                            "Semantic search enabled. Auto indexing is disabled on mobile; use Refresh Index when ready."
+                          );
+                          return;
+                        }
                         const VectorStoreManager = (await import("@/search/vectorStoreManager"))
                           .default;
                         await VectorStoreManager.getInstance().indexVaultToVectorStore(false);
@@ -321,6 +334,14 @@ export const QASettings: React.FC = () => {
                 description="When enabled, Hendrik index won't be loaded on mobile devices to save resources. Only chat mode will be available. Any existing index from desktop sync will be preserved. Uncheck to enable QA modes on mobile."
                 checked={settings.disableIndexOnMobile}
                 onCheckedChange={(checked) => updateSetting("disableIndexOnMobile", checked)}
+              />
+
+              <SettingItem
+                type="switch"
+                title="Disable auto indexing on mobile"
+                description="When enabled, Hendrik will not auto-index on mobile. Manual Refresh Index is still available."
+                checked={settings.disableAutoIndexOnMobile}
+                onCheckedChange={(checked) => updateSetting("disableAutoIndexOnMobile", checked)}
               />
             </>
           )}

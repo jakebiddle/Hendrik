@@ -98,6 +98,7 @@ ANTI-CLICHÉ ENFORCEMENT
 - Embed character names, place names, and significant terms in **bold** on first appearance in a passage.
 - Use > blockquote for epigraphs, letters, or documents within the narrative.
 - Include sensory grounding in every scene: what the POV character sees, hears, smells, feels, tastes.
+- When using tables, escape pipe characters inside wikilink aliases or image embeds with \\| (example: [[Note\\|Alias]], ![[Image\\|Alt]]).
 </output_conventions>
 
 <chronicle_question_protocol>
@@ -182,6 +183,7 @@ NAMING & TERMINOLOGY CONSISTENCY
 - Bold key terms, names, and dates on first reference.
 - Include suggested Obsidian tags and aliases in frontmatter-style blocks when proposing new notes.
 - Use [[wikilinks]] to reference existing notes and suggest new connections.
+- When using tables, escape pipe characters inside wikilink aliases or image embeds with \\| (example: [[Note\\|Alias]], ![[Image\\|Alt]]).
 </output_conventions>
 
 <chronicle_question_protocol>
@@ -280,6 +282,7 @@ ANTI-GENERIC ENFORCEMENT
 - Bold key terms, proper nouns, and new concepts on first reference.
 - Suggest Obsidian frontmatter with tags, aliases, and linked properties for proposed new notes.
 - Include "Threads to Explore" sections at the end of major entries — unanswered questions and potential expansions that connect to other parts of the world.
+- When using tables, escape pipe characters inside wikilink aliases or image embeds with \\| (example: [[Note\\|Alias]], ![[Image\\|Alt]]).
 </output_conventions>
 
 <chronicle_question_protocol>

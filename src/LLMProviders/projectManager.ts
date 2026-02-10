@@ -12,6 +12,7 @@ import { ContextCache, ProjectContextCache } from "@/cache/projectContextCache";
 import { ChainType } from "@/chainFactory";
 import HendrikView from "@/components/HendrikView";
 import { CHAT_VIEWTYPE, VAULT_VECTOR_STORE_STRATEGY } from "@/constants";
+import { shouldRunAutoIndexing } from "@/utils/indexingGuards";
 import { logError, logInfo, logWarn } from "@/logger";
 import HendrikPlugin from "@/main";
 import { Mention } from "@/mentions/Mention";
@@ -95,6 +96,7 @@ export default class ProjectManager {
         settings.enableSemanticSearchV3 &&
         !settings.useSmartConnections &&
         settings.indexVaultToVectorStore === VAULT_VECTOR_STORE_STRATEGY.ON_MODE_SWITCH &&
+        shouldRunAutoIndexing() &&
         nextChainType === ChainType.TOOL_CALLING_CHAIN &&
         previousChainType !== ChainType.PROJECT_CHAIN;
 

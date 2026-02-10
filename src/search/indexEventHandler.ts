@@ -2,6 +2,7 @@ import { getChainType } from "@/aiParams";
 import { ChainType } from "@/chainFactory";
 import { logInfo } from "@/logger";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
+import { shouldRunAutoIndexing } from "@/utils/indexingGuards";
 import { App, MarkdownView, Platform, TAbstractFile, TFile } from "obsidian";
 import { DBOperations } from "./dbOperations";
 import { IndexOperations } from "./indexOperations";
@@ -35,6 +36,7 @@ export class IndexEventHandler {
     const settings = getSettings();
     // Skip indexing events when Smart Connections handles search
     if (settings.useSmartConnections) return false;
+    if (!shouldRunAutoIndexing()) return false;
     return settings.enableSemanticSearchV3;
   }
 

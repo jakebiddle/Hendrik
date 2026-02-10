@@ -1,4 +1,5 @@
 import { createToolCallMarker } from "./utils/toolCallParser";
+import { AutonomousAgentChainRunner } from "./AutonomousAgentChainRunner";
 
 /**
  * Test suite for AutonomousAgentChainRunner tool call ID handling
@@ -253,6 +254,69 @@ describe("AutonomousAgentChainRunner - Tool Call ID Generation", () => {
 
       // Step 5: Verify the unique ID doesn't match temporary format
       expect(uniqueId).not.toMatch(/^temporary-tool-call-id-/);
+    });
+  });
+
+  describe("Continuation checkpoint metadata", () => {
+    const createRunner = () => new AutonomousAgentChainRunner({} as any);
+
+    it("should create initial timeout checkpoint with cycle 0", () => {
+      const runner = createRunner();
+      const checkpoint = (runner as any).createContinuationCheckpoint(
+        "timeout",
+        "Find the treaty date",
+        [{ title: "Treaty Notes" }]
+      );
+
+      expect(checkpoint).toBeDefined();
+      expect(checkpoint.reason).toBe("timeout");
+      expect(checkpoint.cycle).toBe(0);
+      expect(checkpoint.maxCycles).toBe(2);
+      expect(checkpoint.originalPrompt).toBe("Find the treaty date");
+      expect(checkpoint.sourceTitles).toEqual(["Treaty Notes"]);
+    });
+
+    it("should increment cycle for continuation checkpoints", () => {
+      const runner = createRunner();
+      const checkpoint = (runner as any).createContinuationCheckpoint(
+        "timeout",
+        "Find the treaty date",
+        [{ title: "Treaty Notes" }],
+        {
+          checkpointId: "cp-1",
+          reason: "timeout",
+          cycle: 0,
+          maxCycles: 2,
+          originalPrompt: "Find the treaty date",
+          summary: "Searched note one.",
+          sourceTitles: ["Treaty Notes"],
+        }
+      );
+
+      expect(checkpoint).toBeDefined();
+      expect(checkpoint.reason).toBe("timeout");
+      expect(checkpoint.cycle).toBe(1);
+      expect(checkpoint.maxCycles).toBe(2);
+    });
+
+    it("should stop creating checkpoints when cycle reaches max", () => {
+      const runner = createRunner();
+      const checkpoint = (runner as any).createContinuationCheckpoint(
+        "max_iterations",
+        "Find the treaty date",
+        [{ title: "Treaty Notes" }],
+        {
+          checkpointId: "cp-2",
+          reason: "timeout",
+          cycle: 1,
+          maxCycles: 2,
+          originalPrompt: "Find the treaty date",
+          summary: "Reached first continuation cycle.",
+          sourceTitles: ["Treaty Notes"],
+        }
+      );
+
+      expect(checkpoint).toBeUndefined();
     });
   });
 });

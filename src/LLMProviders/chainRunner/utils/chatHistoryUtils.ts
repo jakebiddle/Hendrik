@@ -1,6 +1,7 @@
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 import { logInfo, logWarn } from "@/logger";
 import { getSettings } from "@/settings/model";
+import { parseReasoningBlock } from "@/LLMProviders/chainRunner/utils/AgentReasoningState";
 import { HumanMessage } from "@langchain/core/messages";
 /**
  * Utility functions for safely processing chat history from LangChain memory
@@ -9,6 +10,25 @@ import { HumanMessage } from "@langchain/core/messages";
 export interface ProcessedMessage {
   role: "user" | "assistant";
   content: any; // string or MessageContent[]
+}
+
+/**
+ * Remove serialized agent reasoning metadata from assistant string history entries.
+ *
+ * @param content - Message content from history.
+ * @returns Sanitized content with reasoning marker removed when present.
+ */
+function sanitizeAssistantHistoryContent(content: any): any {
+  if (typeof content !== "string") {
+    return content;
+  }
+
+  const parsedReasoning = parseReasoningBlock(content);
+  if (!parsedReasoning?.hasReasoning) {
+    return content;
+  }
+
+  return parsedReasoning.contentAfter;
 }
 
 /**
@@ -32,14 +52,23 @@ export function processRawChatHistory(rawHistory: any[]): ProcessedMessage[] {
       if (messageType === "human") {
         messages.push({ role: "user", content: message.content });
       } else if (messageType === "ai") {
-        messages.push({ role: "assistant", content: message.content });
+        messages.push({
+          role: "assistant",
+          content: sanitizeAssistantHistoryContent(message.content),
+        });
       }
       // Skip system messages and unknown types
     } else if (message.content !== undefined) {
       // Fallback for other message formats - try to infer role
       const role = inferMessageRole(message);
       if (role) {
-        messages.push({ role, content: message.content });
+        messages.push({
+          role,
+          content:
+            role === "assistant"
+              ? sanitizeAssistantHistoryContent(message.content)
+              : message.content,
+        });
       }
     }
   }

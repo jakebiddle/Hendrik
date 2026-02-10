@@ -113,6 +113,7 @@ export interface HendrikSettings {
   defaultOpenArea: DEFAULT_OPEN_AREA;
   defaultSendShortcut: SEND_SHORTCUT;
   disableIndexOnMobile: boolean;
+  disableAutoIndexOnMobile: boolean;
   showSuggestedPrompts: boolean;
   showRelevantNotes: boolean;
   /** Preferred name used by Hendrik for companion addressing */

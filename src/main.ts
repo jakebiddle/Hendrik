@@ -70,6 +70,7 @@ import { v4 as uuidv4 } from "uuid";
 import FloatingChatShell from "@/components/floating/FloatingChatShell";
 import React from "react";
 import { createRoot, Root } from "react-dom/client";
+import hendrikIconSvg from "../Images/HendrikAI.svg";
 
 // Removed unused FileTrackingState interface
 
@@ -163,8 +164,7 @@ export default class HendrikPlugin extends Plugin {
 
     // Set the plugin icon URL as a CSS variable so CSS can reference plugin assets
     if (this.manifest.dir) {
-      const iconPath = `${this.manifest.dir}/images/HendrikAI.svg`;
-      const iconUrl = this.app.vault.adapter.getResourcePath(iconPath);
+      const iconUrl = `data:image/svg+xml;utf8,${encodeURIComponent(hendrikIconSvg)}`;
       document.documentElement.style.setProperty("--hendrik-icon-url", `url("${iconUrl}")`);
 
       // Static icon colours — always light backdrop with dark ink
@@ -228,7 +228,7 @@ export default class HendrikPlugin extends Plugin {
     this.initWebSelectionWatcher();
 
     // Floating chat is desktop only; mobile uses sidebar
-    if (!Platform.isMobile) {
+    if (Platform.isDesktopApp) {
       this.mountFloatingChat();
     }
   }

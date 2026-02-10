@@ -13,7 +13,6 @@ import { resetSessionSystemPromptSettings } from "@/system-prompts";
 import { ChainType } from "@/chainFactory";
 import { useProjectContextStatus } from "@/hooks/useProjectContextStatus";
 import { logInfo, logError } from "@/logger";
-import type { WebTabContext } from "@/types/message";
 
 import { ChatControls, reloadCurrentProject } from "@/components/chat-components/ChatControls";
 import ChatInput from "@/components/chat-components/ChatInput";
@@ -36,10 +35,10 @@ import HendrikPlugin from "@/main";
 import { updateSetting, useSettingsValue } from "@/settings/model";
 import { ChatUIState } from "@/state/ChatUIState";
 import { FileParserManager } from "@/tools/FileParserManager";
-import { ChatMessage } from "@/types/message";
+import { AgentContinuationCheckpoint, ChatMessage, type WebTabContext } from "@/types/message";
 import { err2String } from "@/utils";
 import { arrayBufferToBase64 } from "@/utils/base64";
-import { Notice, TFile } from "obsidian";
+import { Notice, Platform, TFile } from "obsidian";
 import { ContextManageModal } from "@/components/modals/project/context-manage-modal";
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -735,6 +734,78 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     ]
   );
 
+  /**
+   * Continue an autonomous-agent run from timeout/max-iteration checkpoint metadata.
+   * Sends a fresh "Continue" user turn and injects checkpoint context into the LLM payload.
+   */
+  const handleAgentContinue = useCallback(
+    async (_messageIndex: number, checkpoint: AgentContinuationCheckpoint) => {
+      try {
+        const emptyContext = {
+          notes: [] as TFile[],
+          urls: [] as string[],
+          tags: [] as string[],
+          folders: [] as string[],
+          selectedTextContexts: [],
+          webTabs: [] as WebTabContext[],
+        };
+
+        streamingMessageIdRef.current = `msg-${uuidv4()}`;
+        safeSet.setLoading(true);
+        safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+
+        const messageId = await chatUIState.sendMessage(
+          "Continue",
+          emptyContext,
+          currentChain,
+          false,
+          false,
+          undefined,
+          safeSet.setLoadingMessage
+        );
+
+        if (settings.autosaveChat) {
+          await handleSaveAsNote();
+        }
+
+        const llmMessage = chatUIState.getLLMMessage(messageId);
+        if (llmMessage) {
+          llmMessage.agentContinuationCheckpoint = checkpoint;
+          await getAIResponse(
+            llmMessage,
+            chainManager,
+            addMessage,
+            safeSet.setCurrentAiMessage,
+            setAbortController,
+            { debug: settings.debug, updateLoadingMessage: safeSet.setLoadingMessage }
+          );
+        }
+
+        if (settings.autosaveChat) {
+          await handleSaveAsNote();
+        }
+      } catch (error) {
+        logError("Error continuing agent reasoning:", error);
+        new Notice("Failed to continue reasoning. Please try again.");
+      } finally {
+        safeSet.setLoading(false);
+        safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+        streamingMessageIdRef.current = null;
+      }
+    },
+    [
+      addMessage,
+      chainManager,
+      chatUIState,
+      currentChain,
+      handleSaveAsNote,
+      safeSet,
+      setAbortController,
+      settings.autosaveChat,
+      settings.debug,
+    ]
+  );
+
   const handleNewChat = useCallback(async () => {
     clearRecordedPromptPayload();
     await logFileManager.clear();
@@ -967,6 +1038,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
               onEdit={handleEdit}
               onDelete={handleDelete}
               onChronicleAnswer={handleChronicleAnswer}
+              onAgentContinue={handleAgentContinue}
               showHelperComponents={selectedChain !== ChainType.PROJECT_CHAIN}
               projectName={
                 selectedChain === ChainType.PROJECT_CHAIN
@@ -1042,11 +1114,13 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
       onPointerDownCapture={handleChatPointerDownCapture}
       className="tw-flex tw-size-full tw-overflow-hidden"
     >
-      <ModeRibbon
-        selectedChain={selectedChain}
-        onSelectAgent={handleSelectAgentMode}
-        onSelectProjects={handleSelectProjectMode}
-      />
+      {!Platform.isMobile && (
+        <ModeRibbon
+          selectedChain={selectedChain}
+          onSelectAgent={handleSelectAgentMode}
+          onSelectProjects={handleSelectProjectMode}
+        />
+      )}
 
       <div className="hendrik-chat-main tw-relative tw-flex tw-h-full tw-min-w-0 tw-flex-1 tw-flex-col tw-overflow-hidden">
         <div className="tw-h-full tw-overflow-hidden">
@@ -1086,6 +1160,8 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
                       }
                     : undefined
                 }
+                onSelectAgentMode={handleSelectAgentMode}
+                onSelectProjectMode={handleSelectProjectMode}
               />
             </div>
             {selectedChain === ChainType.PROJECT_CHAIN && (

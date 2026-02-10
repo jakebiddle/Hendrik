@@ -96,6 +96,19 @@ export interface TokenUsage {
 }
 
 /**
+ * Checkpoint metadata used to continue autonomous agent reasoning after limits are hit.
+ */
+export interface AgentContinuationCheckpoint {
+  checkpointId: string;
+  reason: "timeout" | "max_iterations";
+  cycle: number;
+  maxCycles: number;
+  originalPrompt: string;
+  summary: string;
+  sourceTitles: string[];
+}
+
+/**
  * Response metadata from LLM providers
  */
 export interface ResponseMetadata {
@@ -104,6 +117,9 @@ export interface ResponseMetadata {
 
   /** Token usage statistics */
   tokenUsage?: TokenUsage;
+
+  /** Continuation checkpoint for autonomous agent timeout/max-iteration recovery */
+  agentContinuation?: AgentContinuationCheckpoint;
 }
 
 /**
@@ -167,6 +183,12 @@ export interface ChatMessage {
 
   /** Interactive chronicle questions embedded in AI responses (persisted with answers) */
   chronicleQuestions?: ChronicleQuestion[];
+
+  /**
+   * Runtime-only continuation checkpoint attached to a synthetic "Continue" turn.
+   * Not persisted in repository storage.
+   */
+  agentContinuationCheckpoint?: AgentContinuationCheckpoint;
 }
 
 /**

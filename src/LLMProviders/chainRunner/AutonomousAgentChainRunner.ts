@@ -1,4 +1,9 @@
-import { AGENT_LOOP_TIMEOUT_MS } from "@/constants";
+import {
+  AGENT_CONTINUATION_MAX_CYCLES,
+  AGENT_LOOP_TIMEOUT_MS,
+  AGENT_REASONING_QUERY_EXPANSION_TIMEOUT_MS,
+  ModelCapability,
+} from "@/constants";
 import { MessageContent } from "@/imageProcessing/imageProcessor";
 import { logError, logInfo, logWarn } from "@/logger";
 import { UserMemoryManager } from "@/memory/UserMemoryManager";
@@ -8,7 +13,12 @@ import { initializeBuiltinTools } from "@/tools/builtinTools";
 import { ToolRegistry } from "@/tools/ToolRegistry";
 import { StructuredTool } from "@langchain/core/tools";
 import { Runnable } from "@langchain/core/runnables";
-import { ChatMessage, ResponseMetadata, StreamingResult } from "@/types/message";
+import {
+  AgentContinuationCheckpoint,
+  ChatMessage,
+  ResponseMetadata,
+  StreamingResult,
+} from "@/types/message";
 import { err2String, withSuppressedTokenWarnings } from "@/utils";
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { ToolCallingChainRunner } from "./ToolCallingChainRunner";
@@ -96,6 +106,8 @@ interface ReActLoopParams {
   processLocalSearchResult: AgentLoopDeps["processLocalSearchResult"];
   applyCiCOrderingToLocalSearchResult: AgentLoopDeps["applyCiCOrderingToLocalSearchResult"];
   adapter: ModelAdapter;
+  continuationCheckpoint?: AgentContinuationCheckpoint;
+  isReasoningModel: boolean;
 }
 
 /**
@@ -302,6 +314,108 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
   }
 
   /**
+   * Build a synthetic user prompt for checkpointed continuation turns.
+   *
+   * @param checkpoint - Continuation checkpoint metadata from the previous timeout turn.
+   * @returns Prompt text instructing the agent to continue from prior progress.
+   */
+  private buildContinuationPromptContent(checkpoint: AgentContinuationCheckpoint): string {
+    const sourceList =
+      checkpoint.sourceTitles.length > 0
+        ? `Sources already reviewed:\n- ${checkpoint.sourceTitles.join("\n- ")}`
+        : "";
+
+    return [
+      "Continue the autonomous reasoning process from this checkpoint.",
+      `Original user goal:\n${checkpoint.originalPrompt}`,
+      `Checkpoint summary:\n${checkpoint.summary}`,
+      sourceList,
+      "Use tools as needed, avoid repeating completed steps, and produce the final answer when ready.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  /**
+   * Return unique, non-empty source titles for continuation checkpoint metadata.
+   *
+   * @param sources - Sources collected during the current ReAct loop.
+   * @returns Deduplicated source title list.
+   */
+  private getCheckpointSourceTitles(sources: AgentSource[]): string[] {
+    const uniqueTitles = new Set<string>();
+    for (const source of sources) {
+      const title = source.title?.trim();
+      if (title) {
+        uniqueTitles.add(title);
+      }
+    }
+    return Array.from(uniqueTitles);
+  }
+
+  /**
+   * Build a compact continuation summary from recent reasoning steps and source titles.
+   *
+   * @param sources - Sources collected during the current ReAct loop.
+   * @returns Human-readable checkpoint summary text.
+   */
+  private buildContinuationSummary(sources: AgentSource[]): string {
+    const recentSteps = this.allReasoningSteps
+      .slice(-6)
+      .map((step) => step.summary?.trim())
+      .filter((step): step is string => Boolean(step));
+    const sourceTitles = this.getCheckpointSourceTitles(sources).slice(0, 8);
+    const sections: string[] = [];
+
+    if (recentSteps.length > 0) {
+      sections.push(`Recent progress:\n- ${recentSteps.join("\n- ")}`);
+    }
+
+    if (sourceTitles.length > 0) {
+      sections.push(`Sources reviewed:\n- ${sourceTitles.join("\n- ")}`);
+    }
+
+    if (sections.length === 0) {
+      sections.push("No intermediate findings were captured before the limit was reached.");
+    }
+
+    return sections.join("\n\n");
+  }
+
+  /**
+   * Create continuation checkpoint metadata for timeout/max-iteration exits.
+   *
+   * @param reason - Exit reason for the current loop.
+   * @param originalPrompt - Original user prompt being solved.
+   * @param sources - Sources collected so far.
+   * @param previousCheckpoint - Optional previous continuation checkpoint from a prior cycle.
+   * @returns Continuation checkpoint metadata, or undefined when continuation should stop.
+   */
+  private createContinuationCheckpoint(
+    reason: "timeout" | "max_iterations",
+    originalPrompt: string,
+    sources: AgentSource[],
+    previousCheckpoint?: AgentContinuationCheckpoint
+  ): AgentContinuationCheckpoint | undefined {
+    const maxCycles = previousCheckpoint?.maxCycles ?? AGENT_CONTINUATION_MAX_CYCLES;
+    const cycle = previousCheckpoint ? previousCheckpoint.cycle + 1 : 0;
+
+    if (cycle >= maxCycles) {
+      return undefined;
+    }
+
+    return {
+      checkpointId: `agent-checkpoint-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      reason,
+      cycle,
+      maxCycles,
+      originalPrompt,
+      summary: this.buildContinuationSummary(sources),
+      sourceTitles: this.getCheckpointSourceTitles(sources),
+    };
+  }
+
+  /**
    * Generate system prompt for the autonomous agent.
    * Note: Tool schemas are handled by bindTools(), so we only include
    * semantic guidance from tool metadata here.
@@ -389,7 +503,9 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
     this.lastDisplayedContent = "";
 
     const chatModel = this.chainManager.chatModelManager.getChatModel();
+    const isReasoningModel = this.hasCapability(chatModel, ModelCapability.REASONING);
     const adapter = ModelAdapterFactory.createAdapter(chatModel);
+    const continuationCheckpoint = userMessage.agentContinuationCheckpoint;
     // Agent mode should never show thinking tokens in the response
     const thinkStreamer = new ThinkBlockStreamer(updateCurrentAiMessage, true);
 
@@ -402,12 +518,29 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
       );
     }
 
+    if (
+      continuationCheckpoint &&
+      continuationCheckpoint.cycle >= continuationCheckpoint.maxCycles
+    ) {
+      const continuationLimitMessage =
+        "I've already reached the continuation limit for this task. Please send a new prompt with any additional context to continue.";
+      await this.handleResponse(
+        continuationLimitMessage,
+        userMessage,
+        abortController,
+        addMessage,
+        updateCurrentAiMessage
+      );
+      return continuationLimitMessage;
+    }
+
     logInfo("[Agent] Using native tool calling with ReAct pattern");
 
     const context = await this.prepareAgentConversation(
       userMessage,
       chatModel,
-      options.updateLoadingMessage
+      options.updateLoadingMessage,
+      continuationCheckpoint
     );
 
     try {
@@ -425,6 +558,8 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
         processLocalSearchResult: context.loopDeps.processLocalSearchResult,
         applyCiCOrderingToLocalSearchResult: context.loopDeps.applyCiCOrderingToLocalSearchResult,
         adapter,
+        continuationCheckpoint,
+        isReasoningModel,
       });
 
       // If abort was already handled by timer, skip further processing
@@ -520,7 +655,8 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
   private async prepareAgentConversation(
     userMessage: ChatMessage,
     chatModel: any,
-    _updateLoadingMessage?: (message: string) => void // Unused, kept for potential future use
+    _updateLoadingMessage?: (message: string) => void, // Unused, kept for potential future use
+    continuationCheckpoint?: AgentContinuationCheckpoint
   ): Promise<AgentRunContext> {
     const messages: BaseMessage[] = [];
     const availableTools = this.getAvailableTools();
@@ -591,7 +727,11 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
     // Extract L5 for original prompt
     const l5User = envelope.layers.find((l) => l.id === "L5_USER");
     const l5Text = l5User?.text || "";
-    const originalUserPrompt = l5Text || userMessage.originalMessage || userMessage.message;
+    const originalUserPrompt =
+      continuationCheckpoint?.originalPrompt ||
+      l5Text ||
+      userMessage.originalMessage ||
+      userMessage.message;
 
     // Insert L4 (chat history) between system and user
     const tempMessages: { role: string; content: string | MessageContent[] }[] = [];
@@ -604,14 +744,18 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
       }
     }
 
-    // Extract user content (L3 smart references + L5) from base messages
-    const userMessageContent = baseMessages.find((m) => m.role === "user");
-    if (userMessageContent) {
-      const isMultimodal = this.isMultimodalModel(chatModel);
-      const content: string | MessageContent[] = isMultimodal
-        ? await this.buildMessageContent(userMessageContent.content, userMessage)
-        : userMessageContent.content;
-      messages.push(new HumanMessage(content));
+    if (continuationCheckpoint) {
+      messages.push(new HumanMessage(this.buildContinuationPromptContent(continuationCheckpoint)));
+    } else {
+      // Extract user content (L3 smart references + L5) from base messages
+      const userMessageContent = baseMessages.find((m) => m.role === "user");
+      if (userMessageContent) {
+        const isMultimodal = this.isMultimodalModel(chatModel);
+        const content: string | MessageContent[] = isMultimodal
+          ? await this.buildMessageContent(userMessageContent.content, userMessage)
+          : userMessageContent.content;
+        messages.push(new HumanMessage(content));
+      }
     }
 
     return {
@@ -636,6 +780,8 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
       updateCurrentAiMessage,
       processLocalSearchResult,
       applyCiCOrderingToLocalSearchResult,
+      continuationCheckpoint,
+      isReasoningModel,
     } = params;
 
     const maxIterations = getSettings().autonomousAgentMaxIterations;
@@ -750,6 +896,7 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
                 getChatModel: async () => {
                   return this.chainManager.chatModelManager.getChatModel();
                 },
+                timeout: isReasoningModel ? AGENT_REASONING_QUERY_EXPANSION_TIMEOUT_MS : undefined,
               });
               const expansion = await expander.expand(query);
               // Compute recall terms (all terms used for search)
@@ -873,9 +1020,27 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
       logWarn(`Agent reached max iterations (${maxIterations})`);
     }
 
+    const limitReason: "timeout" | "max_iterations" = timedOut ? "timeout" : "max_iterations";
+    const nextContinuationCheckpoint = this.createContinuationCheckpoint(
+      limitReason,
+      originalPrompt,
+      collectedSources,
+      continuationCheckpoint
+    );
+    if (nextContinuationCheckpoint) {
+      responseMetadata = {
+        ...(responseMetadata ?? {}),
+        agentContinuation: nextContinuationCheckpoint,
+      };
+    }
+
+    const continuationHint = nextContinuationCheckpoint
+      ? "Use Continue reasoning to continue from this checkpoint."
+      : "Please send a new prompt with additional guidance if you'd like to continue.";
+
     const limitMessage = timedOut
-      ? "I've reached the time limit for reasoning. Here's what I found so far based on the search results."
-      : "I've reached the maximum number of tool calls. Here's what I found so far based on the search results.";
+      ? `I've reached the time limit for reasoning. Here's what I found so far based on the search results.\n\n${continuationHint}`
+      : `I've reached the maximum number of tool calls. Here's what I found so far based on the search results.\n\n${continuationHint}`;
     const finalResponse = reasoningBlock ? reasoningBlock + "\n\n" + limitMessage : limitMessage;
 
     return {

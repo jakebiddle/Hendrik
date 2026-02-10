@@ -34,6 +34,8 @@ interface ChatControlsProps {
   viewingProject?: ProjectConfig | null;
   onBackToProjects?: () => void;
   onBackFromViewing?: () => void;
+  onSelectAgentMode?: () => void;
+  onSelectProjectMode?: () => void;
 }
 
 /**
@@ -55,6 +57,8 @@ export function ChatControls({
   viewingProject,
   onBackToProjects,
   onBackFromViewing,
+  onSelectAgentMode,
+  onSelectProjectMode,
 }: ChatControlsProps): React.ReactElement {
   const settings = useSettingsValue();
   const [currentModelKey] = useModelKey();
@@ -128,7 +132,10 @@ export function ChatControls({
             </>
           )}
 
-          <ChatSettingsPopover />
+          <ChatSettingsPopover
+            onSelectAgentMode={onSelectAgentMode}
+            onSelectProjectMode={onSelectProjectMode}
+          />
 
           {onClosePanel && (
             <Button variant="ghost2" size="icon" title="Close" onClick={onClosePanel}>

@@ -22,6 +22,7 @@ import { PatternListEditor } from "@/settings/v2/components/PatternListEditor";
 import { SettingsSection } from "@/settings/v2/components/SettingsSection";
 import { SmartConnectionsStatus } from "@/settings/v2/components/SmartConnectionsStatus";
 import { useSettingsSearch } from "@/settings/v2/search/SettingsSearchContext";
+import { shouldRunAutoIndexing } from "@/utils/indexingGuards";
 import { omit } from "@/utils";
 import { Cpu, FolderTree, Gauge, HardDrive, Scan, SlidersHorizontal } from "lucide-react";
 import { Notice } from "obsidian";
@@ -37,6 +38,12 @@ export const SearchSettings: React.FC = () => {
     if (settings.enableSemanticSearchV3) {
       new RebuildIndexConfirmModal(app, async () => {
         updateSetting("embeddingModelKey", modelKey);
+        if (!shouldRunAutoIndexing()) {
+          new Notice(
+            "Embedding model saved. Auto indexing is disabled on mobile; use Refresh Index when ready."
+          );
+          return;
+        }
         const VectorStoreManager = (await import("@/search/vectorStoreManager")).default;
         await VectorStoreManager.getInstance().indexVaultToVectorStore(false);
       }).open();
@@ -148,6 +155,12 @@ export const SearchSettings: React.FC = () => {
                 async () => {
                   updateSetting("enableSemanticSearchV3", checked);
                   if (checked) {
+                    if (!shouldRunAutoIndexing()) {
+                      new Notice(
+                        "Semantic search enabled. Auto indexing is disabled on mobile; use Refresh Index when ready."
+                      );
+                      return;
+                    }
                     const VectorStoreManager = (await import("@/search/vectorStoreManager"))
                       .default;
                     await VectorStoreManager.getInstance().indexVaultToVectorStore(false);
@@ -442,6 +455,14 @@ export const SearchSettings: React.FC = () => {
             description="Hendrik index won't be loaded on mobile to save resources. Only chat mode will be available."
             checked={settings.disableIndexOnMobile}
             onCheckedChange={(checked) => updateSetting("disableIndexOnMobile", checked)}
+          />
+
+          <SettingItem
+            type="switch"
+            title="Disable auto indexing on mobile"
+            description="When enabled, Hendrik will not auto-index on mobile. Manual Refresh Index is still available."
+            checked={settings.disableAutoIndexOnMobile}
+            onCheckedChange={(checked) => updateSetting("disableAutoIndexOnMobile", checked)}
           />
         </SettingsSection>
       )}

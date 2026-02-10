@@ -4,6 +4,7 @@ import { CustomError } from "@/error";
 import EmbeddingsManager from "@/LLMProviders/embeddingManager";
 import { logInfo } from "@/logger";
 import { HendrikSettings, getSettings, subscribeToSettingsChange } from "@/settings/model";
+import { shouldRunAutoIndexing } from "@/utils/indexingGuards";
 import { Orama } from "@orama/orama";
 import { Notice, Platform, TFile } from "obsidian";
 import { DBOperations } from "./dbOperations";
@@ -70,6 +71,9 @@ export default class VectorStoreManager {
     if (!settings.enableSemanticSearchV3 || settings.useSmartConnections) {
       return;
     }
+    if (!shouldRunAutoIndexing()) {
+      return;
+    }
     try {
       let retries = 3;
       while (retries > 0) {
@@ -105,6 +109,22 @@ export default class VectorStoreManager {
     await this.initializationPromise;
   }
 
+  /**
+   * Ensure the underlying database is initialized for manual indexing operations.
+   * This allows manual refresh/reindex even when auto indexing is disabled.
+   */
+  private async ensureInitializedForIndexing(): Promise<void> {
+    const settings = getSettings();
+    if (settings.useSmartConnections) {
+      return;
+    }
+    if (Platform.isMobile && settings.disableIndexOnMobile) {
+      return;
+    }
+    const embeddingAPI = await this.embeddingsManager.getEmbeddingsAPI();
+    await this.dbOps.initializeDB(embeddingAPI);
+  }
+
   public async indexVaultToVectorStore(overwrite?: boolean): Promise<number> {
     if (getSettings().useSmartConnections) {
       logInfo(
@@ -112,6 +132,7 @@ export default class VectorStoreManager {
       );
       return 0;
     }
+    await this.ensureInitializedForIndexing();
     await this.waitForInitialization();
     if (Platform.isMobile && getSettings().disableIndexOnMobile) {
       new Notice("Indexing is disabled on mobile devices");
@@ -171,6 +192,7 @@ export default class VectorStoreManager {
       );
       return;
     }
+    await this.ensureInitializedForIndexing();
     await this.waitForInitialization();
     await this.indexOps.reindexFile(file);
   }

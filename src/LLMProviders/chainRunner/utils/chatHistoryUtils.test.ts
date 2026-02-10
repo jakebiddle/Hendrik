@@ -53,6 +53,41 @@ describe("chatHistoryUtils", () => {
       ]);
     });
 
+    it("should strip agent reasoning markers from assistant string history", () => {
+      const rawHistory = [
+        {
+          _getType: () => "human",
+          content: "What did you find?",
+        },
+        {
+          _getType: () => "ai",
+          content:
+            '<!--AGENT_REASONING:complete:14:["Searching notes","Reading note"]-->\n\nFound three relevant notes.',
+        },
+      ];
+
+      const result = processRawChatHistory(rawHistory);
+
+      expect(result).toEqual([
+        { role: "user", content: "What did you find?" },
+        { role: "assistant", content: "Found three relevant notes." },
+      ]);
+    });
+
+    it("should preserve non-string assistant history content", () => {
+      const assistantMultimodal = [{ type: "text", text: "Answer in multimodal format." }];
+      const rawHistory = [
+        {
+          _getType: () => "ai",
+          content: assistantMultimodal,
+        },
+      ];
+
+      const result = processRawChatHistory(rawHistory);
+
+      expect(result).toEqual([{ role: "assistant", content: assistantMultimodal }]);
+    });
+
     it("should skip system messages", () => {
       const rawHistory = [
         {
@@ -98,6 +133,20 @@ describe("chatHistoryUtils", () => {
         { role: "user", content: "How are you?" },
         { role: "assistant", content: "I am doing well!" },
       ]);
+    });
+
+    it("should strip agent reasoning markers from legacy assistant entries", () => {
+      const rawHistory = [
+        {
+          role: "assistant",
+          content:
+            '<!--AGENT_REASONING:collapsed:9:["Searching records"]-->\n\nThe treaty was signed in 1432.',
+        },
+      ];
+
+      const result = processRawChatHistory(rawHistory);
+
+      expect(result).toEqual([{ role: "assistant", content: "The treaty was signed in 1432." }]);
     });
 
     it("should handle null and undefined messages", () => {

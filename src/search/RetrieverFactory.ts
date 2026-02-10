@@ -1,6 +1,6 @@
 import { logInfo } from "@/logger";
 import { getSettings, HendrikSettings } from "@/settings/model";
-import { App } from "obsidian";
+import { App, Platform } from "obsidian";
 import {
   SmartConnectionsRetriever,
   isSmartConnectionsAvailable,
@@ -127,7 +127,10 @@ export class RetrieverFactory {
     }
 
     // Standard mode: check enableSemanticSearchV3 setting
-    if (currentSettings.enableSemanticSearchV3) {
+    const allowSemanticOnMobile =
+      !Platform.isMobile ||
+      (!currentSettings.disableIndexOnMobile && !currentSettings.disableAutoIndexOnMobile);
+    if (currentSettings.enableSemanticSearchV3 && allowSemanticOnMobile) {
       const retriever = new MergedSemanticRetriever(app, normalizedOptions);
       logInfo("RetrieverFactory: Using MergedSemanticRetriever (semantic search)");
       return {
@@ -189,7 +192,10 @@ export class RetrieverFactory {
     }
 
     // Standard mode
-    if (currentSettings.enableSemanticSearchV3) {
+    const allowSemanticOnMobile =
+      !Platform.isMobile ||
+      (!currentSettings.disableIndexOnMobile && !currentSettings.disableAutoIndexOnMobile);
+    if (currentSettings.enableSemanticSearchV3 && allowSemanticOnMobile) {
       return "semantic";
     }
 
