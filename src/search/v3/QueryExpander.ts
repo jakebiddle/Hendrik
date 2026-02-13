@@ -78,6 +78,14 @@ Format:
   }
 
   /**
+   * Detects common object-string artifacts that should never become queries/terms.
+   */
+  private isObjectArtifact(value: string): boolean {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "[object object]" || normalized.startsWith("[object ");
+  }
+
+  /**
    * Expands a search query into multiple variants and extracts salient terms.
    * Uses caching to avoid redundant LLM calls.
    * @param query - The original search query
@@ -233,7 +241,12 @@ Format:
     let queryMatch;
     while ((queryMatch = queryRegex.exec(content)) !== null) {
       const query = queryMatch[1]?.trim();
-      if (query && query !== originalQuery && queries.length <= this.config.maxVariants) {
+      if (
+        query &&
+        !this.isObjectArtifact(query) &&
+        query !== originalQuery &&
+        queries.length <= this.config.maxVariants
+      ) {
         queries.push(query);
       }
     }
@@ -245,7 +258,7 @@ Format:
       let termMatch;
       while ((termMatch = termRegex.exec(salientSection[1])) !== null) {
         const term = termMatch[1]?.trim().toLowerCase();
-        if (term && this.isValidTerm(term)) {
+        if (term && !this.isObjectArtifact(term) && this.isValidTerm(term)) {
           salientFromLLM.add(term);
         }
       }
@@ -258,7 +271,7 @@ Format:
       let termMatch;
       while ((termMatch = termRegex.exec(expandedSection[1])) !== null) {
         const term = termMatch[1]?.trim().toLowerCase();
-        if (term && this.isValidTerm(term)) {
+        if (term && !this.isObjectArtifact(term) && this.isValidTerm(term)) {
           expandedFromLLM.add(term);
         }
       }
@@ -270,7 +283,7 @@ Format:
       let termMatch;
       while ((termMatch = termRegex.exec(content)) !== null) {
         const term = termMatch[1]?.trim().toLowerCase();
-        if (term && this.isValidTerm(term)) {
+        if (term && !this.isObjectArtifact(term) && this.isValidTerm(term)) {
           // Old format: treat all terms as expanded (for recall)
           expandedFromLLM.add(term);
         }
@@ -329,7 +342,7 @@ Format:
       // Parse content based on current section
       if (section === "queries" && queries.length <= this.config.maxVariants) {
         const cleanQuery = line.replace(/^[-•*\d.)\s]+/, "").trim();
-        if (cleanQuery && cleanQuery !== originalQuery) {
+        if (cleanQuery && !this.isObjectArtifact(cleanQuery) && cleanQuery !== originalQuery) {
           queries.push(cleanQuery);
         }
       } else if (section === "terms") {
@@ -337,7 +350,7 @@ Format:
           .replace(/^[-•*\d.)\s]+/, "")
           .trim()
           .toLowerCase();
-        if (cleanTerm && this.isValidTerm(cleanTerm)) {
+        if (cleanTerm && !this.isObjectArtifact(cleanTerm) && this.isValidTerm(cleanTerm)) {
           llmTerms.add(cleanTerm);
         }
       }
@@ -346,7 +359,7 @@ Format:
     // If no sections found, treat lines as queries
     if (queries.length === 1 && llmTerms.size === 0) {
       for (const line of lines.slice(0, this.config.maxVariants)) {
-        if (line && !line.toUpperCase().includes("QUERY")) {
+        if (line && !line.toUpperCase().includes("QUERY") && !this.isObjectArtifact(line)) {
           queries.push(line);
         }
       }

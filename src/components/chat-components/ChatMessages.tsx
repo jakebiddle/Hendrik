@@ -433,6 +433,11 @@ const ChatMessages = memo(
                 app={app}
                 isStreaming={true}
                 onDelete={() => {}}
+                onChronicleAnswer={
+                  onChronicleAnswer
+                    ? (qId, answer) => onChronicleAnswer(-1, qId, answer)
+                    : undefined
+                }
               />
             </div>
           )}

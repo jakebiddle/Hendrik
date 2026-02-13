@@ -1,4 +1,5 @@
 import { logInfo, logWarn } from "@/logger";
+import { EntityGraphRetriever } from "@/search/entityGraph";
 import { getSettings } from "@/settings/model";
 import { isInternalExcludedFile, shouldIndexFile, getMatchingPatterns } from "@/search/searchUtils";
 import { extractNoteFiles } from "@/utils";
@@ -39,6 +40,7 @@ export class TieredLexicalRetriever extends BaseRetriever {
   public lc_namespace = ["tiered_lexical_retriever"];
   private searchCore: SearchCore;
   private chunkManager: ChunkManager;
+  private entityGraphRetriever: EntityGraphRetriever;
   private lastQueryExpansion: ExpandedQuery | null = null;
 
   constructor(
@@ -60,6 +62,7 @@ export class TieredLexicalRetriever extends BaseRetriever {
     this.searchCore = new SearchCore(app, safeGetChatModel);
     // Use shared singleton to ensure all systems share the same cache
     this.chunkManager = getSharedChunkManager(app);
+    this.entityGraphRetriever = new EntityGraphRetriever(app, this.chunkManager);
   }
 
   /**
@@ -129,15 +132,27 @@ export class TieredLexicalRetriever extends BaseRetriever {
       // Combine and deduplicate results
       const combinedDocuments = this.combineResults(searchDocuments, titleMatches);
 
+      const entityGraphResult = await this.entityGraphRetriever.augmentDocuments(
+        query,
+        combinedDocuments,
+        {
+          maxHops: settings.entityGraphMaxHops,
+          maxExpandedDocs: settings.entityGraphMaxExpandedDocs,
+        }
+      );
+      const finalDocuments = entityGraphResult.documents;
+
       if (getSettings().debug) {
         logInfo("TieredLexicalRetriever: Search complete", {
-          totalResults: combinedDocuments.length,
+          totalResults: finalDocuments.length,
           titleMatches: titleMatches.length,
           searchResults: searchResults.length,
+          entityQueryMode: entityGraphResult.entityQueryMode,
+          entityEvidence: entityGraphResult.hasEntityEvidence,
         });
       }
 
-      return combinedDocuments;
+      return finalDocuments;
     } catch (error) {
       logWarn("TieredLexicalRetriever: Error during search", error);
       // Fallback to empty results on error

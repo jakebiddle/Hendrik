@@ -39,7 +39,7 @@ export const ContextPressureIndicator: React.FC<ContextPressureIndicatorProps> =
     return "hendrik-context-pressure__dot--low";
   };
 
-  const tooltipText = `Context: ${tokenCount.toLocaleString()} / ${maxContextTokens.toLocaleString()} tokens (${percent}%)`;
+  const tooltipText = `Prompt tokens: ${tokenCount.toLocaleString()} / ${maxContextTokens.toLocaleString()} tokens (${percent}%)`;
 
   return (
     <Tooltip>

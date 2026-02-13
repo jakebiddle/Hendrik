@@ -809,6 +809,17 @@ export const DEFAULT_SETTINGS: HendrikSettings = {
   enableSemanticSearchV3: false,
   useSmartConnections: false,
   enableLexicalBoosts: true,
+  enableEntityGraphRetrieval: false,
+  enableEntityEvidencePanel: true,
+  entityGraphMaxHops: 2,
+  entityGraphMaxExpandedDocs: 12,
+  entityGraphStrictEvidenceGate: true,
+  entityAliasFields: [],
+  enableSemanticEntityRelations: false,
+  semanticEntityRelationFields: ["relations"],
+  semanticEntityMinConfidence: 70,
+  semanticEntityBatchSize: 25,
+  enableSemanticEntityBatchEditing: true,
   suggestedDefaultCommands: false,
   autonomousAgentMaxIterations: 8,
   autonomousAgentEnabledToolIds: [
@@ -849,6 +860,9 @@ export const DEFAULT_SETTINGS: HendrikSettings = {
   autoCompactSummaryTokens: 2000,
   defaultMaxContextTokens: 128000,
   showContextPressureIndicator: true,
+  rebuildContextLibraryOnLoadedChat: true,
+  rehydrateExternalContextOnLoad: false,
+  contextCompactionMode: "balanced",
   chronicleMode: "none",
 };
 

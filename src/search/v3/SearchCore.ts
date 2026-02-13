@@ -64,6 +64,36 @@ export class SearchCore {
   }
 
   /**
+   * Normalize pre-expanded arrays into safe, non-empty strings.
+   */
+  private sanitizePreExpandedList(value: unknown): string[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const deduped = new Set<string>();
+    const result: string[] = [];
+
+    for (const entry of value) {
+      if (typeof entry !== "string") {
+        continue;
+      }
+      const trimmed = entry.trim();
+      const lowered = trimmed.toLowerCase();
+      if (!trimmed || lowered === "[object object]" || lowered.startsWith("[object ")) {
+        continue;
+      }
+      if (deduped.has(lowered)) {
+        continue;
+      }
+      deduped.add(lowered);
+      result.push(trimmed);
+    }
+
+    return result;
+  }
+
+  /**
    * Main retrieval pipeline (now chunk-based by default)
    * @param query - User's search query
    * @param options - Search options
@@ -117,12 +147,23 @@ export class SearchCore {
       if (options.preExpandedQuery) {
         // Use pre-expanded data to avoid double LLM calls
         logInfo("SearchCore: Using pre-expanded query data (skipping QueryExpander)");
+        const sanitizedQueries = this.sanitizePreExpandedList(options.preExpandedQuery.queries);
+        const sanitizedSalientTerms = this.sanitizePreExpandedList(
+          options.preExpandedQuery.salientTerms
+        );
+        const sanitizedExpandedQueries = this.sanitizePreExpandedList(
+          options.preExpandedQuery.expandedQueries
+        );
+        const sanitizedExpandedTerms = this.sanitizePreExpandedList(
+          options.preExpandedQuery.expandedTerms
+        );
+
         expanded = {
-          queries: options.preExpandedQuery.queries || [query],
-          salientTerms: options.preExpandedQuery.salientTerms || [],
+          queries: sanitizedQueries.length > 0 ? sanitizedQueries : [query],
+          salientTerms: sanitizedSalientTerms,
           originalQuery: options.preExpandedQuery.originalQuery || query,
-          expandedQueries: options.preExpandedQuery.expandedQueries || [],
-          expandedTerms: options.preExpandedQuery.expandedTerms || [],
+          expandedQueries: sanitizedExpandedQueries,
+          expandedTerms: sanitizedExpandedTerms,
         };
       } else {
         expanded = await this.queryExpander.expand(query);

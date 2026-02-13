@@ -189,9 +189,13 @@ async function performLexicalSearch({
       ctime: doc.metadata.ctime ?? null,
       chunkId: (doc.metadata as any).chunkId ?? null,
       isChunk: (doc.metadata as any).isChunk ?? false,
+      entityQueryMode: Boolean((doc.metadata as any).entityQueryMode),
+      entityEvidence: Boolean((doc.metadata as any).entityEvidence),
       explanation: doc.metadata.explanation ?? null,
     };
   });
+  const entityQueryMode = formattedResults.some((doc) => doc.entityQueryMode);
+  const entityEvidence = formattedResults.some((doc) => doc.entityEvidence);
   // Reuse the same dedupe logic used by Show Sources (path fallback to title, keep highest score)
   const sourcesLike = formattedResults.map((d) => ({
     title: d.title || d.path || "Untitled",
@@ -213,7 +217,13 @@ async function performLexicalSearch({
     .map((s) => bestByKey.get((s.path || s.title).toLowerCase()))
     .filter(Boolean);
 
-  return { type: "local_search", documents: dedupedDocs, queryExpansion };
+  return {
+    type: "local_search",
+    documents: dedupedDocs,
+    queryExpansion,
+    entityQueryMode,
+    entityEvidence,
+  };
 }
 
 // Local search tool using RetrieverFactory (handles Self-hosted > Semantic > Lexical priority)

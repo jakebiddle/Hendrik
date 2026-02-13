@@ -38,12 +38,15 @@ import { FileParserManager } from "@/tools/FileParserManager";
 import { AgentContinuationCheckpoint, ChatMessage, type WebTabContext } from "@/types/message";
 import { err2String } from "@/utils";
 import { arrayBufferToBase64 } from "@/utils/base64";
+import { resolvePromptTokenCount } from "@/utils/tokenUsageUtils";
 import { Notice, Platform, TFile } from "obsidian";
 import { ContextManageModal } from "@/components/modals/project/context-manage-modal";
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { ChatHistoryItem } from "@/components/chat-components/ChatHistoryPopover";
 import { useActiveWebTabState } from "@/components/chat-components/hooks/useActiveWebTabState";
+import { parseChronicleQuestions } from "@/components/chat-components/chronicleQuestionParser";
+import type { ChronicleQuestion } from "@/types/chronicleQuestion";
 
 type ChatMode = "default" | "project";
 
@@ -83,6 +86,82 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
   // This allows collapsible UI state (think blocks) to persist across streaming -> history
   const streamingMessageIdRef = useRef<string | null>(null);
 
+  // Chronicle answers selected while the AI is still streaming are queued and flushed
+  // once the current generation completes (to avoid aborting streams and/or racing the chain).
+  const queuedChronicleAnswersRef = useRef<
+    Map<
+      string,
+      Array<{
+        questionId: string;
+        answer: string | string[];
+        questionText?: string;
+      }>
+    >
+  >(new Map());
+
+  // Tracks the most recently completed AI message id (streaming placeholder id attached to final AI).
+  const lastCompletedAiMessageIdRef = useRef<string | null>(null);
+  const previousLoadingRef = useRef<boolean>(false);
+
+  /**
+   * Upsert a chronicle answer into the streaming queue for a given streaming message id.
+   */
+  const upsertQueuedChronicleAnswer = useCallback(
+    (
+      streamingMessageId: string,
+      payload: { questionId: string; answer: string | string[]; questionText?: string }
+    ) => {
+      const existing = queuedChronicleAnswersRef.current.get(streamingMessageId) ?? [];
+      const withoutSame = existing.filter((item) => item.questionId !== payload.questionId);
+      queuedChronicleAnswersRef.current.set(streamingMessageId, [...withoutSame, payload]);
+    },
+    []
+  );
+
+  /**
+   * Build the canonical chronicle question list for an AI message by parsing the message text
+   * and merging in any stored answers.
+   */
+  const buildChronicleQuestionsForMessage = useCallback(
+    (
+      messageText: string,
+      messageId: string,
+      existingAnswers?: ChronicleQuestion[],
+      overrideAnswer?: { questionId: string; answer: string | string[] }
+    ): { questions: ChronicleQuestion[]; questionTextForId: (id: string) => string | null } => {
+      const parsed = parseChronicleQuestions(messageText, messageId, existingAnswers, false);
+
+      const questions = parsed.questions.map((q) => ({ ...q }));
+
+      if (overrideAnswer) {
+        const target = questions.find((q) => q.id === overrideAnswer.questionId);
+        if (target) {
+          target.answer = overrideAnswer.answer;
+          target.isAnswered = true;
+        } else {
+          questions.push({
+            id: overrideAnswer.questionId,
+            question: "",
+            allowCustom: true,
+            multiSelect: false,
+            isAnswered: true,
+            answer: overrideAnswer.answer,
+          });
+        }
+      }
+
+      const questionTextForId = (id: string): string | null => {
+        const fromParsed = parsed.questions.find((q) => q.id === id)?.question;
+        if (fromParsed) return fromParsed;
+        const fromExisting = existingAnswers?.find((q) => q.id === id)?.question;
+        return fromExisting ?? null;
+      };
+
+      return { questions, questionTextForId };
+    },
+    []
+  );
+
   // Wrapper for addMessage that attaches streaming ID and tracks token usage
   const addMessage = useCallback(
     (message: ChatMessage) => {
@@ -93,14 +172,56 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
       const messageToAdd = shouldAttachId ? { ...message, id: streamingId } : message;
 
       rawAddMessage(messageToAdd);
-      if (
-        messageToAdd.sender === AI_SENDER &&
-        messageToAdd.responseMetadata?.tokenUsage?.totalTokens
-      ) {
-        setLatestTokenCount(messageToAdd.responseMetadata.tokenUsage.totalTokens);
+      if (messageToAdd.sender === AI_SENDER) {
+        // Persist chronicle question metadata (and any queued streaming answers) onto the stored message.
+        if (messageToAdd.id && !messageToAdd.isErrorMessage && messageToAdd.message) {
+          try {
+            const queued = queuedChronicleAnswersRef.current.get(messageToAdd.id) ?? [];
+            const existingStored = chatUIState.getMessage(messageToAdd.id)?.chronicleQuestions;
+
+            const merged = buildChronicleQuestionsForMessage(
+              messageToAdd.message,
+              messageToAdd.id,
+              existingStored
+            ).questions;
+
+            if (queued.length > 0) {
+              queued.forEach((item) => {
+                const target = merged.find((q) => q.id === item.questionId);
+                if (target) {
+                  target.answer = item.answer;
+                  target.isAnswered = true;
+                } else {
+                  merged.push({
+                    id: item.questionId,
+                    question: item.questionText ?? "",
+                    allowCustom: true,
+                    multiSelect: false,
+                    isAnswered: true,
+                    answer: item.answer,
+                  });
+                }
+              });
+            }
+
+            if (merged.length > 0) {
+              void chatUIState.updateMessageChronicleQuestions(messageToAdd.id, merged);
+            }
+
+            // Mark this AI message as the most recently completed (used to flush queued answers).
+            lastCompletedAiMessageIdRef.current = messageToAdd.id;
+          } catch (error) {
+            logError("Error persisting chronicle questions:", error);
+          }
+        }
+
+        const promptTokenCount = resolvePromptTokenCount(messageToAdd.responseMetadata?.tokenUsage);
+        if (promptTokenCount !== null) {
+          setLatestTokenCount(promptTokenCount);
+        }
       }
     },
-    [rawAddMessage]
+    [rawAddMessage, buildChronicleQuestionsForMessage, chatUIState]
   );
 
   // Function to set the abort controller ref (for getAIResponse compatibility)
@@ -334,6 +455,106 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
       new Notice("Failed to save chat as note. Check console for details.");
     }
   }, [app, chatUIState, currentModelKey]);
+
+  /**
+   * Programmatically send a user message with empty context and await the AI response.
+   * Used for Chronicle question answers.
+   */
+  const sendProgrammaticUserTurn = useCallback(
+    async (text: string) => {
+      const emptyContext = {
+        notes: [] as TFile[],
+        urls: [] as string[],
+        tags: [] as string[],
+        folders: [] as string[],
+        selectedTextContexts: [],
+        webTabs: [] as WebTabContext[],
+      };
+
+      streamingMessageIdRef.current = `msg-${uuidv4()}`;
+      safeSet.setCurrentAiMessage("");
+      safeSet.setLoading(true);
+      safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+
+      const messageId = await chatUIState.sendMessage(
+        text,
+        emptyContext,
+        currentChain,
+        effectiveIncludeActiveNote,
+        effectiveIncludeActiveWebTab,
+        undefined,
+        safeSet.setLoadingMessage
+      );
+
+      if (settings.autosaveChat) {
+        handleSaveAsNote();
+      }
+
+      const llmMessage = chatUIState.getLLMMessage(messageId);
+      if (llmMessage) {
+        await getAIResponse(
+          llmMessage,
+          chainManager,
+          addMessage,
+          safeSet.setCurrentAiMessage,
+          setAbortController,
+          { debug: settings.debug, updateLoadingMessage: safeSet.setLoadingMessage }
+        );
+      }
+
+      if (settings.autosaveChat) {
+        handleSaveAsNote();
+      }
+    },
+    [
+      addMessage,
+      chainManager,
+      chatUIState,
+      currentChain,
+      effectiveIncludeActiveNote,
+      effectiveIncludeActiveWebTab,
+      handleSaveAsNote,
+      safeSet,
+      setAbortController,
+      settings.autosaveChat,
+      settings.debug,
+    ]
+  );
+
+  // Flush queued Chronicle answers when a generation finishes.
+  useEffect(() => {
+    const wasLoading = previousLoadingRef.current;
+    previousLoadingRef.current = loading;
+
+    if (wasLoading && !loading) {
+      const completedId = lastCompletedAiMessageIdRef.current;
+      if (!completedId) return;
+
+      const queued = queuedChronicleAnswersRef.current.get(completedId);
+      if (!queued || queued.length === 0) return;
+
+      // Remove before sending to prevent re-entrancy loops.
+      queuedChronicleAnswersRef.current.delete(completedId);
+
+      void (async () => {
+        try {
+          for (const item of queued) {
+            const questionText = item.questionText?.trim() || "your question";
+            const displayAnswer = Array.isArray(item.answer) ? item.answer.join(", ") : item.answer;
+            const replyText = `**Re: ${questionText}**\n\n${displayAnswer}`;
+            await sendProgrammaticUserTurn(replyText);
+          }
+        } catch (error) {
+          logError("Error flushing queued chronicle answers:", error);
+          new Notice("Failed to send queued answer. Please try again.");
+        } finally {
+          safeSet.setLoading(false);
+          safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+          streamingMessageIdRef.current = null;
+        }
+      })();
+    }
+  }, [loading, safeSet, sendProgrammaticUserTurn]);
 
   const handleStopGenerating = useCallback(
     (reason?: ABORT_REASON) => {
@@ -631,84 +852,67 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
    */
   const handleChronicleAnswer = useCallback(
     async (messageIndex: number, questionId: string, answer: string | string[]) => {
-      const aiMessage = chatHistory[messageIndex];
-      if (!aiMessage) return;
-
-      // Update the chronicle question on the stored message
-      const updatedQuestions = (aiMessage.chronicleQuestions ?? []).map((q) =>
-        q.id === questionId ? { ...q, answer, isAnswered: true } : q
-      );
-
-      // If this question wasn't already tracked, add it
-      if (!updatedQuestions.find((q) => q.id === questionId)) {
-        updatedQuestions.push({
-          id: questionId,
-          question: "",
-          allowCustom: true,
-          isAnswered: true,
-          answer,
-        });
-      }
-
-      // Update the message in the repository
-      if (aiMessage.id) {
-        try {
-          await chatUIState.updateMessageChronicleQuestions(aiMessage.id, updatedQuestions);
-        } catch (error) {
-          logError("Error updating chronicle questions:", error);
-        }
-      }
-
-      // Build the reply text
-      const displayAnswer = Array.isArray(answer) ? answer.join(", ") : answer;
-      const questionText =
-        updatedQuestions.find((q) => q.id === questionId)?.question || "your question";
-      const replyText = `**Re: ${questionText}**\n\n${displayAnswer}`;
-
-      // Programmatically send as a new user message + trigger AI response
       try {
-        const emptyContext = {
-          notes: [] as TFile[],
-          urls: [] as string[],
-          tags: [] as string[],
-          folders: [] as string[],
-          selectedTextContexts: [],
-          webTabs: [] as WebTabContext[],
-        };
+        const isFromStreamingPlaceholder = messageIndex < 0;
+        const aiMessage = !isFromStreamingPlaceholder ? chatHistory[messageIndex] : null;
 
-        streamingMessageIdRef.current = `msg-${uuidv4()}`;
-        safeSet.setLoading(true);
-        safeSet.setLoadingMessage(LOADING_MESSAGES.DEFAULT);
+        const sourceMessageText =
+          (aiMessage?.message ?? (isFromStreamingPlaceholder ? currentAiMessage : "")) || "";
+        const sourceMessageId =
+          aiMessage?.id ?? (isFromStreamingPlaceholder ? streamingMessageIdRef.current : null);
 
-        const messageId = await chatUIState.sendMessage(
-          replyText,
-          emptyContext,
-          currentChain,
-          effectiveIncludeActiveNote,
-          effectiveIncludeActiveWebTab,
-          undefined,
-          safeSet.setLoadingMessage
-        );
+        const displayAnswer = Array.isArray(answer) ? answer.join(", ") : answer;
 
-        if (settings.autosaveChat) {
-          handleSaveAsNote();
+        // Resolve a best-effort question text for the reply message.
+        let questionText =
+          aiMessage?.chronicleQuestions?.find((q) => q.id === questionId)?.question ?? null;
+
+        if (!questionText && sourceMessageText && sourceMessageId) {
+          try {
+            const parsed = buildChronicleQuestionsForMessage(
+              sourceMessageText,
+              sourceMessageId,
+              aiMessage?.chronicleQuestions
+            );
+            questionText = parsed.questionTextForId(questionId);
+          } catch (error) {
+            logError("Error parsing chronicle question text:", error);
+          }
         }
 
-        const llmMessage = chatUIState.getLLMMessage(messageId);
-        if (llmMessage) {
-          await getAIResponse(
-            llmMessage,
-            chainManager,
-            addMessage,
-            safeSet.setCurrentAiMessage,
-            setAbortController,
-            { debug: settings.debug, updateLoadingMessage: safeSet.setLoadingMessage }
-          );
+        const resolvedQuestionText = (questionText && questionText.trim()) || "your question";
+        const replyText = `**Re: ${resolvedQuestionText}**\n\n${displayAnswer}`;
+
+        // If the user answers while the AI is still streaming, queue the answer and
+        // flush it right after generation completes.
+        if (isFromStreamingPlaceholder && streamingMessageIdRef.current && loading) {
+          upsertQueuedChronicleAnswer(streamingMessageIdRef.current, {
+            questionId,
+            answer,
+            questionText: resolvedQuestionText,
+          });
+          return;
         }
 
-        if (settings.autosaveChat) {
-          handleSaveAsNote();
+        // Update the message in the repository (if we have a persisted AI message).
+        if (aiMessage?.id && sourceMessageText) {
+          try {
+            const existingStored = chatUIState.getMessage(aiMessage.id)?.chronicleQuestions;
+            const { questions } = buildChronicleQuestionsForMessage(
+              sourceMessageText,
+              aiMessage.id,
+              existingStored,
+              { questionId, answer }
+            );
+            if (questions.length > 0) {
+              await chatUIState.updateMessageChronicleQuestions(aiMessage.id, questions);
+            }
+          } catch (error) {
+            logError("Error updating chronicle questions:", error);
+          }
         }
+
+        await sendProgrammaticUserTurn(replyText);
       } catch (error) {
         logError("Error sending chronicle answer:", error);
         new Notice("Failed to send answer. Please try again.");
@@ -721,16 +925,12 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     [
       chatHistory,
       chatUIState,
-      currentChain,
-      effectiveIncludeActiveNote,
-      effectiveIncludeActiveWebTab,
-      settings.autosaveChat,
-      settings.debug,
-      chainManager,
-      addMessage,
+      buildChronicleQuestionsForMessage,
+      currentAiMessage,
       safeSet,
-      setAbortController,
-      handleSaveAsNote,
+      loading,
+      sendProgrammaticUserTurn,
+      upsertQueuedChronicleAnswer,
     ]
   );
 

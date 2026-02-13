@@ -22,6 +22,7 @@ import {
   moveFolderTool,
   moveOrRenameNoteTool,
   renameFolderTool,
+  submitSemanticRelationProposalsTool,
   upsertFrontmatterTool,
 } from "./VaultManagementTools";
 import { youtubeTranscriptionTool } from "./YoutubeTools";
@@ -163,7 +164,9 @@ Example: "what time is 6pm PT in Tokyo" (PT is UTC-8 or UTC-7, Tokyo is UTC+9) â
       isAlwaysEnabled: true,
       customPromptInstructions: `For readNote:
 - Decide based on the user's request: only call this tool when the question requires reading note content.
-- If the user asks about a note title that is already mentioned in the current or previous turns of the conversation, or linked in <active_note> or <note_context> blocks, call readNote directlyâ€”do not use localSearch to look it up. Even if the note title mention is partial but similar to what you have seen in the context, try to infer the correct note path from context. Skip the tool when a note is irrelevant to the user query.
+- For factual lore Q&A, default to localSearch first; use readNote as a follow-up only when retrieval is weak or explicit file reading is requested.
+- Direct read is preferred only for explicit read/file intent (for example: "read [[Note]]", "open path/to/file.md", or direct note-path inspection requests).
+- If a note title/path is already mentioned in the current or previous turns, or linked in <active_note> or <note_context> blocks, you may read it directly when explicit read intent is clear.
 - If the user asks about notes linked from that note, read the original note first, then follow the "linkedNotes" paths returned in the tool result to inspect those linked notes.
 - Always start with chunk 0 (omit chunkIndex or set it to 0). Only request the next chunk if the previous chunk did not answer the question.
 - Pass vault-relative paths without a leading slash. If a call fails, adjust the path (for example, add ".md" or use an alternative candidate) and retry only if necessary.
@@ -185,8 +188,9 @@ Examples:
       category: "file",
       requiresVault: true,
       customPromptInstructions: `For findNotesByTitle:
-- Use this when you need to locate likely note paths before reading/editing notes
-- Prefer this over full localSearch when the user names a note title directly
+- Use this when you need to locate likely note paths before reading/editing notes.
+- Treat this as a path-resolution and fallback tool, not the primary retrieval method for factual answers.
+- For lore Q&A, run localSearch first and use findNotesByTitle when retrieval is weak or you need deterministic note-path selection.
 - After finding candidates, use readNote or moveOrRenameNote with exact paths`,
     },
   },
@@ -229,6 +233,21 @@ Examples:
 - Use this for metadata/tag/property updates where full-body edits are unnecessary
 - Use patch for add/update and removeKeys for deletions
 - Do not call writeToFile when frontmatter-only changes are sufficient`,
+    },
+  },
+  {
+    tool: submitSemanticRelationProposalsTool,
+    metadata: {
+      id: "submitSemanticRelationProposals",
+      displayName: "Submit Semantic Relation Proposals",
+      description: "Queue AI-extracted semantic relation proposals for editable batch review",
+      category: "file",
+      requiresVault: true,
+      customPromptInstructions: `For submitSemanticRelationProposals:
+- Use this to stage semantic worldbuilding relationship proposals for human review before writes
+- Always pass an array of proposal objects with notePath, predicate, targetPath
+- Confidence should be 0-100 when available
+- After submission, advise user to open Semantic Batch Editor to review/apply`,
     },
   },
   {

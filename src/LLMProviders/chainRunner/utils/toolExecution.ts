@@ -1,4 +1,5 @@
 import { logError, logInfo, logWarn } from "@/logger";
+import { SemanticRelationProposalStore } from "@/search/entityGraph";
 import { getSettings } from "@/settings/model";
 import { ToolManager } from "@/tools/toolManager";
 import { ToolRegistry } from "@/tools/ToolRegistry";
@@ -104,6 +105,8 @@ export async function executeSequentialToolCall(
         success: true,
       };
     }
+
+    SemanticRelationProposalStore.getInstance().ingestFromToolOutput(toolCall.name, result);
 
     return {
       toolName: toolCall.name,

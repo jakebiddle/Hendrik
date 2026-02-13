@@ -31,13 +31,11 @@ export const TokenCounter: React.FC<TokenCounterProps> = ({ tokenCount }) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="hendrik-token-counter" aria-label="Token usage">
+        <span className="hendrik-token-counter" aria-label="Prompt token usage">
           {formatTokenCount(tokenCount)} tokens
         </span>
       </TooltipTrigger>
-      <TooltipContent side="bottom">
-        Context used: {tokenCount.toLocaleString()} tokens
-      </TooltipContent>
+      <TooltipContent side="bottom">Prompt tokens: {tokenCount.toLocaleString()}</TooltipContent>
     </Tooltip>
   );
 };

@@ -243,6 +243,21 @@ export function summarizeExplanation(explanation: any): string {
       parts.push(`Graph +${gb.boostFactor.toFixed(2)} (${gb.connections} connections)`);
     }
 
+    // Entity graph evidence
+    if (explanation.entityGraph && typeof explanation.entityGraph === "object") {
+      const eg = explanation.entityGraph;
+      const relationCount = Array.isArray(eg.relationTypes) ? eg.relationTypes.length : 0;
+      const hopDepth = typeof eg.hopDepth === "number" ? eg.hopDepth : null;
+      const evidenceCount = typeof eg.evidenceCount === "number" ? eg.evidenceCount : 0;
+      const matchedEntities = Array.isArray(eg.matchedEntities) ? eg.matchedEntities : [];
+      const entityPreview = matchedEntities.slice(0, 2).join(", ");
+      parts.push(
+        `EntityGraph: ${relationCount} rel, ${evidenceCount} evidence${
+          hopDepth !== null ? `, hop ${hopDepth}` : ""
+        }${entityPreview ? ` (${entityPreview}${matchedEntities.length > 2 ? ", ..." : ""})` : ""}`
+      );
+    }
+
     // Score adjustment
     if (
       typeof explanation.baseScore === "number" &&

@@ -324,6 +324,9 @@ export const AISettings: React.FC = () => {
           "Compaction summary length",
           "Default context window",
           "Context pressure indicator",
+          "Loaded chat context rebuild",
+          "Rehydrate external context on load",
+          "Context compaction mode",
         ]}
       >
         <SettingItem
@@ -381,6 +384,42 @@ export const AISettings: React.FC = () => {
           onCheckedChange={(checked: boolean) =>
             updateSetting("showContextPressureIndicator", checked)
           }
+        />
+        <SettingItem
+          type="select"
+          title="Context compaction mode"
+          description="Choose compaction aggressiveness for large lore context."
+          value={settings.contextCompactionMode}
+          onChange={(value) =>
+            updateSetting(
+              "contextCompactionMode",
+              value as "conservative" | "balanced" | "aggressive"
+            )
+          }
+          options={[
+            { label: "Conservative", value: "conservative" },
+            { label: "Balanced", value: "balanced" },
+            { label: "Aggressive", value: "aggressive" },
+          ]}
+        />
+        <SettingItem
+          type="switch"
+          title="Loaded chat context rebuild"
+          description="Rebuild context library layers lazily on the first message after loading a saved chat."
+          checked={settings.rebuildContextLibraryOnLoadedChat}
+          onCheckedChange={(checked: boolean) =>
+            updateSetting("rebuildContextLibraryOnLoadedChat", checked)
+          }
+        />
+        <SettingItem
+          type="switch"
+          title="Rehydrate external context on load"
+          description="During loaded-chat rebuild, include URL/web-tab context rehydration (slower, may fetch changed content)."
+          checked={settings.rehydrateExternalContextOnLoad}
+          onCheckedChange={(checked: boolean) =>
+            updateSetting("rehydrateExternalContextOnLoad", checked)
+          }
+          disabled={!settings.rebuildContextLibraryOnLoadedChat}
         />
       </SettingsSection>
 

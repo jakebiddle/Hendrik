@@ -55,6 +55,16 @@ import {
 } from "./utils/AgentReasoningState";
 import { QueryExpander } from "@/search/v3/QueryExpander";
 import { isProjectMode } from "@/aiParams";
+import {
+  buildForcedLocalSearchCall,
+  evaluateLocalSearchStrength,
+  extractFindTitleSources,
+  extractReadNoteSources,
+  extractSalientTerms,
+  isExplicitReadIntent,
+  normalizeLocalSearchArgs,
+  shouldForceRetrievalFirstRouting,
+} from "./utils/retrievalRouting";
 
 type AgentSource = {
   title: string;
@@ -787,9 +797,14 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
     const maxIterations = getSettings().autonomousAgentMaxIterations;
     const collectedSources: AgentSource[] = [];
     const loopStartTime = Date.now();
+    const retrievalFirstRequired = shouldForceRetrievalFirstRouting(originalPrompt);
+    const explicitReadIntent = isExplicitReadIntent(originalPrompt);
 
     let iteration = 0;
     let responseMetadata: ResponseMetadata | undefined;
+    let retrievalFirstCompleted = !retrievalFirstRequired;
+    let evaluatedFirstLocalSearch = false;
+    let deterministicFallbackExecuted = false;
 
     while (iteration < maxIterations) {
       if (abortController.signal.aborted) break;
@@ -817,16 +832,53 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
         tokenUsage: streamingResult.tokenUsage ?? undefined,
       };
 
-      // Check for native tool calls
-      const toolCalls = aiMessage.tool_calls || [];
+      // Check for native tool calls and enforce retrieval-first when required
+      const modelToolCalls = aiMessage.tool_calls || [];
+      let effectiveToolCalls = modelToolCalls;
+      let aiMessageForExecution = aiMessage;
+
+      if (!retrievalFirstCompleted) {
+        const plannedLocalSearch = modelToolCalls.find((tc) => tc.name === "localSearch");
+
+        if (plannedLocalSearch) {
+          effectiveToolCalls = [plannedLocalSearch];
+          if (modelToolCalls.length > 1 || modelToolCalls[0]?.name !== "localSearch") {
+            logInfo("[Agent] Retrieval-first routing active, deferring non-localSearch tool calls");
+          }
+        } else {
+          const forcedCall = buildForcedLocalSearchCall(
+            originalPrompt,
+            extractSalientTerms(originalPrompt)
+          );
+          effectiveToolCalls = [
+            {
+              id: generateToolCallId(),
+              name: forcedCall.toolName,
+              args: forcedCall.args,
+              type: "tool_call" as const,
+            },
+          ];
+          logInfo("[Agent] Injected retrieval-first localSearch call");
+        }
+
+        aiMessageForExecution = new AIMessage({
+          content: aiMessage.content,
+          tool_calls: effectiveToolCalls.map((tc) => ({
+            id: tc.id || generateToolCallId(),
+            name: tc.name,
+            args: (tc.args || {}) as Record<string, unknown>,
+            type: "tool_call" as const,
+          })),
+        });
+      }
 
       // No tool calls = final response
-      if (toolCalls.length === 0) {
+      if (effectiveToolCalls.length === 0) {
         // Stop reasoning timer and finalize the reasoning block
         this.stopReasoningTimer();
         this.reasoningState.status = "complete";
 
-        messages.push(aiMessage);
+        messages.push(aiMessageForExecution);
 
         // Final response is ONLY this iteration's content, not accumulated intermediate content
         const finalContent = content;
@@ -865,7 +917,7 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
 
       // Add AI message with tool calls - but DON'T accumulate intermediate content
       // Intermediate content (like "I'll search for..." ) should not appear in final response
-      messages.push(aiMessage);
+      messages.push(aiMessageForExecution);
 
       // For iterations > 1, the model's content often contains its summary of findings
       // from previous tool calls. Extract first sentence as a "finding summary".
@@ -878,13 +930,17 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
       }
 
       // Execute each tool
-      for (const tc of toolCalls) {
+      for (const tc of effectiveToolCalls) {
         if (abortController.signal.aborted) break;
 
         const toolCall = {
           name: tc.name,
           args: tc.args as Record<string, unknown>,
         };
+
+        if (tc.name === "localSearch") {
+          toolCall.args = normalizeLocalSearchArgs(toolCall.args, originalPrompt);
+        }
 
         // Pre-expand query for localSearch to show expanded terms BEFORE search
         let preExpandedTerms: QueryExpansionInfo | undefined;
@@ -948,6 +1004,10 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
 
         // Track source info for reasoning summary
         let sourceInfo: LocalSearchSourceInfo | undefined;
+        if (tc.name === "localSearch" && !evaluatedFirstLocalSearch) {
+          evaluatedFirstLocalSearch = true;
+          retrievalFirstCompleted = true;
+        }
 
         // Special handling for localSearch
         if (tc.name === "localSearch" && result.success) {
@@ -960,10 +1020,55 @@ export class AutonomousAgentChainRunner extends ToolCallingChainRunner {
             count: processed.sources.length,
           };
 
+          const strength = evaluateLocalSearchStrength(result.result);
+
+          if (!explicitReadIntent && strength.isWeak && !deterministicFallbackExecuted) {
+            deterministicFallbackExecuted = true;
+            logInfo(
+              `[Agent] localSearch considered weak (topScore=${strength.topScore.toFixed(3)}); running deterministic title/read fallback`
+            );
+            const fallbackResult = await this.runDeterministicTitleReadFallback(originalPrompt);
+            collectedSources.push(...fallbackResult.sources);
+
+            for (const fallbackOutput of fallbackResult.toolOutputs) {
+              const fallbackResultText =
+                typeof fallbackOutput.output === "string"
+                  ? fallbackOutput.output
+                  : JSON.stringify(fallbackOutput.output);
+              const fallbackExecutionResult = {
+                toolName: fallbackOutput.tool,
+                result: fallbackResultText,
+                success: true,
+              };
+
+              this.addReasoningStep(
+                `Fallback ${fallbackOutput.tool} executed due to weak retrieval evidence.`,
+                fallbackOutput.tool
+              );
+              this.addReasoningStep(
+                summarizeToolResult(fallbackOutput.tool, fallbackExecutionResult, undefined, {
+                  query: originalPrompt,
+                }),
+                fallbackOutput.tool
+              );
+
+              const fallbackToolMessage = createToolResultMessage(
+                generateToolCallId(),
+                fallbackOutput.tool,
+                fallbackResultText
+              );
+              messages.push(fallbackToolMessage);
+            }
+          }
+
           result.result = applyCiCOrderingToLocalSearchResult(
             processed.formattedForLLM,
             originalPrompt || ""
           );
+        } else if (tc.name === "findNotesByTitle" && result.success) {
+          collectedSources.push(...extractFindTitleSources(result.result));
+        } else if (tc.name === "readNote" && result.success) {
+          collectedSources.push(...extractReadNoteSources(result.result));
         }
 
         logToolResult(tc.name, result);

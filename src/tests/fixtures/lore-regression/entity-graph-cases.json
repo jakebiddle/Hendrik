@@ -1,0 +1,74 @@
+{
+  "cases": [
+    {
+      "id": "alias-evidence-pass",
+      "query": "Where was the Iron Prince born?",
+      "entityQueryMode": true,
+      "entityEvidence": true,
+      "candidateResponse": "The Iron Prince was born in Sunhold [^1].\n\n#### Sources:\n[^1]: [[Chronicle/Arin.md]]",
+      "expectedAbstain": false,
+      "requiredTruthPhrases": ["Sunhold"],
+      "forbiddenPhrases": ["Moonfall"]
+    },
+    {
+      "id": "treaty-date-pass",
+      "query": "When was the Dawn Treaty signed?",
+      "entityQueryMode": true,
+      "entityEvidence": true,
+      "candidateResponse": "The Dawn Treaty was signed in 1203 [^1].\n\n#### Sources:\n[^1]: [[History/Dawn-Treaty.md]]",
+      "expectedAbstain": false,
+      "requiredTruthPhrases": ["1203"],
+      "forbiddenPhrases": ["1201"]
+    },
+    {
+      "id": "lineage-pass",
+      "query": "Who succeeded Queen Elira?",
+      "entityQueryMode": true,
+      "entityEvidence": true,
+      "candidateResponse": "King Toren succeeded Queen Elira [^1].\n\n#### Sources:\n[^1]: [[Royal-Lineage.md]]",
+      "expectedAbstain": false,
+      "requiredTruthPhrases": ["King Toren"],
+      "forbiddenPhrases": ["Prince Mael"]
+    },
+    {
+      "id": "founding-pass",
+      "query": "Which city founded the western alliance?",
+      "entityQueryMode": true,
+      "entityEvidence": true,
+      "candidateResponse": "Sunhold founded the western alliance [^1].\n\n#### Sources:\n[^1]: [[Cities/Sunhold.md]]",
+      "expectedAbstain": false,
+      "requiredTruthPhrases": ["Sunhold"],
+      "forbiddenPhrases": ["Duskport"]
+    },
+    {
+      "id": "missing-evidence-abstain-1",
+      "query": "What was Arin's hidden bloodline mark?",
+      "entityQueryMode": true,
+      "entityEvidence": false,
+      "candidateResponse": "Arin bore the mark of the Ash Crown.",
+      "expectedAbstain": true,
+      "requiredTruthPhrases": [],
+      "forbiddenPhrases": []
+    },
+    {
+      "id": "missing-evidence-abstain-2",
+      "query": "Who secretly commanded the obsidian fleet?",
+      "entityQueryMode": true,
+      "entityEvidence": false,
+      "candidateResponse": "The fleet was commanded by Lira.",
+      "expectedAbstain": true,
+      "requiredTruthPhrases": [],
+      "forbiddenPhrases": []
+    },
+    {
+      "id": "uncited-response-abstain",
+      "query": "What year did Arin swear the western oath?",
+      "entityQueryMode": true,
+      "entityEvidence": true,
+      "candidateResponse": "Arin swore the oath in 1204.",
+      "expectedAbstain": true,
+      "requiredTruthPhrases": [],
+      "forbiddenPhrases": []
+    }
+  ]
+}

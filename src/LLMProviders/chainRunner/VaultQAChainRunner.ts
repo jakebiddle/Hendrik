@@ -28,6 +28,26 @@ import { ThinkBlockStreamer } from "./utils/ThinkBlockStreamer";
 import { getModelKey } from "@/aiParams";
 
 export class VaultQAChainRunner extends BaseChainRunner {
+  /**
+   * Builds a strict abstain response for entity-evidence gating.
+   *
+   * @param reason - Gate trigger reason.
+   * @returns User-facing abstain message.
+   */
+  private buildEntityEvidenceGateMessage(reason: "missing-evidence" | "missing-citations"): string {
+    if (reason === "missing-citations") {
+      return (
+        "I cannot provide a lore assertion without verifiable entity evidence and inline citations. " +
+        "Please refine the query or provide explicit source notes."
+      );
+    }
+
+    return (
+      "Insufficient entity-backed lore evidence was found for this request. " +
+      "Please narrow the query, reference specific entities, or attach relevant notes."
+    );
+  }
+
   async run(
     userMessage: ChatMessage,
     abortController: AbortController,
@@ -107,6 +127,26 @@ export class VaultQAChainRunner extends BaseChainRunner {
 
       // Retrieve relevant documents
       const retrievedDocs = await retriever.getRelevantDocuments(standaloneQuestion);
+
+      const entityQueryMode = retrievedDocs.some((doc: any) =>
+        Boolean(doc.metadata?.entityQueryMode)
+      );
+      const entityEvidenceFound = retrievedDocs.some((doc: any) =>
+        Boolean(doc.metadata?.entityEvidence || doc.metadata?.explanation?.entityGraph)
+      );
+      const strictEntityGate = settings.entityGraphStrictEvidenceGate;
+
+      if (entityQueryMode && strictEntityGate && !entityEvidenceFound) {
+        const gateMessage = this.buildEntityEvidenceGateMessage("missing-evidence");
+        await this.handleResponse(
+          gateMessage,
+          userMessage,
+          abortController,
+          addMessage,
+          updateCurrentAiMessage
+        );
+        return gateMessage;
+      }
 
       // Store retrieved documents for sources
       this.chainManager.storeRetrieverDocuments(retrievedDocs);
@@ -242,7 +282,18 @@ export class VaultQAChainRunner extends BaseChainRunner {
     }
 
     // Add sources to the response
-    const fullAIResponse = this.addSourcestoResponse(result.content);
+    const retrievedDocs = this.chainManager.getRetrievedDocuments();
+    const entityQueryMode = retrievedDocs.some((doc: any) =>
+      Boolean(doc.metadata?.entityQueryMode)
+    );
+    const strictEntityGate = getSettings().entityGraphStrictEvidenceGate;
+
+    let gatedResponse = result.content;
+    if (entityQueryMode && strictEntityGate && !hasInlineCitations(gatedResponse)) {
+      gatedResponse = this.buildEntityEvidenceGateMessage("missing-citations");
+    }
+
+    const fullAIResponse = this.addSourcestoResponse(gatedResponse);
 
     await this.handleResponse(
       fullAIResponse,

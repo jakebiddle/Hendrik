@@ -217,6 +217,10 @@ export type RelevantNoteEntry = {
     similarityScore: number | undefined;
     hasOutgoingLinks: boolean;
     hasBacklinks: boolean;
+    entityEvidence?: {
+      relationTypes: string[];
+      relationCount: number;
+    };
   };
 };
 /**
@@ -269,6 +273,14 @@ export async function findRelevantNotes({
           similarityScore: similarityScoreMap.get(path),
           hasOutgoingLinks: noteLinks.get(path)?.links ?? false,
           hasBacklinks: noteLinks.get(path)?.backlinks ?? false,
+          entityEvidence: {
+            relationTypes: [
+              ...(noteLinks.get(path)?.links ? ["wiki_link"] : []),
+              ...(noteLinks.get(path)?.backlinks ? ["backlink"] : []),
+            ],
+            relationCount:
+              (noteLinks.get(path)?.links ? 1 : 0) + (noteLinks.get(path)?.backlinks ? 1 : 0),
+          },
         },
       };
     })
@@ -356,6 +368,14 @@ export async function findRelevantNotesViaSC({
           similarityScore: similarityScoreMap.get(path),
           hasOutgoingLinks: noteLinks.get(path)?.links ?? false,
           hasBacklinks: noteLinks.get(path)?.backlinks ?? false,
+          entityEvidence: {
+            relationTypes: [
+              ...(noteLinks.get(path)?.links ? ["wiki_link"] : []),
+              ...(noteLinks.get(path)?.backlinks ? ["backlink"] : []),
+            ],
+            relationCount:
+              (noteLinks.get(path)?.links ? 1 : 0) + (noteLinks.get(path)?.backlinks ? 1 : 0),
+          },
         },
       };
     })

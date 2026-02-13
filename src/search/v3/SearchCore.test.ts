@@ -181,4 +181,27 @@ describe("SearchCore tag recall", () => {
     expect(searchMock.mock.calls[0][1]).toBe(200);
     expect(retrieveResult.results.length).toBe(2);
   });
+
+  it("should sanitize preExpandedQuery object artifacts before recall", async () => {
+    const searchCore = new SearchCore(mockApp as any);
+
+    await searchCore.retrieve("seed", {
+      preExpandedQuery: {
+        originalQuery: "seed",
+        queries: ["valid query", "[object Object]"],
+        salientTerms: ["valid-term", "[object Object]"],
+        expandedQueries: ["related query", "[object Object]"],
+        expandedTerms: ["related-term", "[object Object]"],
+      },
+    });
+
+    expect(expandMock).not.toHaveBeenCalled();
+
+    const recallQueries = searchMock.mock.calls[0][0] as string[];
+    expect(recallQueries).toEqual(expect.arrayContaining(["valid query", "valid-term"]));
+    expect(recallQueries.some((term) => term.includes("[object Object]"))).toBe(false);
+
+    const grepQueries = batchCachedReadGrepMock.mock.calls[0][0] as string[];
+    expect(grepQueries.some((term) => term.includes("[object Object]"))).toBe(false);
+  });
 });

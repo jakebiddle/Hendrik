@@ -1,4 +1,5 @@
 import { ensureFolderExists } from "@/utils";
+import { SemanticRelationProposalStore } from "@/search/entityGraph";
 import { normalizePath, TAbstractFile, TFile, TFolder } from "obsidian";
 import { z } from "zod";
 import { createLangChainTool } from "./createLangChainTool";
@@ -366,6 +367,30 @@ const deleteFolderSchema = z.object({
     .describe("Must be true to confirm destructive folder deletion."),
 });
 
+const submitSemanticRelationProposalsSchema = z.object({
+  proposals: z
+    .array(
+      z.object({
+        notePath: z.string().min(1).describe("Source note path for this relation proposal."),
+        predicate: z.string().min(1).describe("Canonical or alias semantic predicate label."),
+        targetPath: z.string().min(1).describe("Target note path for this relation proposal."),
+        confidence: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe("Optional confidence score as 0-100 percentage."),
+        sourceField: z
+          .string()
+          .optional()
+          .describe("Optional source field label to retain proposal provenance."),
+      })
+    )
+    .min(1)
+    .max(500)
+    .describe("Semantic relation proposals to stage for the batch editor."),
+});
+
 export const findNotesByTitleTool = createLangChainTool({
   name: "findNotesByTitle",
   description: "Find notes by title/path similarity without reading note content.",
@@ -522,6 +547,30 @@ export const upsertFrontmatterTool = createLangChainTool({
       notePath: file.path,
       updatedKeys: Object.keys(patch),
       removedKeys: removeKeys,
+    };
+  },
+});
+
+export const submitSemanticRelationProposalsTool = createLangChainTool({
+  name: "submitSemanticRelationProposals",
+  description:
+    "Submit AI-extracted semantic relation proposals into Hendrik's editable semantic batch editor queue.",
+  schema: submitSemanticRelationProposalsSchema,
+  func: async ({ proposals }) => {
+    const store = SemanticRelationProposalStore.getInstance();
+    const acceptedCount = store.ingestProposals(proposals, "tool:submitSemanticRelationProposals");
+    const totalBuffered = store.getAllProposals().length;
+
+    return {
+      type: "semantic_relation_proposals",
+      submitted: proposals.length,
+      accepted: acceptedCount,
+      totalBuffered,
+      status: acceptedCount > 0 ? "queued" : "no_valid_proposals",
+      message:
+        acceptedCount > 0
+          ? "Proposals queued for manual review in Semantic Batch Editor."
+          : "No valid proposals were accepted.",
     };
   },
 });

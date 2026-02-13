@@ -284,6 +284,27 @@ describe("QueryExpander", () => {
       expect(result.expandedTerms).toContain("term");
     });
 
+    it("should filter object artifacts from parsed query variants and terms", async () => {
+      mockChatModel.invoke.mockResolvedValue({
+        content: `<queries>
+<query>[object Object]</query>
+<query>valid variant</query>
+</queries>
+<terms>
+<term>[object Object]</term>
+<term>valid-term</term>
+</terms>`,
+      });
+
+      const result = await expander.expand("seed query");
+
+      expect(result.queries).toContain("seed query");
+      expect(result.queries).toContain("valid variant");
+      expect(result.queries).not.toContain("[object Object]");
+      expect(result.expandedTerms).toContain("valid-term");
+      expect(result.expandedTerms).not.toContain("[object Object]");
+    });
+
     it("should validate terms and filter action verbs", async () => {
       mockChatModel.invoke.mockResolvedValue({
         content: `<queries>

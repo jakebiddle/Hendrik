@@ -17,12 +17,14 @@ import { logInfo, logWarn } from "@/logger";
 import { getSettings } from "@/settings/model";
 import { getSystemPromptWithMemory } from "@/system-prompts/systemPromptBuilder";
 import { writeToFileTool } from "@/tools/ComposerTools";
+import { readNoteTool } from "@/tools/NoteTools";
 import { ToolManager } from "@/tools/toolManager";
 import { ToolResultFormatter } from "@/tools/ToolResultFormatter";
 import { ToolRegistry } from "@/tools/ToolRegistry";
 import { initializeBuiltinTools } from "@/tools/builtinTools";
 import { localSearchTool, webSearchTool } from "@/tools/SearchTools";
 import { updateMemoryTool } from "@/tools/memoryTools";
+import { findNotesByTitleTool } from "@/tools/VaultManagementTools";
 import { extractChatHistory } from "@/utils";
 import { ChatMessage, ResponseMetadata } from "@/types/message";
 import {
@@ -38,6 +40,7 @@ import {
   addFallbackSources,
   formatSourceCatalog,
   getLocalSearchGuidance,
+  hasInlineCitations,
   sanitizeContentForCitations,
   type SourceCatalogEntry,
 } from "./utils/citationUtils";
@@ -59,6 +62,17 @@ import { ThinkBlockStreamer } from "./utils/ThinkBlockStreamer";
 import { deduplicateSources } from "./utils/toolExecution";
 import { recordPromptPayload } from "./utils/promptPayloadRecorder";
 import { unescapeXml } from "./utils/xmlParsing";
+import {
+  buildForcedLocalSearchCall,
+  evaluateLocalSearchStrength,
+  extractFindTitleSources,
+  extractReadNoteSources,
+  extractSalientTerms,
+  isExplicitReadIntent,
+  normalizeLocalSearchArgs,
+  pickBestFallbackPath,
+  shouldForceRetrievalFirstRouting,
+} from "./utils/retrievalRouting";
 import { StructuredTool } from "@langchain/core/tools";
 import { AIMessage } from "@langchain/core/messages";
 import ProjectManager from "@/LLMProviders/projectManager";
@@ -68,6 +82,13 @@ type ToolCallWithExecutor = {
   tool: any;
   args: any;
 };
+
+interface ToolExecutionResult {
+  toolOutputs: { tool: string; output: any }[];
+  sources: { title: string; path: string; score: number; explanation?: any }[];
+  entityQueryMode: boolean;
+  entityEvidenceFound: boolean;
+}
 
 export class ToolCallingChainRunner extends BaseChainRunner {
   /**
@@ -86,15 +107,29 @@ export class ToolCallingChainRunner extends BaseChainRunner {
     // Get all tools as StructuredTool instances
     const allTools = registry.getAllTools().map((def) => def.tool);
 
-    // Return only utility tools that need automatic detection
-    // Other tools (@vault, @websearch, @memory) are handled by @command logic
+    // Return tools eligible for native model planning.
+    // @command logic can still inject/augment calls, but planning should also be
+    // capable of selecting file/composer operations directly when appropriate.
     return allTools.filter((tool) => {
       return (
         tool.name === "getCurrentTime" ||
         tool.name === "convertTimeBetweenTimezones" ||
         tool.name === "getTimeInfoByEpoch" ||
         tool.name === "getTimeRangeMs" ||
-        tool.name === "getFileTree"
+        tool.name === "getFileTree" ||
+        tool.name === "readNote" ||
+        tool.name === "findNotesByTitle" ||
+        tool.name === "batchReadNotes" ||
+        tool.name === "getBacklinks" ||
+        tool.name === "writeToFile" ||
+        tool.name === "replaceInFile" ||
+        tool.name === "moveOrRenameNote" ||
+        tool.name === "createFolder" ||
+        tool.name === "renameFolder" ||
+        tool.name === "moveFolder" ||
+        tool.name === "deleteFolder" ||
+        tool.name === "upsertFrontmatter" ||
+        tool.name === "submitSemanticRelationProposals"
       );
     });
   }
@@ -125,6 +160,10 @@ Guidelines:
 - Use tools when the user's request requires external information or computation
 - For time-related queries, use getTimeRangeMs to convert time expressions to timestamps
 - For file structure queries, use getFileTree to explore the vault
+- For note/file creation or full rewrites, use writeToFile
+- For targeted edits inside existing files, use replaceInFile
+- For file/folder operations, use moveOrRenameNote/createFolder/renameFolder/moveFolder/deleteFolder
+- If user includes @composer and requests file changes, prioritize file operation tools over plain text advice
 - If no tools are needed, respond with your analysis
 
 After analyzing, extract key search terms from the user's message that would be useful for searching notes:
@@ -206,12 +245,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
    * Uses language-agnostic heuristics: keeps words with 3+ characters.
    */
   private extractSalientTermsFromQuery(query: string): string[] {
-    // Language-agnostic extraction: split on whitespace and punctuation,
-    // keep words with sufficient length (filters out short function words in most languages)
-    return query
-      .split(/[\s\p{P}]+/u) // Split on whitespace and punctuation (Unicode-aware)
-      .filter((word) => word.length >= 3) // Keep words with 3+ characters
-      .slice(0, 10); // Limit to 10 terms
+    return extractSalientTerms(query);
   }
 
   /**
@@ -776,12 +810,15 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
     const thinkStreamer = new ThinkBlockStreamer(updateCurrentAiMessage, excludeThinking);
     let sources: { title: string; path: string; score: number; explanation?: any }[] = [];
+    let entityQueryMode = false;
+    let entityEvidenceFound = false;
 
     // Plus license check removed — all features available without subscription
 
     try {
       logInfo("==== Step 1: Planning tools ====");
       let toolCalls: ToolCallWithExecutor[];
+      let plannedSalientTerms: string[] = [];
 
       // Extract L5 (raw user query) from envelope for tool planning
       const envelope = userMessage.contextEnvelope;
@@ -797,6 +834,7 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
         // Use model-based planning instead of Broca
         const chatModel = this.chainManager.chatModelManager.getChatModel();
         const planningResult = await this.planToolCalls(messageForAnalysis, chatModel);
+        plannedSalientTerms = planningResult.salientTerms;
 
         // Execute getTimeRangeMs immediately if present (needed for localSearch timeRange)
         // We execute it once here and remove it from toolCalls to avoid double execution
@@ -869,13 +907,41 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       // Clean user message by removing @command tokens
       const cleanedUserMessage = this.removeAtCommands(userMessage.message);
 
-      const { toolOutputs, sources: toolSources } = await this.executeToolCalls(
+      if (shouldForceRetrievalFirstRouting(cleanedUserMessage)) {
+        const hasLocalSearch = toolCalls.some((tc) => tc.tool.name === "localSearch");
+        if (!hasLocalSearch) {
+          const fallbackTerms =
+            plannedSalientTerms.length > 0
+              ? plannedSalientTerms
+              : extractSalientTerms(cleanedUserMessage);
+          const forcedCall = buildForcedLocalSearchCall(cleanedUserMessage, fallbackTerms);
+          toolCalls = [{ tool: localSearchTool, args: forcedCall.args }, ...toolCalls];
+          logInfo("[ToolCalling] Forced retrieval-first localSearch before other tools");
+        }
+      }
+
+      const toolExecutionResult = await this.executeToolCalls(
         toolCalls,
-        updateLoadingMessage
+        updateLoadingMessage,
+        cleanedUserMessage
       );
+      const { toolOutputs, sources: toolSources } = toolExecutionResult;
+      entityQueryMode = toolExecutionResult.entityQueryMode;
+      entityEvidenceFound = toolExecutionResult.entityEvidenceFound;
 
       // Use sources from tool execution
       sources = toolSources;
+
+      if (entityQueryMode && getSettings().entityGraphStrictEvidenceGate && !entityEvidenceFound) {
+        const gateMessage = this.buildEntityEvidenceGateMessage("missing-evidence");
+        return await this.handleResponse(
+          gateMessage,
+          userMessage,
+          abortController,
+          addMessage,
+          updateCurrentAiMessage
+        );
+      }
 
       // All tools (including localSearch) are treated uniformly
       // They all go to the user message with consistent formatting
@@ -934,11 +1000,22 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
         ? this.lastCitationSources
         : ((sources as any[]) || []).map((source) => ({ title: source.title, path: source.path }));
 
+    const hadInlineCitationsBeforeFallback = hasInlineCitations(fullAIResponse);
+
     fullAIResponse = addFallbackSources(
       fullAIResponse,
       fallbackSources,
       settings.enableInlineCitations
     );
+
+    if (
+      entityQueryMode &&
+      settings.entityGraphStrictEvidenceGate &&
+      !hadInlineCitationsBeforeFallback
+    ) {
+      fullAIResponse = this.buildEntityEvidenceGateMessage("missing-citations");
+      sources = [];
+    }
 
     await this.handleResponse(
       fullAIResponse,
@@ -956,13 +1033,15 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
   private async executeToolCalls(
     toolCalls: any[],
-    updateLoadingMessage?: (message: string) => void
-  ): Promise<{
-    toolOutputs: { tool: string; output: any }[];
-    sources: { title: string; path: string; score: number; explanation?: any }[];
-  }> {
+    updateLoadingMessage?: (message: string) => void,
+    originalQuery = ""
+  ): Promise<ToolExecutionResult> {
     const toolOutputs = [];
     const allSources: { title: string; path: string; score: number; explanation?: any }[] = [];
+    let entityQueryMode = false;
+    let entityEvidenceFound = false;
+    let evaluatedFirstLocalSearch = false;
+    const explicitReadIntent = isExplicitReadIntent(originalQuery);
 
     // TODO: remove this hack until better solution in place (logan, wenzheng)
     // Skip getFileTree if localSearch is already being called to avoid redundant work
@@ -984,7 +1063,11 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       } else if (toolCall.tool.name === "getFileTree") {
         updateLoadingMessage?.(LOADING_MESSAGES.READING_FILE_TREE);
       }
-      const output = await ToolManager.callTool(toolCall.tool, toolCall.args);
+      const effectiveArgs =
+        toolCall.tool.name === "localSearch"
+          ? normalizeLocalSearchArgs(toolCall.args, originalQuery)
+          : toolCall.args;
+      const output = await ToolManager.callTool(toolCall.tool, effectiveArgs);
 
       // Process localSearch results immediately
       if (toolCall.tool.name === "localSearch") {
@@ -996,15 +1079,117 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
         // Collect sources
         allSources.push(...processed.sources);
+        entityQueryMode = entityQueryMode || processed.entityQueryMode;
+        entityEvidenceFound = entityEvidenceFound || processed.entityEvidenceFound;
 
         // Store the formatted output for LLM
         toolOutputs.push({ tool: toolCall.tool.name, output: processed.formattedForLLM });
+
+        if (!evaluatedFirstLocalSearch) {
+          evaluatedFirstLocalSearch = true;
+          const localStrength = evaluateLocalSearchStrength(outputStr);
+          const strictEntityPreGateTriggered =
+            processed.entityQueryMode &&
+            getSettings().entityGraphStrictEvidenceGate &&
+            !processed.entityEvidenceFound;
+
+          if (!explicitReadIntent && localStrength.isWeak && !strictEntityPreGateTriggered) {
+            logInfo(
+              `[ToolCalling] localSearch considered weak (topScore=${localStrength.topScore.toFixed(3)}); running deterministic title/read fallback`
+            );
+            const fallbackResult = await this.runDeterministicTitleReadFallback(
+              originalQuery,
+              updateLoadingMessage
+            );
+            toolOutputs.push(...fallbackResult.toolOutputs);
+            allSources.push(...fallbackResult.sources);
+          }
+        }
+      } else if (toolCall.tool.name === "findNotesByTitle") {
+        toolOutputs.push({ tool: toolCall.tool.name, output });
+        allSources.push(...extractFindTitleSources(output));
+      } else if (toolCall.tool.name === "readNote") {
+        toolOutputs.push({ tool: toolCall.tool.name, output });
+        allSources.push(...extractReadNoteSources(output));
       } else {
         toolOutputs.push({ tool: toolCall.tool.name, output });
       }
     }
 
-    return { toolOutputs, sources: deduplicateSources(allSources) };
+    return {
+      toolOutputs,
+      sources: deduplicateSources(allSources),
+      entityQueryMode,
+      entityEvidenceFound,
+    };
+  }
+
+  /**
+   * Deterministic fallback used when retrieval-first localSearch is weak.
+   * Runs title lookup then reads chunk 0 from the best markdown candidate.
+   */
+  protected async runDeterministicTitleReadFallback(
+    query: string,
+    updateLoadingMessage?: (message: string) => void
+  ): Promise<{
+    toolOutputs: { tool: string; output: any }[];
+    sources: { title: string; path: string; score: number; explanation?: any }[];
+  }> {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      return { toolOutputs: [], sources: [] };
+    }
+
+    const toolOutputs: { tool: string; output: any }[] = [];
+    const sources: { title: string; path: string; score: number; explanation?: any }[] = [];
+
+    try {
+      updateLoadingMessage?.(LOADING_MESSAGES.READING_FILES);
+      logInfo("[ToolCalling] Running deterministic findNotesByTitle -> readNote fallback");
+
+      const findArgs = {
+        query: normalizedQuery,
+        limit: 10,
+        includeCanvas: false,
+      };
+      const findResult = await ToolManager.callTool(findNotesByTitleTool, findArgs);
+      toolOutputs.push({ tool: "findNotesByTitle", output: findResult });
+      sources.push(...extractFindTitleSources(findResult));
+
+      const bestPath = pickBestFallbackPath(findResult);
+      if (!bestPath) {
+        return {
+          toolOutputs,
+          sources: deduplicateSources(sources),
+        };
+      }
+
+      const readResult = await ToolManager.callTool(readNoteTool, {
+        notePath: bestPath,
+        chunkIndex: 0,
+      });
+      toolOutputs.push({ tool: "readNote", output: readResult });
+      sources.push(
+        ...extractReadNoteSources(readResult).map((source) => ({
+          ...source,
+          explanation: {
+            ...(source.explanation || {}),
+            toolEvidence: {
+              ...(source.explanation?.toolEvidence || {}),
+              tool: "readNote",
+              query: normalizedQuery,
+            },
+          },
+        }))
+      );
+    } catch (error) {
+      logWarn("[ToolCalling] Deterministic fallback failed", error);
+    }
+
+    return {
+      toolOutputs,
+      sources: deduplicateSources(sources),
+    };
   }
 
   // Persist citation lines built for this turn to reuse in fallback
@@ -1109,19 +1294,37 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
     formattedForLLM: string;
     formattedForDisplay: string;
     sources: { title: string; path: string; score: number; explanation?: any }[];
+    entityQueryMode: boolean;
+    entityEvidenceFound: boolean;
   } {
     let sources: { title: string; path: string; score: number; explanation?: any }[] = [];
     let formattedForLLM: string;
     let formattedForDisplay: string;
+    let entityQueryMode = false;
+    let entityEvidenceFound = false;
 
     if (!toolResult.success) {
       formattedForLLM = "<localSearch>\nSearch failed.\n</localSearch>";
       formattedForDisplay = `Search failed: ${toolResult.result}`;
-      return { formattedForLLM, formattedForDisplay, sources };
+      return {
+        formattedForLLM,
+        formattedForDisplay,
+        sources,
+        entityQueryMode,
+        entityEvidenceFound,
+      };
     }
 
     try {
       const parsed = JSON.parse(toolResult.result);
+      entityQueryMode =
+        parsed && typeof parsed === "object" && typeof parsed.entityQueryMode === "boolean"
+          ? parsed.entityQueryMode
+          : false;
+      entityEvidenceFound =
+        parsed && typeof parsed === "object" && typeof parsed.entityEvidence === "boolean"
+          ? parsed.entityEvidence
+          : false;
       const searchResults =
         parsed &&
         typeof parsed === "object" &&
@@ -1132,7 +1335,13 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       if (!Array.isArray(searchResults)) {
         formattedForLLM = "<localSearch>\nInvalid search results format.\n</localSearch>";
         formattedForDisplay = "Search results were in an unexpected format.";
-        return { formattedForLLM, formattedForDisplay, sources };
+        return {
+          formattedForLLM,
+          formattedForDisplay,
+          sources,
+          entityQueryMode,
+          entityEvidenceFound,
+        };
       }
 
       // Log a concise debug table of results with explanations (title, ctime, mtime)
@@ -1140,6 +1349,11 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
 
       // Extract sources with explanation for UI display
       sources = extractSourcesFromSearchResults(searchResults);
+      if (!entityEvidenceFound) {
+        entityEvidenceFound = sources.some((source) =>
+          Boolean((source.explanation as any)?.entityGraph)
+        );
+      }
 
       // Prepare and format results for LLM (include stable ids)
       formattedForLLM = this.prepareLocalSearchResult(searchResults, timeExpression || "");
@@ -1154,11 +1368,37 @@ Include your extracted terms as: [SALIENT_TERMS: term1, term2, term3]`;
       formattedForDisplay = ToolResultFormatter.format("localSearch", formattedForLLM);
     }
 
-    return { formattedForLLM, formattedForDisplay, sources };
+    return {
+      formattedForLLM,
+      formattedForDisplay,
+      sources,
+      entityQueryMode,
+      entityEvidenceFound,
+    };
   }
 
   protected async getSystemPrompt(): Promise<string> {
     return getSystemPromptWithMemory(this.chainManager.userMemoryManager);
+  }
+
+  /**
+   * Builds a deterministic abstain response for strict entity-evidence gating.
+   *
+   * @param reason - Gate trigger reason.
+   * @returns User-facing abstain message.
+   */
+  private buildEntityEvidenceGateMessage(reason: "missing-evidence" | "missing-citations"): string {
+    if (reason === "missing-citations") {
+      return (
+        "I cannot provide a lore assertion without verifiable entity evidence and inline citations. " +
+        "Please refine the query or provide explicit source notes."
+      );
+    }
+
+    return (
+      "Insufficient entity-backed lore evidence was found for this request. " +
+      "Please narrow the query, reference specific entities, or attach relevant notes."
+    );
   }
 
   /**

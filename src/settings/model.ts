@@ -141,6 +141,28 @@ export interface HendrikSettings {
   useSmartConnections: boolean;
   /** Enable lexical boosts (folder and graph) in search - default: true */
   enableLexicalBoosts: boolean;
+  /** Enable entity graph retrieval augmentation for lore-heavy queries. */
+  enableEntityGraphRetrieval: boolean;
+  /** Show entity graph evidence details in source and relevant-note surfaces. */
+  enableEntityEvidencePanel: boolean;
+  /** Maximum graph hop distance for entity expansion (1-4). */
+  entityGraphMaxHops: number;
+  /** Maximum number of graph-expanded documents merged into retrieval results. */
+  entityGraphMaxExpandedDocs: number;
+  /** Enforce strict abstain when entity-backed evidence or citations are missing. */
+  entityGraphStrictEvidenceGate: boolean;
+  /** Frontmatter fields used as additional entity alias sources. */
+  entityAliasFields: string[];
+  /** Enable semantic relation extraction from structured worldbuilding frontmatter. */
+  enableSemanticEntityRelations: boolean;
+  /** Frontmatter fields inspected for canonical semantic relation arrays. */
+  semanticEntityRelationFields: string[];
+  /** Minimum confidence (0-100) required for semantic relation extraction. */
+  semanticEntityMinConfidence: number;
+  /** Preview batch size used by semantic relation rollout workflows. */
+  semanticEntityBatchSize: number;
+  /** Allow users to edit semantic relation preview batches before apply. */
+  enableSemanticEntityBatchEditing: boolean;
   /**
    * RAM limit for lexical search index (in MB)
    * Controls memory usage for full-text search operations
@@ -193,6 +215,12 @@ export interface HendrikSettings {
   defaultMaxContextTokens: number;
   /** Show context pressure indicator in chat controls */
   showContextPressureIndicator: boolean;
+  /** Rebuild context library layers lazily after loading saved chat history. */
+  rebuildContextLibraryOnLoadedChat: boolean;
+  /** Rehydrate external context sources (URLs/Web tabs) during loaded-chat rebuild. */
+  rehydrateExternalContextOnLoad: boolean;
+  /** Context compaction strategy profile. */
+  contextCompactionMode: "conservative" | "balanced" | "aggressive";
   /** Active chronicle mode id ("none" = off, "narrator", "lorekeeper", "worldbuilder") */
   chronicleMode: string;
 }
@@ -393,6 +421,93 @@ export function sanitizeSettings(settings: HendrikSettings): HendrikSettings {
     sanitizedSettings.lexicalSearchRamLimit = Math.min(1000, Math.max(20, lexicalSearchRamLimit));
   }
 
+  // Ensure entity graph retrieval toggles have defaults
+  if (typeof sanitizedSettings.enableEntityGraphRetrieval !== "boolean") {
+    sanitizedSettings.enableEntityGraphRetrieval = DEFAULT_SETTINGS.enableEntityGraphRetrieval;
+  }
+
+  if (typeof sanitizedSettings.enableEntityEvidencePanel !== "boolean") {
+    sanitizedSettings.enableEntityEvidencePanel = DEFAULT_SETTINGS.enableEntityEvidencePanel;
+  }
+
+  if (typeof sanitizedSettings.entityGraphStrictEvidenceGate !== "boolean") {
+    sanitizedSettings.entityGraphStrictEvidenceGate =
+      DEFAULT_SETTINGS.entityGraphStrictEvidenceGate;
+  }
+
+  if (typeof sanitizedSettings.enableSemanticEntityRelations !== "boolean") {
+    sanitizedSettings.enableSemanticEntityRelations =
+      DEFAULT_SETTINGS.enableSemanticEntityRelations;
+  }
+
+  if (typeof sanitizedSettings.enableSemanticEntityBatchEditing !== "boolean") {
+    sanitizedSettings.enableSemanticEntityBatchEditing =
+      DEFAULT_SETTINGS.enableSemanticEntityBatchEditing;
+  }
+
+  // Ensure entityGraphMaxHops has a valid value (1-4)
+  const entityGraphMaxHops = Number(settingsToSanitize.entityGraphMaxHops);
+  if (isNaN(entityGraphMaxHops)) {
+    sanitizedSettings.entityGraphMaxHops = DEFAULT_SETTINGS.entityGraphMaxHops;
+  } else {
+    sanitizedSettings.entityGraphMaxHops = Math.min(4, Math.max(1, Math.floor(entityGraphMaxHops)));
+  }
+
+  // Ensure entityGraphMaxExpandedDocs has a valid value (4-100)
+  const entityGraphMaxExpandedDocs = Number(settingsToSanitize.entityGraphMaxExpandedDocs);
+  if (isNaN(entityGraphMaxExpandedDocs)) {
+    sanitizedSettings.entityGraphMaxExpandedDocs = DEFAULT_SETTINGS.entityGraphMaxExpandedDocs;
+  } else {
+    sanitizedSettings.entityGraphMaxExpandedDocs = Math.min(
+      100,
+      Math.max(4, Math.floor(entityGraphMaxExpandedDocs))
+    );
+  }
+
+  // Ensure entityAliasFields is a normalized string array
+  if (!Array.isArray(sanitizedSettings.entityAliasFields)) {
+    sanitizedSettings.entityAliasFields = DEFAULT_SETTINGS.entityAliasFields;
+  } else {
+    sanitizedSettings.entityAliasFields = sanitizedSettings.entityAliasFields
+      .filter((field): field is string => typeof field === "string")
+      .map((field) => field.trim())
+      .filter((field) => field.length > 0)
+      .slice(0, 24);
+  }
+
+  // Ensure semanticEntityRelationFields is a normalized string array
+  if (!Array.isArray(sanitizedSettings.semanticEntityRelationFields)) {
+    sanitizedSettings.semanticEntityRelationFields = DEFAULT_SETTINGS.semanticEntityRelationFields;
+  } else {
+    sanitizedSettings.semanticEntityRelationFields = sanitizedSettings.semanticEntityRelationFields
+      .filter((field): field is string => typeof field === "string")
+      .map((field) => field.trim())
+      .filter((field) => field.length > 0)
+      .slice(0, 24);
+  }
+
+  // Ensure semanticEntityMinConfidence has a valid value (0-100)
+  const semanticEntityMinConfidence = Number(settingsToSanitize.semanticEntityMinConfidence);
+  if (isNaN(semanticEntityMinConfidence)) {
+    sanitizedSettings.semanticEntityMinConfidence = DEFAULT_SETTINGS.semanticEntityMinConfidence;
+  } else {
+    sanitizedSettings.semanticEntityMinConfidence = Math.min(
+      100,
+      Math.max(0, Math.floor(semanticEntityMinConfidence))
+    );
+  }
+
+  // Ensure semanticEntityBatchSize has a valid value (5-200)
+  const semanticEntityBatchSize = Number(settingsToSanitize.semanticEntityBatchSize);
+  if (isNaN(semanticEntityBatchSize)) {
+    sanitizedSettings.semanticEntityBatchSize = DEFAULT_SETTINGS.semanticEntityBatchSize;
+  } else {
+    sanitizedSettings.semanticEntityBatchSize = Math.min(
+      200,
+      Math.max(5, Math.floor(semanticEntityBatchSize))
+    );
+  }
+
   // Ensure autoAddActiveContentToContext has a default value (migrate from old settings)
   if (typeof sanitizedSettings.autoAddActiveContentToContext !== "boolean") {
     // Migration: check old setting first (includeActiveNoteAsContext)
@@ -528,6 +643,23 @@ export function sanitizeSettings(settings: HendrikSettings): HendrikSettings {
   // Ensure showContextPressureIndicator has a default value
   if (typeof sanitizedSettings.showContextPressureIndicator !== "boolean") {
     sanitizedSettings.showContextPressureIndicator = DEFAULT_SETTINGS.showContextPressureIndicator;
+  }
+
+  // Ensure loaded-chat context rebuild toggles have defaults
+  if (typeof sanitizedSettings.rebuildContextLibraryOnLoadedChat !== "boolean") {
+    sanitizedSettings.rebuildContextLibraryOnLoadedChat =
+      DEFAULT_SETTINGS.rebuildContextLibraryOnLoadedChat;
+  }
+
+  if (typeof sanitizedSettings.rehydrateExternalContextOnLoad !== "boolean") {
+    sanitizedSettings.rehydrateExternalContextOnLoad =
+      DEFAULT_SETTINGS.rehydrateExternalContextOnLoad;
+  }
+
+  // Ensure contextCompactionMode has a valid value
+  const validCompactionModes = ["conservative", "balanced", "aggressive"] as const;
+  if (!validCompactionModes.includes(sanitizedSettings.contextCompactionMode)) {
+    sanitizedSettings.contextCompactionMode = DEFAULT_SETTINGS.contextCompactionMode;
   }
 
   // Ensure quickCommandIncludeNoteContext has a default value

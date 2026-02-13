@@ -3,12 +3,15 @@ import React, { useState } from "react";
 import { CustomModel } from "@/aiParams";
 import { RebuildIndexConfirmModal } from "@/components/modals/RebuildIndexConfirmModal";
 import { SemanticSearchToggleModal } from "@/components/modals/SemanticSearchToggleModal";
+import { SemanticRelationBatchEditorModal } from "@/components/modals/SemanticRelationBatchEditorModal";
+import { Button } from "@/components/ui/button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { getModelDisplayWithIcons } from "@/components/ui/model-display";
 import { SettingItem } from "@/components/ui/setting-item";
 import { BUILTIN_EMBEDDING_MODELS, VAULT_VECTOR_STORE_STRATEGIES } from "@/constants";
 import EmbeddingManager from "@/LLMProviders/embeddingManager";
 import { logError } from "@/logger";
+import { createToolOutputSemanticRelationAdapter } from "@/search/entityGraph";
 import {
   HendrikSettings,
   getModelKeyFromModel,
@@ -24,13 +27,58 @@ import { SmartConnectionsStatus } from "@/settings/v2/components/SmartConnection
 import { useSettingsSearch } from "@/settings/v2/search/SettingsSearchContext";
 import { shouldRunAutoIndexing } from "@/utils/indexingGuards";
 import { omit } from "@/utils";
-import { Cpu, FolderTree, Gauge, HardDrive, Scan, SlidersHorizontal } from "lucide-react";
+import { Cpu, FolderTree, Gauge, HardDrive, Network, Scan, SlidersHorizontal } from "lucide-react";
 import { Notice } from "obsidian";
+
+const DEFAULT_SEMANTIC_RELATION_FIELD_PRESETS = [
+  "relations",
+  "worldRelations",
+  "loreRelations",
+  "characterRelations",
+  "factionRelations",
+  "locationRelations",
+  "artifactRelations",
+  "eventRelations",
+] as const;
 
 export const SearchSettings: React.FC = () => {
   const settings = useSettingsValue();
   const [showAddEmbeddingDialog, setShowAddEmbeddingDialog] = useState(false);
   const { normalizedQuery } = useSettingsSearch();
+  const entityAliasFieldsValue = settings.entityAliasFields.join(", ");
+  const semanticRelationFieldsValue = settings.semanticEntityRelationFields.join(", ");
+
+  const toggleSemanticFieldPreset = (fieldName: string) => {
+    const hasField = settings.semanticEntityRelationFields.includes(fieldName);
+    if (hasField) {
+      updateSetting(
+        "semanticEntityRelationFields",
+        settings.semanticEntityRelationFields.filter((field) => field !== fieldName)
+      );
+      return;
+    }
+
+    updateSetting("semanticEntityRelationFields", [
+      ...settings.semanticEntityRelationFields,
+      fieldName,
+    ]);
+  };
+
+  const enableAllSemanticFieldPresets = () => {
+    const currentFields = new Set(settings.semanticEntityRelationFields);
+    DEFAULT_SEMANTIC_RELATION_FIELD_PRESETS.forEach((fieldName) => currentFields.add(fieldName));
+    updateSetting("semanticEntityRelationFields", Array.from(currentFields));
+  };
+
+  const clearAllSemanticFieldPresets = () => {
+    const presetFieldNames: readonly string[] = DEFAULT_SEMANTIC_RELATION_FIELD_PRESETS;
+    updateSetting(
+      "semanticEntityRelationFields",
+      settings.semanticEntityRelationFields.filter(
+        (fieldName) => !presetFieldNames.includes(fieldName)
+      )
+    );
+  };
 
   const handleSetDefaultEmbeddingModel = async (modelKey: string) => {
     if (modelKey === settings.embeddingModelKey) return;
@@ -179,6 +227,224 @@ export const SearchSettings: React.FC = () => {
           checked={settings.enableInlineCitations}
           onCheckedChange={(checked) => updateSetting("enableInlineCitations", checked)}
         />
+      </SettingsSection>
+
+      {/* Entity Graph Retrieval */}
+      <SettingsSection
+        icon={<Network className="tw-size-4" />}
+        title="Entity Graph Retrieval"
+        description="Deterministic lore graph augmentation and strict entity evidence gating."
+        accentColor="var(--color-green)"
+        searchTerms={[
+          "Entity Graph Retrieval",
+          "Entity Evidence Panel",
+          "Entity Graph Max Hops",
+          "Entity Graph Max Expanded Docs",
+          "Strict Entity Evidence Gate",
+          "Entity Alias Fields",
+          "Enable Semantic Entity Relations",
+          "Semantic Relation Fields",
+          "Semantic Relation Field Presets",
+          "Semantic Relation Confidence",
+          "Semantic Relation Batch Size",
+          "Enable Editable Semantic Batches",
+        ]}
+      >
+        <SettingItem
+          type="switch"
+          title="Enable Entity Graph Retrieval"
+          description="Augment lexical retrieval with deterministic graph neighbors derived from links, tags, and frontmatter references."
+          checked={settings.enableEntityGraphRetrieval}
+          onCheckedChange={(checked) => updateSetting("enableEntityGraphRetrieval", checked)}
+        />
+
+        <SettingItem
+          type="switch"
+          title="Enable Entity Evidence Panel"
+          description="Show entity-graph evidence details in source and relevant-note surfaces."
+          checked={settings.enableEntityEvidencePanel}
+          onCheckedChange={(checked) => updateSetting("enableEntityEvidencePanel", checked)}
+          disabled={!settings.enableEntityGraphRetrieval}
+        />
+
+        <SettingItem
+          type="switch"
+          title="Strict Entity Evidence Gate"
+          description="When enabled, entity-heavy answers abstain if graph evidence or inline citations are missing."
+          checked={settings.entityGraphStrictEvidenceGate}
+          onCheckedChange={(checked) => updateSetting("entityGraphStrictEvidenceGate", checked)}
+          disabled={!settings.enableEntityGraphRetrieval}
+        />
+
+        <SettingItem
+          type="slider"
+          title="Entity Graph Max Hops"
+          description="Maximum hop depth for entity-neighbor expansion."
+          min={1}
+          max={4}
+          step={1}
+          value={settings.entityGraphMaxHops}
+          onChange={(value) => updateSetting("entityGraphMaxHops", value)}
+          disabled={!settings.enableEntityGraphRetrieval}
+        />
+
+        <SettingItem
+          type="slider"
+          title="Entity Graph Max Expanded Docs"
+          description="Maximum number of graph-expanded documents merged into retrieval results."
+          min={4}
+          max={100}
+          step={1}
+          value={settings.entityGraphMaxExpandedDocs}
+          onChange={(value) => updateSetting("entityGraphMaxExpandedDocs", value)}
+          disabled={!settings.enableEntityGraphRetrieval}
+        />
+
+        <SettingItem
+          type="text"
+          title="Entity Alias Fields"
+          description="Comma-separated frontmatter field names used as additional aliases (for example: aliases, epithets, alternateNames)."
+          value={entityAliasFieldsValue}
+          onChange={(value) => {
+            const aliasFields = value
+              .split(",")
+              .map((field) => field.trim())
+              .filter((field) => field.length > 0);
+            updateSetting("entityAliasFields", aliasFields);
+          }}
+          placeholder="aliases, alternateNames"
+          disabled={!settings.enableEntityGraphRetrieval}
+        />
+
+        <SettingItem
+          type="switch"
+          title="Enable Semantic Entity Relations"
+          description="Extract typed worldbuilding relations from structured frontmatter in addition to deterministic graph signals."
+          checked={settings.enableSemanticEntityRelations}
+          onCheckedChange={(checked) => updateSetting("enableSemanticEntityRelations", checked)}
+          disabled={!settings.enableEntityGraphRetrieval}
+        />
+
+        <SettingItem
+          type="text"
+          title="Semantic Relation Fields"
+          description="Comma-separated frontmatter fields used for canonical relation arrays (for example: relations, worldRelations)."
+          value={semanticRelationFieldsValue}
+          onChange={(value) => {
+            const relationFields = value
+              .split(",")
+              .map((field) => field.trim())
+              .filter((field) => field.length > 0);
+            updateSetting("semanticEntityRelationFields", relationFields);
+          }}
+          placeholder="relations, worldRelations"
+          disabled={!settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations}
+        />
+
+        <SettingItem
+          type="custom"
+          title="Semantic Relation Field Presets"
+          description="Enable common worldbuilding frontmatter fields with one click."
+          disabled={!settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations}
+        >
+          <div className="tw-flex tw-flex-wrap tw-gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={enableAllSemanticFieldPresets}
+              disabled={
+                !settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations
+              }
+            >
+              Select all
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={clearAllSemanticFieldPresets}
+              disabled={
+                !settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations
+              }
+            >
+              Clear all
+            </Button>
+          </div>
+
+          <div className="tw-mt-2 tw-flex tw-flex-wrap tw-gap-2">
+            {DEFAULT_SEMANTIC_RELATION_FIELD_PRESETS.map((fieldName) => {
+              const isEnabled = settings.semanticEntityRelationFields.includes(fieldName);
+              return (
+                <Button
+                  key={fieldName}
+                  size="sm"
+                  variant={isEnabled ? "default" : "secondary"}
+                  onClick={() => toggleSemanticFieldPreset(fieldName)}
+                  disabled={
+                    !settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations
+                  }
+                >
+                  {fieldName}
+                </Button>
+              );
+            })}
+          </div>
+        </SettingItem>
+
+        <SettingItem
+          type="slider"
+          title="Semantic Relation Confidence"
+          description="Minimum confidence required to accept semantic frontmatter relations."
+          min={0}
+          max={100}
+          step={1}
+          suffix="%"
+          value={settings.semanticEntityMinConfidence}
+          onChange={(value) => updateSetting("semanticEntityMinConfidence", value)}
+          disabled={!settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations}
+        />
+
+        <SettingItem
+          type="slider"
+          title="Semantic Relation Batch Size"
+          description="Preview/apply batch size used by semantic frontmatter rollout workflows."
+          min={5}
+          max={200}
+          step={1}
+          value={settings.semanticEntityBatchSize}
+          onChange={(value) => updateSetting("semanticEntityBatchSize", value)}
+          disabled={!settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations}
+        />
+
+        <SettingItem
+          type="switch"
+          title="Enable Editable Semantic Batches"
+          description="Allow users to edit AI-proposed semantic relation batches before applying frontmatter updates."
+          checked={settings.enableSemanticEntityBatchEditing}
+          onCheckedChange={(checked) => updateSetting("enableSemanticEntityBatchEditing", checked)}
+          disabled={!settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations}
+        />
+
+        <SettingItem
+          type="custom"
+          title="Semantic Batch Editor"
+          description="Open editable preview batches and apply approved frontmatter updates."
+          disabled={!settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations}
+        >
+          <Button
+            variant="secondary"
+            onClick={() =>
+              new SemanticRelationBatchEditorModal(app, {
+                proposalAdapters: [createToolOutputSemanticRelationAdapter()],
+                includeVaultDrafts: true,
+              }).open()
+            }
+            disabled={
+              !settings.enableEntityGraphRetrieval || !settings.enableSemanticEntityRelations
+            }
+          >
+            Open Batch Editor
+          </Button>
+        </SettingItem>
       </SettingsSection>
 
       {/* Embedding Configuration */}

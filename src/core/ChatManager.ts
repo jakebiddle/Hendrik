@@ -59,6 +59,7 @@ export class ChatManager {
   private projectMessageRepos: Map<string, MessageRepository> = new Map();
   private defaultProjectKey = "defaultProjectKey";
   private lastKnownProjectId: string | null = null;
+  private reposPendingContextHydration: Set<string> = new Set();
   private isMemorySyncRequired = false;
   private persistenceManager: ChatPersistenceManager;
   private onMessageCreatedCallback?: (messageId: string) => void;
@@ -77,12 +78,19 @@ export class ChatManager {
   }
 
   /**
+   * Resolve the current repository key (project-scoped when applicable).
+   */
+  private getCurrentRepoKey(): string {
+    return this.plugin.projectManager.getCurrentProjectId() ?? this.defaultProjectKey;
+  }
+
+  /**
    * Get the current project's message repository
    * Automatically detects project changes and handles repository switching
    */
   private getCurrentMessageRepo(): MessageRepository {
     const currentProjectId = this.plugin.projectManager.getCurrentProjectId();
-    const projectKey = currentProjectId ?? this.defaultProjectKey;
+    const projectKey = this.getCurrentRepoKey();
 
     // Detect if project has changed
     if (this.lastKnownProjectId !== currentProjectId) {
@@ -123,6 +131,110 @@ export class ChatManager {
     logInfo("[Perf][ChatManager] ensureMemorySynced start");
     await this.updateChainMemory();
     logInfo(`[Perf][ChatManager] ensureMemorySynced done (${formatElapsedMs(ensureSyncStartMs)})`);
+  }
+
+  /**
+   * Creates a context clone for loaded-chat hydration according to settings.
+   * External context sources are optionally stripped to keep hydration deterministic/local.
+   *
+   * @param context - Original persisted message context.
+   * @returns Sanitized context used for hydration.
+   */
+  private buildHydrationContext(context?: MessageContext): MessageContext | undefined {
+    if (!context) {
+      return undefined;
+    }
+
+    const settings = getSettings();
+    const baseContext: MessageContext = {
+      notes: context.notes || [],
+      urls: context.urls || [],
+      tags: context.tags || [],
+      folders: context.folders || [],
+      selectedTextContexts: context.selectedTextContexts || [],
+      webTabs: context.webTabs || [],
+    };
+
+    if (settings.rehydrateExternalContextOnLoad) {
+      return baseContext;
+    }
+
+    return {
+      ...baseContext,
+      urls: [],
+      webTabs: [],
+    };
+  }
+
+  /**
+   * Lazily hydrates missing context envelopes for loaded chats on first follow-up send.
+   *
+   * This restores L2 continuity for resumed conversations without performing work at load time.
+   *
+   * @param chainType - Active chain type used for system prompt resolution.
+   * @param currentRepo - Current message repository.
+   */
+  private async hydrateLoadedChatContextIfNeeded(
+    chainType: ChainType,
+    currentRepo: MessageRepository
+  ): Promise<void> {
+    const repoKey = this.getCurrentRepoKey();
+    const settings = getSettings();
+    if (
+      !settings.rebuildContextLibraryOnLoadedChat ||
+      !this.reposPendingContextHydration.has(repoKey)
+    ) {
+      return;
+    }
+
+    const hydrationStartMs = getPerfNowMs();
+    const messages = currentRepo.getDisplayMessages();
+    const userMessagesToHydrate = messages.filter(
+      (message) => message.sender === USER_SENDER && !message.contextEnvelope && !!message.id
+    );
+
+    if (userMessagesToHydrate.length === 0) {
+      this.reposPendingContextHydration.delete(repoKey);
+      return;
+    }
+
+    logInfo(
+      `[ChatManager] Hydrating ${userMessagesToHydrate.length} loaded user message contexts for repo ${repoKey}`
+    );
+
+    const activeNote = this.plugin.app.workspace.getActiveFile();
+    const { processedPrompt: systemPrompt, includedFiles: systemPromptIncludedFiles } =
+      await this.getSystemPromptForMessage(chainType, this.plugin.app.vault, activeNote);
+
+    for (const message of userMessagesToHydrate) {
+      if (!message.id) {
+        continue;
+      }
+
+      const hydratedMessage: ChatMessage = {
+        ...message,
+        context: this.buildHydrationContext(message.context),
+      };
+
+      const { processedContent, contextEnvelope } = await this.contextManager.processMessageContext(
+        hydratedMessage,
+        this.fileParserManager,
+        this.plugin.app.vault,
+        chainType,
+        false,
+        null,
+        currentRepo,
+        systemPrompt,
+        systemPromptIncludedFiles
+      );
+
+      currentRepo.updateProcessedText(message.id, processedContent, contextEnvelope);
+    }
+
+    this.reposPendingContextHydration.delete(repoKey);
+    logInfo(
+      `[ChatManager] Loaded chat context hydration finished in ${formatElapsedMs(hydrationStartMs)}`
+    );
   }
 
   /**
@@ -608,6 +720,8 @@ export class ChatManager {
     try {
       logInfo(`[ChatManager] Sending message: "${displayText}"`);
       await this.ensureMemorySynced();
+      const currentRepo = this.getCurrentMessageRepo();
+      await this.hydrateLoadedChatContextIfNeeded(chainType, currentRepo);
 
       // Get active note
       const activeNote = this.plugin.app.workspace.getActiveFile();
@@ -634,7 +748,6 @@ export class ChatManager {
       );
 
       // Create the message with initial content
-      const currentRepo = this.getCurrentMessageRepo();
       const messageId = currentRepo.addMessage(
         displayText,
         displayText, // Will be updated with processed content
@@ -860,11 +973,13 @@ export class ChatManager {
    * Clear all messages
    */
   clearMessages(): void {
+    const repoKey = this.getCurrentRepoKey();
     const currentRepo = this.getCurrentMessageRepo();
     currentRepo.clear();
     // Clear chain memory directly
     this.chainManager.memoryManager.clearChatMemory();
     this.isMemorySyncRequired = false;
+    this.reposPendingContextHydration.delete(repoKey);
     logInfo(`[ChatManager] Cleared all messages`);
   }
 
@@ -1019,6 +1134,10 @@ export class ChatManager {
 
     // Update chain memory with loaded messages
     await this.updateChainMemory();
+
+    if (getSettings().rebuildContextLibraryOnLoadedChat) {
+      this.reposPendingContextHydration.add(this.getCurrentRepoKey());
+    }
 
     logInfo(`[ChatManager] Loaded ${messages.length} messages from chat history`);
   }

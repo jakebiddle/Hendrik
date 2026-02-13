@@ -1,6 +1,7 @@
 import { executeSequentialToolCall } from "./toolExecution";
 import { createLangChainTool } from "@/tools/createLangChainTool";
 import { ToolRegistry } from "@/tools/ToolRegistry";
+import { SemanticRelationProposalStore } from "@/search/entityGraph";
 import { z } from "zod";
 
 jest.mock("@/logger", () => ({
@@ -144,6 +145,48 @@ describe("toolExecution", () => {
         result: "Error: Invalid tool call - missing tool name",
         success: false,
       });
+    });
+
+    it("should ingest semantic relation proposals from tool payloads", async () => {
+      const relationTool = createLangChainTool({
+        name: "extractEntityRelations",
+        description: "Extract semantic relations",
+        schema: z.object({ input: z.string() }),
+        func: async () => "unused",
+      });
+
+      ToolRegistry.getInstance().register({
+        tool: relationTool,
+        metadata: {
+          id: "extractEntityRelations",
+          displayName: "Extract Entity Relations",
+          description: "Extract semantic relations",
+          category: "custom",
+        },
+      });
+
+      SemanticRelationProposalStore.getInstance().clear();
+      mockCallTool.mockResolvedValueOnce({
+        semanticRelationProposals: [
+          {
+            notePath: "Characters/Arin.md",
+            predicate: "ally",
+            targetPath: "Characters/Lira.md",
+            confidence: 0.9,
+          },
+        ],
+      });
+
+      const result = await executeSequentialToolCall(
+        { name: "extractEntityRelations", args: { input: "Arin allied with Lira" } },
+        [relationTool]
+      );
+
+      expect(result.success).toBe(true);
+      const proposals = SemanticRelationProposalStore.getInstance().getAllProposals();
+      expect(proposals).toHaveLength(1);
+      expect(proposals[0].predicate).toBe("allied_with");
+      expect(proposals[0].sourceField).toBe("tool:extractEntityRelations");
     });
   });
 });

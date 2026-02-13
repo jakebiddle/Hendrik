@@ -32,6 +32,20 @@ export interface SearchExplanation {
     connections: number;
     boostFactor: number;
   };
+  entityGraph?: {
+    matchedEntities: string[];
+    relationTypes: string[];
+    hopDepth: number;
+    evidenceCount: number;
+    relationPaths: string[];
+    evidenceRefs: Array<{
+      path: string;
+      chunkId?: string;
+      mtime: number;
+      extractor: string;
+    }>;
+    scoreContribution: number;
+  };
   expandedBoost?: number; // score contribution from expanded terms (10% weight)
   baseScore: number; // score before boosts
   finalScore: number; // score after all adjustments

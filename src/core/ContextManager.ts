@@ -293,15 +293,27 @@ export class ContextManager {
       if (Number.isFinite(charThreshold) && finalProcessedMessage.length > charThreshold) {
         updateLoadingMessage?.(LOADING_MESSAGES.COMPACTING);
         const compactor = await getContextCompactor();
+        const contextBudgetChars = Math.max(
+          0,
+          Math.floor(charThreshold - processedUserMessage.length)
+        );
         // Only compact context portion, not user message, to preserve boundary
-        const result = await compactor.compact(contextPortion);
+        const result = await compactor.compact(contextPortion, {
+          targetCharCount: contextBudgetChars,
+        });
         if (result.wasCompacted) {
           compactedContextPortion = result.content;
           // Reconstruct with preserved user message + compacted context
           finalProcessedMessage = processedUserMessage + compactedContextPortion;
           wasCompacted = true;
           logInfo(
-            `[ContextManager] Compacted context: ${result.originalCharCount} -> ${result.compactedCharCount} chars`
+            `[ContextManager] Compacted context: ${result.originalCharCount} -> ${result.compactedCharCount} chars ` +
+              `(target=${result.targetCharCount ?? contextBudgetChars}, targetMet=${String(result.targetMet)})`
+          );
+        } else {
+          logInfo(
+            `[ContextManager] Compaction no-op (${result.noOpReason ?? "unknown"}): ` +
+              `${result.originalCharCount} chars (target=${result.targetCharCount ?? contextBudgetChars})`
           );
         }
         updateLoadingMessage?.(LOADING_MESSAGES.DEFAULT);
@@ -416,10 +428,9 @@ export class ContextManager {
    * - Comparing current file mtime with stored mtime when building L2
    * - Skipping path deduplication for stale compacted segments
    *
-   * TODO: Deduplicate L2 content by notePath when building l2Context.
-   * Currently, if the same note is included across multiple turns (e.g., auto-added active note),
-   * its content is appended to L2 once per turn, causing linear growth. Consider deduplicating
-   * by notePath when concatenating L3 segments, not just collecting paths for exclusions.
+   * L2 deduplicates note segments by notePath while preserving first-seen order.
+   * If a note appears multiple times, the latest content wins to keep lore current.
+   * Non-note segments are deduplicated by normalized segment content.
    */
   private buildL2ContextFromPreviousTurns(
     currentMessageId: string,
@@ -438,6 +449,9 @@ export class ContextManager {
 
     const l2Parts: string[] = [];
     const l2Paths = new Set<string>();
+    const noteOrder: string[] = [];
+    const noteContentByPath = new Map<string, string>();
+    const genericSegmentKeys = new Set<string>();
 
     // Find the most recent compacted message index.
     // When a message is compacted, its L3 already includes all prior context (L2 + L3),
@@ -461,14 +475,29 @@ export class ContextManager {
         // Only include L3 content from the most recent compacted message onwards.
         // Earlier messages' content is already included in the compacted L3.
         if (i >= mostRecentCompactedIndex) {
-          const segmentContent: string[] = [];
           for (const segment of l3Layer.segments || []) {
-            if (segment.content) {
-              segmentContent.push(segment.content);
+            const normalizedContent = (segment.content || "").trim();
+            if (!normalizedContent) {
+              continue;
             }
-          }
-          if (segmentContent.length > 0) {
-            l2Parts.push(segmentContent.join("\n"));
+
+            const notePath =
+              typeof segment.metadata?.notePath === "string" ? segment.metadata.notePath : null;
+
+            if (notePath) {
+              if (!noteContentByPath.has(notePath)) {
+                noteOrder.push(notePath);
+              }
+              // Latest mention wins while preserving first-seen ordering.
+              noteContentByPath.set(notePath, normalizedContent);
+              continue;
+            }
+
+            const genericKey = `${segment.id}::${normalizedContent}`;
+            if (!genericSegmentKeys.has(genericKey)) {
+              genericSegmentKeys.add(genericKey);
+              l2Parts.push(normalizedContent);
+            }
           }
         }
 
@@ -491,23 +520,15 @@ export class ContextManager {
           }
         }
       }
-      // Note: Messages without envelopes (pre-envelope chat history or loaded from disk)
-      // are intentionally NOT tracked for L2 deduplication to avoid filtering notes
-      // without their content appearing in L2.
-      //
-      // TODO: Rebuild L2 context for loaded chats.
-      // ChatPersistenceManager saves context metadata (note paths, tags, folders) but not
-      // the full contextEnvelope. When a chat is loaded, messages have context but no envelope,
-      // so L2 context is lost. This means:
-      // 1. AI loses the "context library" from turns before the save
-      // 2. Same notes can be duplicated if re-attached after loading
-      // Fix options:
-      // - Persist envelopes to disk (increases storage, requires migration)
-      // - Rebuild L2 content by re-reading files from message.context on load (expensive)
-      // - Lazy rebuild: process context.notes when first accessed after load
+      // Messages without envelopes are skipped here.
+      // ChatManager now performs lazy envelope hydration for loaded chats on first follow-up turn.
     }
 
-    return { l2Context: l2Parts.join("\n"), l2Paths };
+    const orderedNoteSegments = noteOrder
+      .map((path) => noteContentByPath.get(path))
+      .filter((segment): segment is string => typeof segment === "string" && segment.length > 0);
+
+    return { l2Context: [...orderedNoteSegments, ...l2Parts].join("\n"), l2Paths };
   }
 
   private buildPromptContextEnvelope(

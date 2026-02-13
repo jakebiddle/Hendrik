@@ -1,7 +1,21 @@
 import { logInfo } from "@/logger";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
-import { CompactionResult, ParsedContextItem } from "@/types/compaction";
+import { CompactionNoOpReason, CompactionResult, ParsedContextItem } from "@/types/compaction";
+import { getSettings } from "@/settings/model";
 import { HumanMessage } from "@langchain/core/messages";
+
+interface CompactionOptions {
+  targetCharCount?: number;
+}
+
+interface SummarizationProgress {
+  summaries: Map<number, string>;
+  replacements: Map<number, string>;
+  estimatedLength: number;
+  attemptedCount: number;
+  failedCount: number;
+  highFailureRate: boolean;
+}
 
 /**
  * ContextCompactor - Compresses large context using map-reduce summarization.
@@ -21,10 +35,11 @@ import { HumanMessage } from "@langchain/core/messages";
  * - metadata: Additional info (ctime, mtime)
  *
  * ### 2. MAP Phase (Parallel Summarization)
- * Large items (>50k chars) are sent to the LLM for summarization in parallel.
+ * Candidate items are ranked by size and summarized in descending order.
  * - Uses low temperature (0.1) for deterministic output
  * - Max 3 concurrent requests to avoid API overload
  * - Failed summarizations keep original content
+ * - Stops early once target budget is reached (when provided)
  * - If >50% fail, compaction aborts entirely (fail-safe)
  *
  * ### 3. REDUCE Phase (Rebuild)
@@ -65,8 +80,10 @@ export class ContextCompactor {
   private static instance: ContextCompactor;
   private chatModelManager: ChatModelManager;
 
-  /** Minimum chars to consider an item for summarization */
-  private readonly MIN_ITEM_SIZE = 50000;
+  /** Base item-size threshold used when there is no budget pressure. */
+  private readonly BASE_MIN_ITEM_SIZE = 50000;
+  /** Minimum floor so adaptive threshold can include medium-size blocks under pressure. */
+  private readonly MIN_ITEM_SIZE_FLOOR = 4000;
   /** Max parallel LLM calls */
   private readonly MAX_CONCURRENCY = 3;
   /** Low temperature for deterministic summaries */
@@ -116,28 +133,74 @@ Summary:`;
   /**
    * Compact context using map-reduce summarization.
    */
-  async compact(content: string): Promise<CompactionResult> {
+  async compact(content: string, options: CompactionOptions = {}): Promise<CompactionResult> {
     const originalCharCount = content.length;
-    logInfo(`[ContextCompactor] Starting compaction of ${originalCharCount} chars`);
+    const targetCharCount = this.normalizeTargetCharCount(options.targetCharCount);
+    logInfo(
+      `[ContextCompactor] Starting compaction of ${originalCharCount} chars` +
+        (targetCharCount !== null ? ` (target <= ${targetCharCount})` : "")
+    );
 
     // Parse XML into items
     const items = this.parseItems(content);
     if (items.length === 0) {
-      return this.noOpResult(content);
+      return this.noOpResult(content, "no_items", { targetCharCount });
     }
 
-    // Map: summarize large items
-    const summaries = await this.summarizeItems(items);
-    if (summaries.size === 0) {
-      return this.noOpResult(content);
+    // Context already fits the requested target (if present), no compaction needed.
+    if (targetCharCount !== null && originalCharCount <= targetCharCount) {
+      return this.noOpResult(content, "no_reduction", {
+        itemsProcessed: items.length,
+        targetCharCount,
+      });
+    }
+
+    const candidateIndexes = this.selectCandidateIndexes(items, originalCharCount, targetCharCount);
+    if (candidateIndexes.length === 0) {
+      return this.noOpResult(content, "no_candidates", {
+        itemsProcessed: items.length,
+        targetCharCount,
+      });
+    }
+
+    // Map: summarize candidate items in ranked batches
+    const summaryProgress = await this.summarizeCandidates(
+      items,
+      candidateIndexes,
+      originalCharCount,
+      targetCharCount
+    );
+    if (summaryProgress.highFailureRate) {
+      return this.noOpResult(content, "high_failure_rate", {
+        itemsProcessed: items.length,
+        itemsSummarized: summaryProgress.summaries.size,
+        targetCharCount,
+      });
+    }
+
+    if (summaryProgress.summaries.size === 0) {
+      return this.noOpResult(content, "no_reduction", {
+        itemsProcessed: items.length,
+        targetCharCount,
+      });
     }
 
     // Reduce: rebuild with summaries
-    const compacted = this.rebuild(content, items, summaries);
+    const compacted = this.rebuild(content, items, summaryProgress.replacements);
+    if (compacted.length >= originalCharCount) {
+      return this.noOpResult(content, "no_reduction", {
+        itemsProcessed: items.length,
+        itemsSummarized: summaryProgress.summaries.size,
+        targetCharCount,
+      });
+    }
+
+    const targetMet = targetCharCount !== null ? compacted.length <= targetCharCount : undefined;
 
     logInfo(
       `[ContextCompactor] Done: ${originalCharCount} -> ${compacted.length} chars ` +
-        `(${((1 - compacted.length / originalCharCount) * 100).toFixed(0)}% reduction)`
+        `(${((1 - compacted.length / originalCharCount) * 100).toFixed(0)}% reduction)` +
+        (targetCharCount !== null ? `, targetMet=${String(targetMet)}` : "")
     );
 
     return {
@@ -146,24 +209,139 @@ Summary:`;
       originalCharCount,
       compactedCharCount: compacted.length,
       itemsProcessed: items.length,
-      itemsSummarized: summaries.size,
+      itemsSummarized: summaryProgress.summaries.size,
+      targetCharCount: targetCharCount ?? undefined,
+      targetMet,
     };
+  }
+
+  /**
+   * Normalizes a target size into a non-negative integer, or null when absent.
+   * @param targetCharCount - Optional target content size in characters
+   * @returns Normalized target size, or null
+   */
+  private normalizeTargetCharCount(targetCharCount?: number): number | null {
+    if (typeof targetCharCount !== "number" || !Number.isFinite(targetCharCount)) {
+      return null;
+    }
+
+    return Math.max(0, Math.floor(targetCharCount));
   }
 
   /**
    * Creates a no-op compaction result when no compaction was performed.
    * @param content - The original content that was not compacted
+   * @param noOpReason - Structured reason for why compaction was skipped
+   * @param details - Optional counters and target metadata for diagnostics
    * @returns A CompactionResult indicating no changes were made
    */
-  private noOpResult(content: string): CompactionResult {
+  private noOpResult(
+    content: string,
+    noOpReason: CompactionNoOpReason,
+    details: {
+      itemsProcessed?: number;
+      itemsSummarized?: number;
+      targetCharCount?: number | null;
+    } = {}
+  ): CompactionResult {
+    const targetCharCount =
+      typeof details.targetCharCount === "number" ? details.targetCharCount : undefined;
+    const targetMet = targetCharCount !== undefined ? content.length <= targetCharCount : undefined;
+
+    logInfo(
+      `[ContextCompactor] No-op (${noOpReason})` +
+        (targetCharCount !== undefined ? ` target=${targetCharCount}` : "")
+    );
+
     return {
       content,
       wasCompacted: false,
       originalCharCount: content.length,
       compactedCharCount: content.length,
-      itemsProcessed: 0,
-      itemsSummarized: 0,
+      itemsProcessed: details.itemsProcessed ?? 0,
+      itemsSummarized: details.itemsSummarized ?? 0,
+      noOpReason,
+      targetCharCount,
+      targetMet,
     };
+  }
+
+  /**
+   * Resolve candidate-size profile for the configured compaction mode.
+   *
+   * Conservative mode keeps more raw lore by targeting larger items first.
+   * Aggressive mode includes smaller items under pressure.
+   */
+  private resolveCompactionModeProfile(): { baseMinItemSize: number; minItemFloor: number } {
+    const mode = getSettings().contextCompactionMode;
+
+    if (mode === "conservative") {
+      return {
+        baseMinItemSize: 80000,
+        minItemFloor: 12000,
+      };
+    }
+
+    if (mode === "aggressive") {
+      return {
+        baseMinItemSize: 32000,
+        minItemFloor: 2000,
+      };
+    }
+
+    return {
+      baseMinItemSize: this.BASE_MIN_ITEM_SIZE,
+      minItemFloor: this.MIN_ITEM_SIZE_FLOOR,
+    };
+  }
+
+  /**
+   * Resolve adaptive minimum item size based on compaction pressure.
+   * @param originalCharCount - Original content size
+   * @param targetCharCount - Target size requested by caller
+   * @returns Minimum item size to summarize
+   */
+  private resolveAdaptiveMinItemSize(
+    originalCharCount: number,
+    targetCharCount: number | null
+  ): number {
+    const profile = this.resolveCompactionModeProfile();
+
+    if (targetCharCount === null || originalCharCount <= 0) {
+      return profile.baseMinItemSize;
+    }
+
+    const ratio = Math.min(Math.max(targetCharCount / originalCharCount, 0), 1);
+    const pressureScale = Math.max(0.08, ratio * ratio);
+    const adaptiveThreshold = Math.floor(profile.baseMinItemSize * pressureScale);
+    return Math.max(profile.minItemFloor, adaptiveThreshold);
+  }
+
+  /**
+   * Select candidate item indexes ordered by descending size.
+   * @param items - Parsed context items
+   * @param originalCharCount - Original content size
+   * @param targetCharCount - Target size requested by caller
+   * @returns Candidate indexes sorted by decreasing content length
+   */
+  private selectCandidateIndexes(
+    items: ParsedContextItem[],
+    originalCharCount: number,
+    targetCharCount: number | null
+  ): number[] {
+    const minItemSize = this.resolveAdaptiveMinItemSize(originalCharCount, targetCharCount);
+
+    const candidates = items
+      .map((item, index) => ({ index, size: item.content.length }))
+      .filter(({ size }) => size >= minItemSize)
+      .sort((a, b) => b.size - a.size)
+      .map(({ index }) => index);
+
+    logInfo(
+      `[ContextCompactor] Candidate threshold=${minItemSize}, candidates=${candidates.length}/${items.length}`
+    );
+
+    return candidates;
   }
 
   /**
@@ -205,7 +383,16 @@ Summary:`;
    */
   private parseBlock(block: string, type: string, startIndex: number): ParsedContextItem | null {
     const extract = (tag: string) => new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(block)?.[1] || "";
-    const extractContent = () => /<content>([\s\S]*?)<\/content>/.exec(block)?.[1] || "";
+    const extractContent = (): string => {
+      const openTag = "<content>";
+      const closeTag = "</content>";
+      const start = block.indexOf(openTag);
+      const end = block.lastIndexOf(closeTag);
+      if (start === -1 || end === -1 || end < start) {
+        return "";
+      }
+      return block.slice(start + openTag.length, end);
+    };
 
     const path = extract("path") || extract("url");
     const title = extract("title") || path.split("/").pop() || "Untitled";
@@ -224,25 +411,33 @@ Summary:`;
   }
 
   /**
-   * Map phase: summarize large items in parallel batches.
+   * Map phase: summarize candidate items in parallel batches.
+   * Stops early when the estimated compacted size reaches the requested target.
    */
-  private async summarizeItems(items: ParsedContextItem[]): Promise<Map<number, string>> {
+  private async summarizeCandidates(
+    items: ParsedContextItem[],
+    candidateIndexes: number[],
+    originalCharCount: number,
+    targetCharCount: number | null
+  ): Promise<SummarizationProgress> {
     const summaries = new Map<number, string>();
+    const replacements = new Map<number, string>();
+    let estimatedLength = originalCharCount;
+    let attemptedCount = 0;
+    let failedCount = 0;
 
-    // Filter items needing summarization
-    const toProcess = items
-      .map((item, index) => ({ index, item }))
-      .filter(({ item }) => item.content.length >= this.MIN_ITEM_SIZE);
-
-    if (toProcess.length === 0) return summaries;
-
-    logInfo(`[ContextCompactor] Summarizing ${toProcess.length} items`);
+    logInfo(`[ContextCompactor] Summarizing up to ${candidateIndexes.length} candidate items`);
 
     // Process in batches
-    for (let i = 0; i < toProcess.length; i += this.MAX_CONCURRENCY) {
-      const batch = toProcess.slice(i, i + this.MAX_CONCURRENCY);
+    for (let i = 0; i < candidateIndexes.length; i += this.MAX_CONCURRENCY) {
+      if (targetCharCount !== null && estimatedLength <= targetCharCount) {
+        break;
+      }
+
+      const batch = candidateIndexes.slice(i, i + this.MAX_CONCURRENCY);
       const results = await Promise.all(
-        batch.map(async ({ index, item }) => {
+        batch.map(async (index) => {
+          const item = items[index];
           try {
             return { index, summary: await this.summarize(item) };
           } catch (e) {
@@ -251,18 +446,42 @@ Summary:`;
           }
         })
       );
+
       results.forEach(({ index, summary }) => {
-        if (summary) summaries.set(index, summary);
+        attemptedCount += 1;
+        if (!summary) {
+          failedCount += 1;
+          return;
+        }
+
+        summaries.set(index, summary);
+        const replacement = this.buildBlock(items[index], summary);
+        replacements.set(index, replacement);
+        estimatedLength += replacement.length - items[index].originalXml.length;
       });
+
+      // Abort if too many failures
+      if (attemptedCount > 0 && failedCount / attemptedCount > 0.5) {
+        logInfo(`[ContextCompactor] High failure rate, aborting compaction`);
+        return {
+          summaries,
+          replacements,
+          estimatedLength,
+          attemptedCount,
+          failedCount,
+          highFailureRate: true,
+        };
+      }
     }
 
-    // Abort if too many failures
-    if (summaries.size < toProcess.length * 0.5) {
-      logInfo(`[ContextCompactor] High failure rate, aborting compaction`);
-      return new Map();
-    }
-
-    return summaries;
+    return {
+      summaries,
+      replacements,
+      estimatedLength,
+      attemptedCount,
+      failedCount,
+      highFailureRate: false,
+    };
   }
 
   /**
@@ -292,17 +511,16 @@ Summary:`;
   private rebuild(
     original: string,
     items: ParsedContextItem[],
-    summaries: Map<number, string>
+    replacements: Map<number, string>
   ): string {
     let result = original;
 
     // Process from end to preserve indices
-    Array.from(summaries.keys())
+    Array.from(replacements.keys())
       .sort((a, b) => b - a)
       .forEach((index) => {
         const item = items[index];
-        const summary = summaries.get(index)!;
-        const newBlock = this.buildBlock(item, summary);
+        const newBlock = replacements.get(index)!;
         result = result.slice(0, item.startIndex) + newBlock + result.slice(item.endIndex);
       });
 

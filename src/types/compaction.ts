@@ -1,4 +1,13 @@
 /**
+ * Structured reason for no-op compaction outcomes.
+ */
+export type CompactionNoOpReason =
+  | "no_items"
+  | "no_candidates"
+  | "high_failure_rate"
+  | "no_reduction";
+
+/**
  * Result of context compaction operation
  */
 export interface CompactionResult {
@@ -14,6 +23,12 @@ export interface CompactionResult {
   itemsProcessed: number;
   /** Number of items that were summarized */
   itemsSummarized: number;
+  /** Requested target size for compacted content (chars) */
+  targetCharCount?: number;
+  /** Whether compaction reached the requested target size */
+  targetMet?: boolean;
+  /** Structured reason when compaction performed no changes */
+  noOpReason?: CompactionNoOpReason;
 }
 
 /**

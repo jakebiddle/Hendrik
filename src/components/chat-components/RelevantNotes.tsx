@@ -34,8 +34,9 @@ const relevantNotesInFlight = new Map<string, Promise<RelevantNoteEntry[]>>();
 const hasIndexCache = new Map<string, CacheEntry<boolean>>();
 const hasIndexInFlight = new Map<string, Promise<boolean>>();
 
-interface RelevantNoteRowProps {
+export interface RelevantNoteRowProps {
   note: RelevantNoteEntry;
+  showEntityEvidence: boolean;
   onAddToChat: () => void;
   onNavigateToNote: (openInNewLeaf: boolean) => void;
 }
@@ -313,8 +314,16 @@ function useHasIndex({
 /**
  * Single compact relevant-note row used in expanded mode.
  */
-function RelevantNoteRow({ note, onAddToChat, onNavigateToNote }: RelevantNoteRowProps) {
+export function RelevantNoteRow({
+  note,
+  showEntityEvidence,
+  onAddToChat,
+  onNavigateToNote,
+}: RelevantNoteRowProps) {
   const similarity = formatSimilarityScore(note.metadata.similarityScore ?? null);
+  const entityEvidence = note.metadata.entityEvidence;
+  const relationTypes = entityEvidence?.relationTypes || [];
+  const showEntityBadges = showEntityEvidence && relationTypes.length > 0;
 
   return (
     <div className="hendrik-relevant-note-row tw-flex tw-flex-col tw-gap-1 tw-rounded-md tw-px-2 tw-py-1.5">
@@ -361,6 +370,25 @@ function RelevantNoteRow({ note, onAddToChat, onNavigateToNote }: RelevantNoteRo
       <div className="hendrik-relevant-note-row__path tw-truncate tw-text-xs tw-text-muted">
         {note.document.path}
       </div>
+
+      {showEntityBadges && (
+        <div className="tw-flex tw-flex-wrap tw-items-center tw-gap-1">
+          {relationTypes.slice(0, 3).map((relation) => (
+            <span
+              key={relation}
+              className="tw-rounded tw-px-1.5 tw-py-0.5 tw-text-[10px] tw-font-medium tw-text-muted tw-bg-muted/40"
+            >
+              {relation}
+            </span>
+          ))}
+          {typeof entityEvidence?.relationCount === "number" &&
+            entityEvidence.relationCount > 0 && (
+              <span className="tw-text-[10px] tw-text-muted">
+                {entityEvidence.relationCount} graph signals
+              </span>
+            )}
+        </div>
+      )}
     </div>
   );
 }
@@ -517,6 +545,7 @@ export const RelevantNotes = memo(
                 <RelevantNoteRow
                   note={note}
                   key={note.document.path}
+                  showEntityEvidence={settings.enableEntityEvidencePanel}
                   onAddToChat={() => addToChat(note.document.path)}
                   onNavigateToNote={(openInNewLeaf: boolean) =>
                     navigateToNote(note.document.path, openInNewLeaf)
